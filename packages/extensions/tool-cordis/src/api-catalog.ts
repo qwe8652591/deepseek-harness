@@ -907,6 +907,110 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'ontology',
+    summary: 'Provider contract for ontology definitions, graph state, Functions, and Actions.',
+    description: 'Provider contract for ontology definitions, graph state, Functions, and Actions.',
+    methods: [
+      {
+        signature: 'abstract register(definition: OntologyDefinition, implementation?: OntologyImplementation): () => void',
+        description: 'Register one definition contribution.',
+        parameters: [{ name: 'definition', description: 'Business definition.' }, { name: 'implementation', description: 'Function and Action adapters.' }],
+        returns: 'Contribution disposer.',
+      },
+      {
+        signature: 'abstract definitions(): readonly OntologyDefinition[]',
+        description: 'Return active definitions in registration order.',
+        parameters: [],
+        returns: 'Immutable snapshot.',
+      },
+      {
+        signature: 'abstract createObject(request: CreateOntologyObjectRequest): Promise<OntologyObject>',
+        description: 'Create and validate an object.',
+        parameters: [{ name: 'request', description: 'Object fields.' }],
+        returns: 'Provider-owned object.',
+      },
+      {
+        signature: 'abstract updateObject(request: UpdateOntologyObjectRequest): Promise<OntologyObject>',
+        description: 'Merge declared properties into a stored object.',
+        parameters: [{ name: 'request', description: 'Object id and property patch.' }],
+        returns: 'Updated immutable object.',
+      },
+      {
+        signature: 'abstract listObjects(type?: OntologyObjectTypeId): readonly OntologyObject[]',
+        description: 'List immutable objects.',
+        parameters: [{ name: 'type', description: 'Optional type filter.' }],
+        returns: 'Matching objects.',
+      },
+      {
+        signature: 'abstract createLink(request: CreateOntologyLinkRequest): Promise<OntologyLink>',
+        description: 'Create and validate a link.',
+        parameters: [{ name: 'request', description: 'Link type and endpoint ids.' }],
+        returns: 'Provider-owned link.',
+      },
+      {
+        signature: 'abstract deleteLink(id: OntologyLinkId): Promise<boolean>',
+        description: 'Delete one link.',
+        parameters: [{ name: 'id', description: 'Link id.' }],
+        returns: 'Whether the link existed.',
+      },
+      {
+        signature: 'abstract listLinks(query?: OntologyLinkQuery): readonly OntologyLink[]',
+        description: 'List immutable links.',
+        parameters: [{ name: 'query', description: 'Optional endpoint and type filters.' }],
+        returns: 'Matching links.',
+      },
+      {
+        signature: 'abstract executeFunction( functionId: OntologyFunctionId, input: Readonly<Record<string, OntologyPropertyValue>>, ): Promise<OntologyFunctionValue>',
+        description: 'Execute a registered read-only Function.',
+        parameters: [{ name: 'functionId', description: 'Function id.' }, { name: 'input', description: 'Function fields.' }],
+        returns: 'Validated Function result.',
+      },
+      {
+        signature: 'abstract executeAction(action: OntologyActionId, input: Readonly<Record<string, OntologyPropertyValue>>): Promise<unknown>',
+        description: 'Execute a registered Action.',
+        parameters: [{ name: 'action', description: 'Action id.' }, { name: 'input', description: 'Action fields.' }],
+        returns: 'Driver result.',
+      },
+    ],
+  },
+  {
+    key: 'ontologyRemote',
+    summary: 'Remote Consumer that keeps transport concerns out of the Provider interface.',
+    description: 'Remote Consumer that keeps transport concerns out of the Provider interface.',
+    methods: [
+      {
+        signature: '@Remote(\'definitions\') definitions(): readonly OntologyDefinition[]',
+        description: 'Return every active versioned definition.',
+        parameters: [],
+        returns: 'Active definitions in registration order.',
+      },
+      {
+        signature: '@Remote(\'listObjects\') listObjects(type?: OntologyObjectTypeId): readonly OntologyObject[]',
+        description: 'Return current object snapshots.',
+        parameters: [{ name: 'type', description: 'Optional object-type filter.' }],
+        returns: 'Matching immutable objects.',
+      },
+      {
+        signature: '@Remote(\'listLinks\') listLinks(query?: OntologyLinkQuery): readonly OntologyLink[]',
+        description: 'Return current link snapshots.',
+        parameters: [{ name: 'query', description: 'Optional endpoint and type filters.' }],
+        returns: 'Matching immutable links.',
+      },
+      {
+        signature: '@Remote(\'executeFunction\') async executeFunction( functionId: OntologyFunctionId, input: Readonly<Record<string, OntologyPropertyValue>>, ): Promise<OntologyFunctionValue>',
+        description: 'Execute one registered read-only Function.',
+        parameters: [{ name: 'functionId', description: 'Function id.' }, { name: 'input', description: 'Scalar Function fields.' }],
+        returns: 'Validated Function result.',
+      },
+      {
+        signature: '@Remote(\'executeAction\') async executeAction(action: OntologyActionId, input: Readonly<Record<string, OntologyPropertyValue>>): Promise<OntologyObject>',
+        description: 'Execute one registered Action through the Provider\'s declared route.',
+        parameters: [{ name: 'action', description: 'Action id.' }, { name: 'input', description: 'Scalar Action fields.' }],
+        returns: 'Object created or returned by the Action.',
+      },
+    ],
+  },
+  {
     key: 'permissionPresets',
     summary: 'Owns the deployment\'s permission presets and their write path.',
     description: 'Owns the deployment\'s permission presets and their write path. Requires a confining `ctx.shell` executor and `ctx.approval`; unmatched knob values are reported as CUSTOM_PRESET, not an error.',
@@ -2094,12 +2198,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
   {
     key: 'workflowEngine',
     summary: 'Workflow Service Definition contract.',
-    description: 'Workflow Service Definition contract. Invalid requests throw before publication; a live run is holder-owned, its result never rejects, cancellation and disposal are bounded, and disposal waits for child cleanup within that bound. Lifecycle listener failures are contained, and `workflow/end` fires exactly once as the result settles.',
+    description: 'Workflow Service Definition contract. Invalid requests throw before publication; a live run is holder-owned, its result never rejects, cancellation and disposal are bounded, and disposal waits for child and activity cleanup within that bound. Lifecycle listener failures are contained, and `workflow/end` fires exactly once as the result settles.',
     methods: [
       {
         signature: 'abstract start(request: WorkflowStartRequest): WorkflowRun',
         description: 'Parse and execute a workflow script.',
-        parameters: [{ name: 'request', description: 'the script, its `args`, the parent agent, and an optional cancel signal.' }],
+        parameters: [{ name: 'request', description: 'The script, arguments, Host activities, optional parent agent, and optional cancel signal.' }],
         returns: 'the live run; its `result` resolves when the script settles.',
       },
     ],
@@ -2910,6 +3014,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface CreateGoalResult {\n    readonly ref: GoalRef;\n}',
   },
   {
+    name: 'CreateOntologyLinkRequest',
+    declaration: 'export interface CreateOntologyLinkRequest {\n    readonly type: OntologyLinkTypeId;\n    readonly from: OntologyObjectId;\n    readonly to: OntologyObjectId;\n}',
+  },
+  {
+    name: 'CreateOntologyObjectRequest',
+    declaration: 'export interface CreateOntologyObjectRequest {\n    readonly type: OntologyObjectTypeId;\n    readonly properties: Readonly<Record<string, OntologyPropertyValue>>;\n}',
+  },
+  {
     name: 'CreateSessionOptions',
     declaration: 'export interface CreateSessionOptions {\n    readonly seed?: readonly SessionEvent[];\n    readonly meta?: {\n        readonly cwd?: string;\n        readonly parentSession?: SessionId;\n        readonly createdAt?: number;\n        readonly seedLength?: number;\n        readonly origin?: \'subagent\';\n        readonly delegationDepth?: number;\n        readonly agentPreset?: string;\n    };\n}',
   },
@@ -3472,6 +3584,118 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'OneShotSubagentDescriptorData',
     declaration: 'export interface OneShotSubagentDescriptorData extends SubagentDescriptorBase {\n    readonly mode: \'one-shot\';\n    readonly label?: string;\n}',
+  },
+  {
+    name: 'OntologyActionContext',
+    declaration: 'export interface OntologyActionContext extends OntologyReadContext {\n    createObject(request: CreateOntologyObjectRequest): Promise<OntologyObject>;\n    updateObject(request: UpdateOntologyObjectRequest): Promise<OntologyObject>;\n    createLink(request: CreateOntologyLinkRequest): Promise<OntologyLink>;\n    deleteLink(id: OntologyLinkId): Promise<boolean>;\n    executeFunction(functionId: OntologyFunctionId, input: Readonly<Record<string, OntologyPropertyValue>>): Promise<OntologyFunctionValue>;\n}',
+  },
+  {
+    name: 'OntologyActionDefinition',
+    declaration: 'export interface OntologyActionDefinition {\n    readonly id: OntologyActionId;\n    readonly label: string;\n    readonly target?: OntologyObjectTypeId;\n    readonly driver: OntologyActionDriver;\n    readonly description: string;\n    readonly inputs?: readonly OntologyPropertyDefinition[];\n    readonly result?: OntologyObjectTypeId;\n}',
+  },
+  {
+    name: 'OntologyActionDriver',
+    declaration: 'export type OntologyActionDriver = \'machine\' | \'workflow\' | \'agent\' | \'human\';',
+  },
+  {
+    name: 'OntologyActionHandler',
+    declaration: 'export type OntologyActionHandler = (input: Readonly<Record<string, OntologyPropertyValue>>, context: OntologyActionContext) => Promise<unknown>;',
+  },
+  {
+    name: 'OntologyActionHandlers',
+    declaration: 'export type OntologyActionHandlers = Readonly<Partial<Record<OntologyActionId, OntologyActionHandler>>>;',
+  },
+  {
+    name: 'OntologyActionId',
+    declaration: 'export type OntologyActionId = Branded<\'OntologyActionId\'>;',
+  },
+  {
+    name: 'OntologyDefinition',
+    declaration: 'export interface OntologyDefinition {\n    readonly id: OntologyDefinitionId;\n    readonly version: number;\n    readonly objectTypes: readonly OntologyObjectTypeDefinition[];\n    readonly linkTypes: readonly OntologyLinkTypeDefinition[];\n    readonly functions: readonly OntologyFunctionDefinition[];\n    readonly actions: readonly OntologyActionDefinition[];\n}',
+  },
+  {
+    name: 'OntologyDefinitionId',
+    declaration: 'export type OntologyDefinitionId = Branded<\'OntologyDefinitionId\'>;',
+  },
+  {
+    name: 'OntologyFunctionDefinition',
+    declaration: 'export interface OntologyFunctionDefinition {\n    readonly id: OntologyFunctionId;\n    readonly label: string;\n    readonly description: string;\n    readonly inputs?: readonly OntologyPropertyDefinition[];\n    readonly result: OntologyFunctionResultDefinition;\n}',
+  },
+  {
+    name: 'OntologyFunctionHandler',
+    declaration: 'export type OntologyFunctionHandler = (input: Readonly<Record<string, OntologyPropertyValue>>, context: OntologyReadContext) => Promise<unknown>;',
+  },
+  {
+    name: 'OntologyFunctionHandlers',
+    declaration: 'export type OntologyFunctionHandlers = Readonly<Partial<Record<OntologyFunctionId, OntologyFunctionHandler>>>;',
+  },
+  {
+    name: 'OntologyFunctionId',
+    declaration: 'export type OntologyFunctionId = Branded<\'OntologyFunctionId\'>;',
+  },
+  {
+    name: 'OntologyFunctionResultDefinition',
+    declaration: 'export type OntologyFunctionResultDefinition = {\n    readonly kind: \'scalar\';\n    readonly type: OntologyScalarType;\n} | {\n    readonly kind: \'object\';\n    readonly objectType: OntologyObjectTypeId;\n} | {\n    readonly kind: \'object-list\';\n    readonly objectType: OntologyObjectTypeId;\n};',
+  },
+  {
+    name: 'OntologyFunctionValue',
+    declaration: 'export type OntologyFunctionValue = OntologyPropertyValue | OntologyObject | readonly OntologyObject[];',
+  },
+  {
+    name: 'OntologyImplementation',
+    declaration: 'export interface OntologyImplementation {\n    readonly actions?: OntologyActionHandlers;\n    readonly functions?: OntologyFunctionHandlers;\n}',
+  },
+  {
+    name: 'OntologyLink',
+    declaration: 'export interface OntologyLink {\n    readonly id: OntologyLinkId;\n    readonly type: OntologyLinkTypeId;\n    readonly from: OntologyObjectId;\n    readonly to: OntologyObjectId;\n    readonly createdAt: number;\n}',
+  },
+  {
+    name: 'OntologyLinkId',
+    declaration: 'export type OntologyLinkId = Branded<\'OntologyLinkId\'>;',
+  },
+  {
+    name: 'OntologyLinkQuery',
+    declaration: 'export interface OntologyLinkQuery {\n    readonly type?: OntologyLinkTypeId;\n    readonly from?: OntologyObjectId;\n    readonly to?: OntologyObjectId;\n}',
+  },
+  {
+    name: 'OntologyLinkTypeDefinition',
+    declaration: 'export interface OntologyLinkTypeDefinition {\n    readonly id: OntologyLinkTypeId;\n    readonly label: string;\n    readonly from: OntologyObjectTypeId;\n    readonly to: OntologyObjectTypeId;\n    readonly cardinality?: \'one-to-one\' | \'one-to-many\' | \'many-to-many\';\n    readonly description?: string;\n}',
+  },
+  {
+    name: 'OntologyLinkTypeId',
+    declaration: 'export type OntologyLinkTypeId = Branded<\'OntologyLinkTypeId\'>;',
+  },
+  {
+    name: 'OntologyObject',
+    declaration: 'export interface OntologyObject {\n    readonly id: OntologyObjectId;\n    readonly type: OntologyObjectTypeId;\n    readonly properties: Readonly<Record<string, OntologyPropertyValue>>;\n    readonly createdAt: number;\n    readonly updatedAt: number;\n}',
+  },
+  {
+    name: 'OntologyObjectId',
+    declaration: 'export type OntologyObjectId = Branded<\'OntologyObjectId\'>;',
+  },
+  {
+    name: 'OntologyObjectTypeDefinition',
+    declaration: 'export interface OntologyObjectTypeDefinition {\n    readonly id: OntologyObjectTypeId;\n    readonly label: string;\n    readonly description: string;\n    readonly properties: readonly OntologyPropertyDefinition[];\n}',
+  },
+  {
+    name: 'OntologyObjectTypeId',
+    declaration: 'export type OntologyObjectTypeId = Branded<\'OntologyObjectTypeId\'>;',
+  },
+  {
+    name: 'OntologyPropertyDefinition',
+    declaration: 'export interface OntologyPropertyDefinition {\n    readonly key: string;\n    readonly label: string;\n    readonly type: OntologyScalarType;\n    readonly required?: boolean;\n    readonly values?: readonly OntologyPropertyValue[];\n}',
+  },
+  {
+    name: 'OntologyPropertyValue',
+    declaration: 'export type OntologyPropertyValue = string | number | boolean;',
+  },
+  {
+    name: 'OntologyReadContext',
+    declaration: 'export interface OntologyReadContext {\n    listObjects(type?: OntologyObjectTypeId): readonly OntologyObject[];\n    listLinks(query?: OntologyLinkQuery): readonly OntologyLink[];\n}',
+  },
+  {
+    name: 'OntologyScalarType',
+    declaration: 'export type OntologyScalarType = \'string\' | \'number\' | \'boolean\' | \'date\';',
   },
   {
     name: 'PermissionSelect',
@@ -4522,6 +4746,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface TypertTypeModel {\n    readonly name: string;\n    readonly declaration: string;\n}',
   },
   {
+    name: 'UpdateOntologyObjectRequest',
+    declaration: 'export interface UpdateOntologyObjectRequest {\n    readonly id: OntologyObjectId;\n    readonly properties: Readonly<Record<string, OntologyPropertyValue>>;\n}',
+  },
+  {
     name: 'UserMessage',
     declaration: 'export interface UserMessage extends Message {\n    readonly role: \'user\';\n}',
   },
@@ -4598,6 +4826,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface WebUpgradeRoute {\n    path: string;\n    handler: (req: IncomingMessage, socket: Duplex, head: Buffer) => void | Promise<void>;\n}',
   },
   {
+    name: 'WorkflowActivity',
+    declaration: 'export type WorkflowActivity = (input: unknown, signal: AbortSignal) => Promise<unknown>;',
+  },
+  {
     name: 'WorkflowAgentEndInfo',
     declaration: 'export interface WorkflowAgentEndInfo extends WorkflowAgentInfo {\n    outcome: WorkflowAgentOutcome;\n}',
   },
@@ -4639,7 +4871,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'WorkflowStartRequest',
-    declaration: 'export interface WorkflowStartRequest {\n    script: string;\n    meta: WorkflowMeta;\n    args?: unknown;\n    subagentProvider?: string;\n    maxTotalAgents?: number;\n    parent: Agent;\n    signal?: AbortSignal;\n}',
+    declaration: 'export interface WorkflowStartRequest {\n    script: string;\n    meta: WorkflowMeta;\n    args?: unknown;\n    subagentProvider?: string;\n    maxTotalAgents?: number;\n    activities?: Readonly<Record<string, WorkflowActivity>>;\n    parent?: Agent;\n    signal?: AbortSignal;\n}',
   },
   {
     name: 'WorkflowStopReason',

@@ -6,6 +6,7 @@
  */
 
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
+import type { JsonValue } from '@deepseek-ai/dsh-session/types'
 import type { ObjectJsonSchema } from '@deepseek-ai/dsh-tools'
 import type { WorkflowMeta } from '@deepseek-ai/dsh-workflow'
 
@@ -32,8 +33,26 @@ export interface WorkerInit {
   body: string
   /** The run's `args` value; the workerData structured clone is the copy that isolates the caller. */
   args?: unknown
+  /** Activity names admitted by the Host for this run. */
+  activityNames: readonly string[]
   /** The worker-enforced limits. */
   limits: WorkerLimits
+}
+
+/** One Host activity invocation after worker-side JSON materialization. */
+export interface ActivityCallRequest {
+  readonly name: string
+  readonly input: JsonValue
+}
+
+/** Worker-side bridge for named Host activities. */
+export interface ActivityPort {
+  /**
+   * Invoke one admitted Host activity.
+   * @param request - Activity name and plain JSON input.
+   * @returns Plain JSON result from the Host.
+   */
+  call(request: ActivityCallRequest): Promise<JsonValue>
 }
 
 /** What the worker asks the host to start for one `agent()` call (options already validated worker-side). */

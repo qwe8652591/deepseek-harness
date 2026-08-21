@@ -1,0 +1,19 @@
+# Install after @deepseek-ai/dsh-web-app. The Provider is host-only; Bid
+# Studio is dual-face and contributes both the ontology and browser entries.
+- insert:
+    - id: ontology-local
+      name: '@deepseek-ai/dsh-ontology-local'
+
+    - id: ontology-remote
+      name: '@deepseek-ai/dsh-ontology-remote'
+
+    # The Web bundle disables its root workflow engine because conversational
+    # agents receive one through their selected preset. Bid Studio owns a
+    # host-level business workflow, so its bundle reinstalls the Provider.
+    - id: bid-workflow-worker-thread
+      name: '@deepseek-ai/dsh-workflow-worker-thread'
+      config:
+        provider: spawn
+
+    - id: bid-studio
+      name: '@deepseek-ai/dsh-bid-studio'

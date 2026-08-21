@@ -1,8 +1,9 @@
 /**
  * Host side of one workflow run. The first worker result, unexpected death, or
  * cancellation-grace expiry owns settlement and closes message admission.
- * Pending starts share one abort signal; published children share idempotent
- * cleanup, and quiescence waits for both while synthesizing any missing end events.
+ * Pending starts and Host activities share one abort signal; published children
+ * share idempotent cleanup, and quiescence waits for all Host work while
+ * synthesizing any missing child end events.
  * @module @deepseek-ai/dsh-workflow-worker-thread/host
  */
 
@@ -14,14 +15,15 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { assertNever } from '@deepseek-ai/dsh-llm'
 import { snapshotJsonValue } from '@deepseek-ai/dsh-session'
+import type { JsonValue } from '@deepseek-ai/dsh-session/types'
 import type SubagentRuntime from '@deepseek-ai/dsh-subagent'
 import type { SubagentRun } from '@deepseek-ai/dsh-subagent'
-import type { WorkflowAgentEndInfo, WorkflowAgentInfo, WorkflowMeta, WorkflowResult, WorkflowRun, WorkflowRunId } from '@deepseek-ai/dsh-workflow'
+import type { WorkflowActivity, WorkflowAgentEndInfo, WorkflowAgentInfo, WorkflowMeta, WorkflowResult, WorkflowRun, WorkflowRunId } from '@deepseek-ai/dsh-workflow'
 import { renderThrown } from './realm.ts'
 import type { ExecutionObserver } from './runtime.ts'
 import { HostToWorkerType, WorkerToHostType } from './protocol.ts'
 import type { HostToWorkerPayloads, WorkerToHostMessage } from './protocol.ts'
-import type { ChildResult, ChildStartRequest, WorkerInit } from './types.ts'
+import type { ActivityCallRequest, ChildResult, ChildStartRequest, WorkerInit } from './types.ts'
 
 /** One published child and its shared quiescent-disposal transaction. */
 interface ChildRecord {
@@ -119,6 +121,8 @@ export class WorkerRun implements WorkflowRun {
   private readonly children = new Map<number, ChildRecord>()
   /** Provider starts that have not yet fulfilled or rejected. */
   private readonly pendingStarts = new Set<Promise<void>>()
+  /** Host activities that have not yet fulfilled or rejected. */
+  private readonly pendingActivities = new Set<Promise<void>>()
   /** Started-but-not-ended agents by seq — the pairing ledger the HOST guarantees (see {@link endAgent}). */
   private readonly liveAgents = new Map<number, WorkflowAgentInfo>()
   private readonly quiescenceWaiters: (() => void)[] = []
@@ -134,8 +138,9 @@ export class WorkerRun implements WorkflowRun {
     private readonly subagents: SubagentRuntime,
     readonly id: WorkflowRunId,
     readonly meta: WorkflowMeta,
-    private readonly parent: Agent,
+    private readonly parent: Agent | undefined,
     init: WorkerInit,
+    private readonly activities: Readonly<Record<string, WorkflowActivity>>,
     private readonly provider: string,
     private readonly disposeGraceMs: number,
     private readonly observer: ExecutionObserver,
@@ -171,7 +176,7 @@ export class WorkerRun implements WorkflowRun {
   /**
    * Cancel the run: the worker is told (its hooks start throwing and the
    * script dies at its next await), the required signal shared by every child
-   * start is aborted, and the grace timer
+   * and Host activity is aborted, and the grace timer
    * arms: a run still unsettled `disposeGraceMs` later force-settles
    * `cancelled` and its worker is TERMINATED. Idempotent; the first reason
    * wins.
@@ -187,7 +192,7 @@ export class WorkerRun implements WorkflowRun {
     if (this.settled || this.terminalClaimed || this.cancelReason !== undefined) return
     this.cancelReason = reason ?? 'workflow cancelled'
     this.post(HostToWorkerType.Cancel, { reason: this.cancelReason })
-    this.abortChildren(this.cancelReason)
+    this.abortHostWork(this.cancelReason)
     this.graceTimer = setTimeout(() => {
       // Cancellation already owns the race through cancelReason; close the
       // terminal boundary explicitly before observer teardown callbacks.
@@ -211,7 +216,7 @@ export class WorkerRun implements WorkflowRun {
    * the disposals still in flight — so child disposal overlaps the same
    * grace the worker gets to settle (the worker's own dispose RPCs join the
    * shared per-child disposal). Waits (at most the grace) for the result and
-   * child quiescence, then terminates the worker unconditionally — the
+   * Host-work quiescence, then terminates the worker unconditionally — the
    * thread never outlives its run — and reaps whatever children remain
    * (their disposal is contained, not awaited past the grace, the same
    * abandonment the seam documents for a slow-disposing child). Idempotent;
@@ -230,14 +235,14 @@ export class WorkerRun implements WorkflowRun {
       this.cancel('workflow disposed')
       // cancel() deliberately becomes a no-op after terminal settlement, but
       // disposal still owns every registered child. Reap independently so an
-      // already-settled workflow cannot wait on child quiescence before it has
+      // already-settled workflow cannot wait on Host-work quiescence before it has
       // started the surviving children's disposals. On an unsettled run this
       // joins the cancel path through the per-call cancellation/disposal gates.
       this.reapChildren('workflow disposed')
       await Promise.race([
         (async () => {
           await this.result
-          await this.childQuiescence()
+          await this.hostQuiescence()
         })(),
         sleep(this.disposeGraceMs),
       ])
@@ -303,6 +308,9 @@ export class WorkerRun implements WorkflowRun {
       case WorkerToHostType.ChildDispose:
         this.onChildDispose(message.callId)
         break
+      case WorkerToHostType.ActivityCall:
+        this.onActivityCall(message.callId, message.request)
+        break
       case WorkerToHostType.Result:
         this.onResult(message.result)
         break
@@ -345,8 +353,42 @@ export class WorkerRun implements WorkflowRun {
     )
   }
 
+  private onActivityCall(callId: number, request: ActivityCallRequest): void {
+    const initialFailure = this.childAdmissionFailure()
+    if (initialFailure !== undefined) {
+      this.post(HostToWorkerType.ActivityError, { callId, rendered: initialFailure.rendered })
+      return
+    }
+    const handler = this.activities[request.name]
+    if (handler === undefined) {
+      this.post(HostToWorkerType.ActivityError, { callId, rendered: `workflow activity '${request.name}' is not registered` })
+      return
+    }
+    const task = this.executeActivity(callId, request, handler)
+    this.pendingActivities.add(task)
+    void task.finally(() => {
+      this.pendingActivities.delete(task)
+      this.notifyChildQuiescence()
+    })
+  }
+
+  private async executeActivity(callId: number, request: ActivityCallRequest, handler: WorkflowActivity): Promise<void> {
+    try {
+      const result = await handler(request.input, this.controller.signal)
+      const snapshot = snapshotJsonValue(result) as JsonValue | undefined
+      if (snapshot === undefined) throw new TypeError('activity result is not losslessly JSON-serializable')
+      this.post(HostToWorkerType.ActivityResult, { callId, result: snapshot })
+    } catch (error: unknown) {
+      this.post(HostToWorkerType.ActivityError, { callId, rendered: renderThrown(error) })
+    }
+  }
+
   /** Await one provider-owned startup transaction and publish only while admitted. */
   private async startChild(callId: number, request: ChildStartRequest): Promise<void> {
+    if (this.parent === undefined) {
+      this.post(HostToWorkerType.ChildStartError, { callId, rendered: 'workflow agent() requires a parent Agent' })
+      return
+    }
     let run: SubagentRun
     try {
       run = await this.subagents.start(this.provider, {
@@ -458,28 +500,28 @@ export class WorkerRun implements WorkflowRun {
     this.notifyChildQuiescence()
   }
 
-  /** Release waiters only after both pending starts and published children end. */
+  /** Release waiters only after pending Host work and published children end. */
   private notifyChildQuiescence(): void {
-    if (this.children.size !== 0 || this.pendingStarts.size !== 0) return
+    if (this.children.size !== 0 || this.pendingStarts.size !== 0 || this.pendingActivities.size !== 0) return
     for (const waiter of this.quiescenceWaiters.splice(0)) waiter()
   }
 
-  /** Resolves once every pending start and published child has reached quiescence. */
-  private childQuiescence(): Promise<void> {
-    if (this.children.size === 0 && this.pendingStarts.size === 0) return Promise.resolve()
+  /** Resolves once every pending Host operation and published child has reached quiescence. */
+  private hostQuiescence(): Promise<void> {
+    if (this.children.size === 0 && this.pendingStarts.size === 0 && this.pendingActivities.size === 0) return Promise.resolve()
     return new Promise((resolve) => { this.quiescenceWaiters.push(resolve) })
   }
 
-  /** Abort + dispose every registered child (worker death / final teardown); disposal is contained, not awaited. */
+  /** Abort all Host work and dispose every registered child; disposal is contained, not awaited. */
   private reapChildren(reason: string): void {
-    this.abortChildren(this.cancelReason ?? reason)
+    this.abortHostWork(this.cancelReason ?? reason)
     for (const [callId, record] of [...this.children]) {
       void this.disposeChild(callId, record)
     }
   }
 
-  /** Abort the one canonical signal shared by pending and published children. */
-  private abortChildren(reason: string): void {
+  /** Abort the one canonical signal shared by children and Host activities. */
+  private abortHostWork(reason: string): void {
     if (!this.controller.signal.aborted) this.controller.abort(reason)
   }
 
@@ -498,7 +540,7 @@ export class WorkerRun implements WorkflowRun {
     this.terminalClaimed = true
     // Abort pending starts and begin disposing published children before the
     // workflow becomes externally settled. Cleanup remains independently
-    // tracked by childQuiescence and the holder's dispose().
+    // tracked by hostQuiescence and the holder's dispose().
     this.reapChildren('workflow settled')
     if (!cancellationWasRequested) {
       this.settleResult(result)

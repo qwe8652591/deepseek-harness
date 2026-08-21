@@ -26,7 +26,7 @@ export type {
   WorkflowRunInfo,
   WorkflowStopReason,
 } from './types.ts'
-export type { WorkflowRun, WorkflowStartRequest } from './runtime-types.ts'
+export type { WorkflowActivity, WorkflowRun, WorkflowStartRequest } from './runtime-types.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -115,6 +115,7 @@ export type WorkflowErrorCode =
   | 'ITEM_CAP'
   | 'AGENT_START'
   | 'AGENT_RESULT'
+  | 'ACTIVITY_FAILED'
   | 'RESULT_UNSERIALIZABLE'
   | 'CANCELLED'
 
@@ -150,7 +151,7 @@ export function isFatalWorkflowError(error: unknown): boolean {
 /**
  * Workflow Service Definition contract. Invalid requests throw before publication; a live
  * run is holder-owned, its result never rejects, cancellation and disposal are
- * bounded, and disposal waits for child cleanup within that bound. Lifecycle
+ * bounded, and disposal waits for child and activity cleanup within that bound. Lifecycle
  * listener failures are contained, and `workflow/end` fires exactly once as the
  * result settles.
  */
@@ -161,8 +162,8 @@ export abstract class WorkflowEngine extends Service {
 
   /**
    * Parse and execute a workflow script.
-   * @param request - the script, its `args`, the parent agent, and an
-   *   optional cancel signal.
+   * @param request - The script, arguments, Host activities, optional parent
+   *   agent, and optional cancel signal.
    * @returns the live run; its `result` resolves when the script settles.
    */
   abstract start(request: WorkflowStartRequest): WorkflowRun

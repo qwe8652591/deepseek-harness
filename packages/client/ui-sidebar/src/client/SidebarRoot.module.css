@@ -282,3 +282,7 @@
     animation: none;
   }
 }
+.applicationArea {
+  flex: 0 0 auto;
+  min-width: 0;
+}

@@ -16,6 +16,7 @@ function init(body: string, args?: unknown, limitOverrides?: Partial<WorkerInit[
   return {
     meta: { name: 'test-flow', description: 'a test workflow' },
     body,
+    activityNames: [],
     ...args !== undefined ? { args } : {},
     limits: limits(limitOverrides),
   }

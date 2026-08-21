@@ -45,6 +45,47 @@ async function setup(script: Script) {
 }
 
 describe('dsh-workflow-worker-thread over the real in-process stack', () => {
+  it('runs declared host activities without requiring an agent parent', async () => {
+    const { ctx } = await setup([])
+    const calls: unknown[] = []
+    const run = ctx.workflowEngine.start({
+      meta: { name: 'activities', description: 'deterministic host work' },
+      script: `const first = await activity('demo.double', { value: args.value })
+return await activity('demo.double', { value: first.value })`,
+      args: { value: 3 },
+      activities: {
+        'demo.double': async (input) => {
+          calls.push(input)
+          return { value: Number((input as { value: unknown }).value) * 2 }
+        },
+      },
+    })
+
+    await expect(run.result).resolves.toMatchObject({
+      stopReason: 'completed',
+      value: { value: 12 },
+      agentsStarted: 0,
+    })
+    expect(calls).toEqual([{ value: 3 }, { value: 6 }])
+    await run.dispose()
+  })
+
+  it('settles an activity failure through the workflow result', async () => {
+    const { ctx } = await setup([])
+    const run = ctx.workflowEngine.start({
+      meta: { name: 'activity-failure', description: 'host failure projection' },
+      script: 'return await activity(\'demo.fail\', {})',
+      activities: {
+        'demo.fail': async () => { throw new Error('deterministic activity failed') },
+      },
+    })
+
+    const result = await run.result
+    expect(result).toMatchObject({ stopReason: 'error', agentsStarted: 0 })
+    expect(result.error).toContain('deterministic activity failed')
+    await run.dispose()
+  })
+
   it('runs a two-stage workflow: a plain child, then a schema child through the structured runtime', async () => {
     const { ctx, parent } = await setup([
       textResponse('the file list is a.ts'),

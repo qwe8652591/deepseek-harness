@@ -14,7 +14,7 @@ The package root is the Host face. The browser-safe `@deepseek-ai/dsh-workflow/t
 
 A run is holder-owned. Engine-plugin unload prevents new starts but does not revoke accepted runs. The holder must call `dispose()` on every path; disposal cancels remaining work and reaches or abandons quiescence within the documented bound.
 
-`WorkflowStartRequest` contains `{ meta, script, args?, subagentProvider?, maxTotalAgents?, parent, signal? }`. `parent` attributes every child agent to the invoking agent. `subagentProvider` optionally routes every child in that run without exposing provider choice to the script; omission uses the engine's configured provider. `maxTotalAgents` optionally lowers the engine's deployment ceiling for one run and is likewise invisible to the script. An implementation rejects invalid routes and limits synchronously. `meta` and `args` are plain data, not script fragments.
+`WorkflowStartRequest` contains `{ meta, script, args?, activities?, subagentProvider?, maxTotalAgents?, parent?, signal? }`. `activities` is a namespaced map of same-process Host handlers exposed through `activity(name, input)`; it lets a trusted Consumer coordinate deterministic application work without giving the script direct service access. `parent` attributes child agents to the invoking agent and is required only when the script calls `agent()`. `subagentProvider` optionally routes every child in that run without exposing provider choice to the script; omission uses the engine's configured provider. `maxTotalAgents` optionally lowers the engine's deployment ceiling for one run and is likewise invisible to the script. An implementation rejects invalid routes and limits synchronously. `meta` and `args` are plain data, not script fragments.
 
 `WorkflowRun` exposes `{ id, meta, result, cancel(reason?), dispose() }`. `WorkflowResult` contains `{ value, stopReason, error?, agentsStarted }`; `value` is plain JSON data or `null`.
 
@@ -37,6 +37,7 @@ Same-process event payloads are borrowed immutable values. Every listener is ind
 - `AGENT_CAP` / `ITEM_CAP` — configured safety limits were exceeded.
 - `AGENT_START` — the provider's async start rejected.
 - `AGENT_RESULT` — a published child's result rejected with an infrastructure fault.
+- `ACTIVITY_FAILED` — a declared Host activity rejected or was unavailable.
 - `RESULT_UNSERIALIZABLE` — a script/worker value is not plain JSON data.
 - `CANCELLED` — cancellation owns the run and pending/future hooks reject.
 

@@ -8,7 +8,8 @@
  */
 
 import type { WorkflowAgentEndInfo, WorkflowAgentInfo, WorkflowResult } from '@deepseek-ai/dsh-workflow'
-import type { ChildResult, ChildStartRequest } from './types.ts'
+import type { JsonValue } from '@deepseek-ai/dsh-session/types'
+import type { ActivityCallRequest, ChildResult, ChildStartRequest } from './types.ts'
 
 /** Message tags the worker sends the host (the wire values are the tag strings). */
 export enum WorkerToHostType {
@@ -26,6 +27,8 @@ export enum WorkerToHostType {
   ChildStart = 'child-start',
   /** Child RPC: dispose a started child (answered by ChildDisposed). */
   ChildDispose = 'child-dispose',
+  /** Activity RPC: invoke a named Host operation. */
+  ActivityCall = 'activity-call',
   /** The run's single terminal result. */
   Result = 'result',
 }
@@ -46,6 +49,8 @@ export interface WorkerToHostPayloads {
   [WorkerToHostType.ChildStart]: { callId: number; request: ChildStartRequest }
   /** The RPC correlation id of the child to dispose. */
   [WorkerToHostType.ChildDispose]: { callId: number }
+  /** The RPC correlation id and materialized activity request. */
+  [WorkerToHostType.ActivityCall]: { callId: number; request: ActivityCallRequest }
   /** The run's terminal outcome. */
   [WorkerToHostType.Result]: { result: WorkflowResult }
 }
@@ -66,6 +71,10 @@ export enum HostToWorkerType {
   ChildFailed = 'child-failed',
   /** Child RPC reply: a requested disposal completed. */
   ChildDisposed = 'child-disposed',
+  /** Activity RPC reply with a plain JSON result. */
+  ActivityResult = 'activity-result',
+  /** Activity RPC reply with a rendered failure. */
+  ActivityError = 'activity-error',
 }
 
 /** The payload each host→worker tag carries. */
@@ -84,6 +93,10 @@ export interface HostToWorkerPayloads {
   [HostToWorkerType.ChildFailed]: { callId: number; rendered: string }
   /** The RPC correlation id of the completed disposal. */
   [HostToWorkerType.ChildDisposed]: { callId: number }
+  /** The RPC correlation id and activity result. */
+  [HostToWorkerType.ActivityResult]: { callId: number; result: JsonValue }
+  /** The RPC correlation id and rendered activity failure. */
+  [HostToWorkerType.ActivityError]: { callId: number; rendered: string }
 }
 
 /**

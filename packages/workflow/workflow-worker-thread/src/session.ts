@@ -13,12 +13,15 @@
 
 import type { MessagePort } from 'node:worker_threads'
 import { assertNever } from '@deepseek-ai/dsh-llm'
+import type { JsonValue } from '@deepseek-ai/dsh-session/types'
 import { HostToWorkerType, WorkerToHostType } from './protocol.ts'
 import type { HostToWorkerMessage, WorkerToHostPayloads } from './protocol.ts'
 import { renderThrown } from './realm.ts'
 import { WorkflowExecution } from './runtime.ts'
 import type { ExecutionObserver } from './runtime.ts'
 import type {
+  ActivityCallRequest,
+  ActivityPort,
   ChildHandle,
   ChildPort,
   ChildResult,
@@ -119,6 +122,35 @@ class ChildRpcBridge implements ChildPort {
   }
 }
 
+/** Worker-side request/reply bridge for named Host activities. */
+class ActivityRpcBridge implements ActivityPort {
+  private nextCallId = 0
+  private readonly pending = new Map<number, PromiseWithResolvers<JsonValue>>()
+
+  constructor(private readonly post: Post) {}
+
+  async call(request: ActivityCallRequest): Promise<JsonValue> {
+    this.nextCallId += 1
+    const callId = this.nextCallId
+    const result = Promise.withResolvers<JsonValue>()
+    this.pending.set(callId, result)
+    this.post(WorkerToHostType.ActivityCall, { callId, request })
+    return await result.promise
+  }
+
+  onResult(callId: number, result: JsonValue): void {
+    const pending = this.pending.get(callId)
+    this.pending.delete(callId)
+    pending?.resolve(result)
+  }
+
+  onError(callId: number, rendered: string): void {
+    const pending = this.pending.get(callId)
+    this.pending.delete(callId)
+    pending?.reject(new Error(rendered))
+  }
+}
+
 /**
  * Narrow the nullable `parentPort` the bootstrap reads from
  * `node:worker_threads`.
@@ -145,6 +177,7 @@ export async function runWorkerSession(port: MessagePort, init: WorkerInit): Pro
     port.postMessage({ type, ...payload })
   }
   const children = new ChildRpcBridge(post)
+  const activities = new ActivityRpcBridge(post)
 
   const observer: ExecutionObserver = {
     phase: (title) => { post(WorkerToHostType.Phase, { title }) },
@@ -155,7 +188,7 @@ export async function runWorkerSession(port: MessagePort, init: WorkerInit): Pro
 
   let execution: WorkflowExecution
   try {
-    execution = new WorkflowExecution(init.meta, init.body, init.args, init.limits, observer, children)
+    execution = new WorkflowExecution(init.meta, init.body, init.args, init.activityNames, init.limits, observer, children, activities)
   } catch (error: unknown) {
     post(WorkerToHostType.Result, { result: { value: null, stopReason: 'error', error: renderThrown(error), agentsStarted: 0 } })
     return
@@ -187,6 +220,12 @@ export async function runWorkerSession(port: MessagePort, init: WorkerInit): Pro
         break
       case HostToWorkerType.ChildDisposed:
         children.onChildDisposed(message.callId)
+        break
+      case HostToWorkerType.ActivityResult:
+        activities.onResult(message.callId, message.result)
+        break
+      case HostToWorkerType.ActivityError:
+        activities.onError(message.callId, message.rendered)
         break
       /* v8 ignore next 2 -- closed engine-owned union; the arm only makes adding a message type a compile error */
       default:

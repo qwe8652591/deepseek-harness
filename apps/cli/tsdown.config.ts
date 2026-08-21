@@ -1,13 +1,17 @@
 import { defineConfig } from 'tsdown'
 
 /**
- * The dsh CLI ships one entry: the `bin` referenced by package.json `bin`.
- * The root tsdown builds only `lib/types/index.js`, so this override points at
- * `lib/types/bin.js` instead; its reachable mode modules bundle with it.
+ * The dsh package ships the `bin` referenced by package.json plus the stable
+ * profile-boot library entry used by in-process application shells. The root
+ * tsdown builds only `lib/types/index.js`, so this override names both emitted
+ * artifacts explicitly.
  * Declarations come from `tsc -b` (dts: false), matching every package.
  */
 export default defineConfig({
-  entry: ['lib/types/bin.js'],
+  entry: {
+    bin: 'lib/types/bin.js',
+    'profile-boot': 'lib/types/profile-boot.js',
+  },
   outDir: 'lib',
   format: ['esm'],
   platform: 'node',

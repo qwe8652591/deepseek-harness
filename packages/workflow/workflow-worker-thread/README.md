@@ -2,7 +2,7 @@
 
 English | [中文](README.zh.md)
 
-This package implements `WorkflowEngine` with one Node worker thread per run. The worker executes the orchestration script; child agents remain on the host and are reached through `ctx.subagents` over a typed host/worker protocol.
+This package implements `WorkflowEngine` with one Node worker thread per run. The worker executes the orchestration script; child agents and declared application activities remain on the host and are reached over a typed host/worker protocol.
 
 The package root exports the default engine plugin and its `Config`; the worker protocol, runtime, and session modules stay private to the implementation. The operational `./worker` entry remains the engine's spawn target.
 
@@ -28,6 +28,7 @@ The workflow's `meta` is host-provided data, not evaluated script text. The engi
 Inside the worker, the script receives `args` and these hooks:
 
 - `agent(prompt, { label, phase, schema, model })` starts one host-side subagent. With a schema it returns the structured value; otherwise it returns final text. An ordinary failed child yields `null`.
+- `activity(name, input)` calls one namespaced Host handler supplied in `WorkflowStartRequest.activities`; input and result must be lossless plain JSON data.
 - `parallel(thunks)` runs thunks under the configured concurrency limit.
 - `pipeline(items, ...stages)` passes `(previous, item, index)` without a cross-stage barrier.
 - `phase(title)` and `log(message)` emit observer narration.
@@ -48,6 +49,8 @@ For each `agent()` call:
 
 Provider starts are tracked separately from published children. If cancellation, worker death, or normal workflow settlement closes admission while a start is pending, the shared signal aborts it. A provider that nevertheless fulfills after closure is disposed by the host and never announced to the worker.
 
+For each `activity()` call, the worker verifies that the name was declared for the run and sends a plain-JSON request. The host invokes the same-process handler with the canonical run abort signal, snapshots its result, and returns either the JSON value or a rendered failure. Activity calls do not emit child-agent lifecycle events and do not require `parent`.
+
 ## Value boundary
 
 Values leaving the script pass through `materializeFromRealm`, which accepts plain, lossless JSON data and rejects exotic prototypes, functions, symbols, cycles, sparse arrays, non-finite numbers, and nested `undefined`. The walk runs in the worker, and defines object keys as data properties so `__proto__` cannot mutate a prototype.
@@ -56,7 +59,7 @@ Child results are projected and snapshotted before crossing from the host to the
 
 ## Cancellation and disposal
 
-`WorkflowRun.cancel()` records the first reason, tells the worker to cancel, aborts the one signal shared by every pending and published child, and arms the `disposeGraceMs` timer. Worker hooks then throw `CANCELLED` at their next await. If the run remains unsettled at the deadline, the host resolves it as cancelled, pairs stranded child lifecycle events, and terminates the worker.
+`WorkflowRun.cancel()` records the first reason, tells the worker to cancel, aborts the one signal shared by every pending child, published child, and Host activity, and arms the `disposeGraceMs` timer. Worker hooks then throw `CANCELLED` at their next await. If the run remains unsettled at the deadline, the host resolves it as cancelled, pairs stranded child lifecycle events, and terminates the worker. Activity handlers must observe their signal to stop promptly; a handler that ignores it may outlive the bounded run handle just like a slow external provider operation.
 
 The subagent seam has one cancellation channel: the request signal. There is no separate child-cancel RPC. Published child teardown uses `run.dispose()`; pending provider starts remain provider-owned until their promise rejects or fulfills.
 

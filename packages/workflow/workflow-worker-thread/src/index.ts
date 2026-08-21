@@ -143,6 +143,7 @@ class WorkerThreadWorkflowEngine extends WorkflowEngine {
   start(request: WorkflowStartRequest): WorkflowRun {
     const meta = validateMeta(request.meta)
     assertBodyParses(request.script, meta.name)
+    const activities = resolveActivities(request.activities)
     const subagentProvider = resolveSubagentProvider(this.ctx, this.config.provider, request.subagentProvider)
     const maxTotalAgents = resolveMaxTotalAgents(request.maxTotalAgents, this.config.maxTotalAgents)
     const id = WorkflowRunId(randomUUID())
@@ -159,6 +160,7 @@ class WorkerThreadWorkflowEngine extends WorkflowEngine {
       meta,
       body: request.script,
       ...request.args !== undefined ? { args: request.args } : {},
+      activityNames: Object.freeze(Object.keys(activities)),
       limits,
     }
     // Capture the dependency while this service call is still traced through
@@ -176,6 +178,7 @@ class WorkerThreadWorkflowEngine extends WorkflowEngine {
       meta,
       request.parent,
       init,
+      activities,
       subagentProvider,
       this.config.disposeGraceMs,
       {
@@ -200,6 +203,21 @@ class WorkerThreadWorkflowEngine extends WorkflowEngine {
 
     return workerRun
   }
+}
+
+function resolveActivities(
+  activities: WorkflowStartRequest['activities'],
+): Readonly<Record<string, NonNullable<WorkflowStartRequest['activities']>[string]>> {
+  const resolved = { ...activities }
+  for (const [name, handler] of Object.entries(resolved)) {
+    if (!/^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/u.test(name)) {
+      throw new WorkflowError(`workflow activity name '${name}' must be namespaced lowercase text`, 'INVALID_ARGUMENT')
+    }
+    if (typeof handler !== 'function') {
+      throw new WorkflowError(`workflow activity '${name}' must be a function`, 'INVALID_ARGUMENT')
+    }
+  }
+  return Object.freeze(resolved)
 }
 
 export default WorkerThreadWorkflowEngine

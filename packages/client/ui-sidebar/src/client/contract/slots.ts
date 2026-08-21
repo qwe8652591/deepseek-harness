@@ -33,6 +33,8 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      * package's 'sidebar' entry; each action receives only the column state.
      */
     'sidebar.footer.action': { kind: 'list'; scope: 'root'; owner: SidebarFooterActionOwnerProps }
+    /** Business-application navigation rows contributed by installable plugins. */
+    'sidebar.application': { kind: 'list'; scope: 'root'; owner: SidebarApplicationOwnerProps }
   }
 }
 
@@ -62,6 +64,12 @@ export interface SidebarFooterActionOwnerProps {
   wide: boolean
 }
 
+/** Owner share of an installable business-application navigation row. */
+export interface SidebarApplicationOwnerProps {
+  /** Whether the sidebar renders wide content (false = compact rail). */
+  wide: boolean
+}
+
 /**
  * Registrant-private injected share (arrives via the register inject
  * factory). The shell keeps only its own controls: starting a Session from
@@ -85,5 +93,5 @@ export type SidebarRootInjected = {
  */
 export type SidebarRootComponentProps =
   PropsRuntime<'sidebar'>
-  & PropsRenderSlots<'sidebar.workspaces' | 'sidebar.settings' | 'sidebar.footer.action'>
+  & PropsRenderSlots<'sidebar.workspaces' | 'sidebar.settings' | 'sidebar.footer.action' | 'sidebar.application'>
   & SidebarRootInjected & PropsLocale<'sidebar'>

@@ -12,9 +12,17 @@ import type {
 } from './types.ts'
 
 /**
+ * Host operation exposed by name to one workflow script.
+ * @param input - Lossless plain JSON input supplied by the script.
+ * @param signal - Canonical run cancellation signal.
+ * @returns Lossless plain JSON result for the script.
+ */
+export type WorkflowActivity = (input: unknown, signal: AbortSignal) => Promise<unknown>
+
+/**
  * What a caller asks for when starting a workflow run. `meta` and `args` are
- * plain JSON data by the seam contract. `parent` is required because every
- * `agent()` spawned by the script is attributed to that live Agent.
+ * plain JSON data by the seam contract. A script that calls `agent()` requires
+ * `parent`; activity-only business workflows do not.
  */
 export interface WorkflowStartRequest {
   /** The plain-JS script body (top-level await allowed; ends with `return <json-value>`). */
@@ -27,22 +35,24 @@ export interface WorkflowStartRequest {
   subagentProvider?: string
   /** Optional per-run total-child ceiling. */
   maxTotalAgents?: number
-  /** The agent on whose behalf the run executes (parent of every child). */
-  parent: Agent
+  /** Named Host operations exposed to the script through `activity()`. */
+  activities?: Readonly<Record<string, WorkflowActivity>>
+  /** The agent on whose behalf child agents execute. Required when the script calls `agent()`. */
+  parent?: Agent
   /** Cancels the run when aborted. */
   signal?: AbortSignal
 }
 
 /**
  * Holder-owned live workflow. `result` never rejects; consumers may cancel
- * and must call idempotent `dispose()` to await script and child quiescence.
+ * and must call idempotent `dispose()` to await script and Host-work quiescence.
  */
 export interface WorkflowRun {
   readonly id: WorkflowRunId
   /** The validated meta block available before the script body runs. */
   readonly meta: WorkflowMeta
   readonly result: Promise<WorkflowResult>
-  /** Cancel the run and its children. */
+  /** Cancel the run and its pending Host work. */
   cancel(reason?: string): void
   /** Cancel if needed and await bounded settlement and cleanup. */
   dispose(): Promise<void>

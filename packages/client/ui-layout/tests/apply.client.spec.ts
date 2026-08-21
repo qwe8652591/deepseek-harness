@@ -40,7 +40,7 @@ describe('ui-layout client apply', () => {
     expect(inject).toEqual(['slots', 'theme'])
   })
 
-  it('provides ctx.layout and registers AppFrame into root with the three child declarations', async () => {
+  it('provides ctx.layout and registers AppFrame with panel and application child declarations', async () => {
     const { ctx, slots } = await bench()
     const fiber = ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
@@ -51,20 +51,32 @@ describe('ui-layout client apply', () => {
     expect(slots.spec('sidebar')).toEqual({ kind: 'single', scope: 'root' })
     expect(slots.spec('conversation')).toEqual({ kind: 'single', scope: 'session-maybe' })
     expect(slots.spec('details')).toEqual({ kind: 'single', scope: 'session' })
+    expect(slots.spec('application')).toEqual({ kind: 'keyed', scope: 'root' })
   })
 
-  it('injects no business face and attaches the layout actions', async () => {
+  it('injects the navigation source and attaches the layout actions', async () => {
     const { ctx, slots } = await bench()
     const fiber = ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
     const actions = {
       setSidebar: vi.fn(), setDetails: vi.fn(), toggleSidebar: vi.fn(), openDetails: vi.fn(), closeDetails: vi.fn(),
     }
-    const injected = (slots.entries('root')[0]!.inject as (actions: never) => object)(actions as never)
-    expect(injected).toEqual({})
+    const injectRoot = slots.entries('root')[0]!.inject as
+      (actions: never) => { hooks: { layout: LayoutController } }
+    const injected = injectRoot(actions as never)
+    expect(injected.hooks.layout).toBeInstanceOf(LayoutController)
     const layout = ctx.get('layout') as LayoutController
     layout.toggleSidebar()
     expect(actions.toggleSidebar).toHaveBeenCalledOnce()
+    const observed = vi.fn()
+    const off = layout.subscribe(observed)
+    layout.openApplication('bid-studio')
+    expect(layout.getSnapshot()).toEqual({ activeApplication: 'bid-studio' })
+    expect(observed).toHaveBeenCalledOnce()
+    layout.closeApplication()
+    expect(layout.getSnapshot()).toEqual({})
+    expect(observed).toHaveBeenCalledTimes(2)
+    off()
   })
 
   it('theme presenter applies the initial snapshot, follows theme/change, and unwinds on dispose', async () => {

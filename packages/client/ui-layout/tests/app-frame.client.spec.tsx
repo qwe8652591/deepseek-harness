@@ -25,6 +25,7 @@ import type {
 const selectedSession = { current: 's-test' as SessionId | undefined }
 const selectedSessionBlank = { current: false }
 const baselinesReady = { current: true }
+const activeApplication = { current: undefined as string | undefined }
 
 // Render-prop contract stub fed through the standard seat prop (the renderer
 // injects the real one in production): session mode runs children(id), empty
@@ -55,9 +56,9 @@ function hookOf<T>(inst: { subscribe: (fn: () => void) => () => void; getSnapsho
 function mountFrame() {
   window.innerWidth = frameWidth // first-render viewport source before the observer fires
   const instance = createLayoutStore().create()
-  const slotCalls: { key: string; props: unknown }[] = []
-  const renderSlot = ((key: string, owner: object) => {
-    slotCalls.push({ key, props: owner })
+  const slotCalls: { key: string; props: unknown; options?: { entryKey?: string } }[] = []
+  const renderSlot = ((key: string, owner: object, options?: { entryKey?: string }) => {
+    slotCalls.push({ key, props: owner, ...(options === undefined ? {} : { options }) })
     if (key === 'sidebar') return <div data-testid="sidebar-content" />
     if (key === 'conversation') return <div data-testid="center-content" />
     if (key === 'details') return <div data-testid="details-content" />
@@ -85,6 +86,9 @@ function mountFrame() {
       useStore={hookOf(instance)}
       actions={instance.actions}
       renderSlot={renderSlot}
+      useLayout={selector => selector(activeApplication.current === undefined
+        ? {}
+        : { activeApplication: activeApplication.current })}
       useSessions={useSessions}
       useWorkspaces={((sel: (s: WorkspaceListState) => unknown) => sel(workspaceState)) as never}
       SessionProvider={SessionProviderStub}
@@ -115,6 +119,7 @@ beforeEach(() => {
   selectedSession.current = 's-test' as SessionId
   selectedSessionBlank.current = false
   baselinesReady.current = true
+  activeApplication.current = undefined
   vi.useFakeTimers()
   vi.stubGlobal('ResizeObserver', ResizeObserverStub)
   vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => setTimeout(() => { cb(0) }, 16) as unknown as number)
@@ -152,6 +157,18 @@ describe('AppFrame', () => {
     expect(keys).not.toContain('conversation.empty')
     expect(slotCalls.find(c => c.key === 'conversation')!.props).toEqual({})
     expect(slotCalls.find(c => c.key === 'details')!.props).toEqual({})
+  })
+
+  it('renders the keyed application instead of conversation and details', () => {
+    activeApplication.current = 'bid-studio'
+    const { slotCalls } = mountFrame()
+    expect(slotCalls.map(call => call.key)).not.toContain('conversation')
+    expect(slotCalls.map(call => call.key)).not.toContain('details')
+    expect(slotCalls.find(call => call.key === 'application')).toEqual({
+      key: 'application',
+      props: {},
+      options: { entryKey: 'bid-studio' },
+    })
   })
 
   it('keeps the conversation slot mounted while no session is current', () => {

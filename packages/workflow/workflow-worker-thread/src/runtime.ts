@@ -15,6 +15,7 @@
 import * as vm from 'node:vm'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import { SessionId } from '@deepseek-ai/dsh-session'
+import type { JsonValue } from '@deepseek-ai/dsh-session/types'
 import { assertObjectJsonSchema, JsonSchemaError } from '@deepseek-ai/dsh-tools'
 import type { ObjectJsonSchema } from '@deepseek-ai/dsh-tools'
 import { isFatalWorkflowError, WorkflowError } from '@deepseek-ai/dsh-workflow'
@@ -25,7 +26,7 @@ import type {
   WorkflowResult,
 } from '@deepseek-ai/dsh-workflow'
 import { materializeFromRealm, MaterializeError, renderThrown } from './realm.ts'
-import type { ChildHandle, ChildPort, WorkerLimits } from './types.ts'
+import type { ActivityPort, ChildHandle, ChildPort, WorkerLimits } from './types.ts'
 
 /** The observers the execution reports progress through (the session posts them to the host). */
 export interface ExecutionObserver {
@@ -71,15 +72,19 @@ export class WorkflowExecution {
   private currentPhase: string | undefined
   private readonly context: vm.Context
   private readonly compiled: vm.Script
+  private readonly activityNames: ReadonlySet<string>
 
   constructor(
     meta: WorkflowMeta,
     body: string,
     args: unknown,
+    activityNames: readonly string[],
     private readonly limits: WorkerLimits,
     private readonly observer: ExecutionObserver,
     private readonly children: ChildPort,
+    private readonly activities: ActivityPort,
   ) {
+    this.activityNames = new Set(activityNames)
     // Compile FIRST: a body syntax error must throw out of the constructor
     // before any realm state exists. The host pre-parses the identical
     // wrapper, so under one Node version this throw is unreachable in
@@ -99,6 +104,7 @@ export class WorkflowExecution {
 
     const globals: Record<string, unknown> = {
       agent: (prompt: unknown, opts?: unknown) => this.contain(this.agent(prompt, opts)),
+      activity: (name: unknown, input?: unknown) => this.contain(this.activity(name, input)),
       parallel: (thunks: unknown) => this.contain(this.parallel(thunks)),
       pipeline: (items: unknown, ...stages: unknown[]) => this.contain(this.pipeline(items, stages)),
       phase: (title: unknown) => { this.phase(title) },
@@ -110,6 +116,32 @@ export class WorkflowExecution {
       // Data properties on the contextified global; frozen shape not required —
       // a script overwriting its own hooks only sabotages itself.
       ;(this.context as Record<string, unknown>)[key] = typeof value === 'function' ? Object.freeze(value) : value
+    }
+  }
+
+  /** Invoke one admitted Host activity with plain JSON input. */
+  private async activity(rawName: unknown, rawInput: unknown): Promise<unknown> {
+    this.throwIfCancelled()
+    if (typeof rawName !== 'string' || rawName.length === 0) {
+      throw new WorkflowError('activity() requires a non-empty name string', 'INVALID_ARGUMENT')
+    }
+    if (!this.activityNames.has(rawName)) {
+      throw new WorkflowError(`workflow activity '${rawName}' is not registered for this run`, 'ACTIVITY_FAILED')
+    }
+    let input: JsonValue
+    try {
+      input = rawInput === undefined ? null : materializeFromRealm(rawInput, `activity(${JSON.stringify(rawName)}) input`) as JsonValue
+    } catch (error: unknown) {
+      const rendered = error instanceof MaterializeError ? error.message : renderThrown(error)
+      throw new WorkflowError(`workflow activity '${rawName}' input is not plain JSON: ${rendered}`, 'INVALID_ARGUMENT', { cause: error })
+    }
+    try {
+      const result = await this.activities.call({ name: rawName, input })
+      this.throwIfCancelled()
+      return result
+    } catch (error: unknown) {
+      if (isFatalWorkflowError(error)) throw error
+      throw new WorkflowError(`workflow activity '${rawName}' failed: ${renderThrown(error)}`, 'ACTIVITY_FAILED', { cause: error })
     }
   }
 
@@ -141,7 +173,7 @@ export class WorkflowExecution {
    * problem: its grace timer force-settles the run and terminates the
    * worker. Idempotent; the first reason wins.
    * @param reason - human-readable cause carried on the CANCELLED error. The
-   * host independently aborts the required signal shared by every child.
+   * host independently aborts the required signal shared by children and activities.
    */
   cancel(reason: string): void {
     if (this.cancelReason !== undefined) return

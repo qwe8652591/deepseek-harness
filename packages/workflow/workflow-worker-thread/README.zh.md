@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-本包为 `WorkflowEngine` 提供实现，每次运行使用一个 Node worker thread。worker 执行编排脚本；子 agent（智能体）留在宿主上，脚本通过带类型的宿主／worker 协议经由 `ctx.subagents` 访问它们。
+本包为 `WorkflowEngine` 提供实现，每次运行使用一个 Node worker thread。worker 执行编排脚本；子 agent（智能体）和已声明的应用 activity 留在宿主上，脚本通过带类型的宿主／worker 协议访问它们。
 
 包根目录默认导出引擎插件及其 `Config`；worker 协议、运行时和会话模块均为实现私有。操作入口 `./worker` 仍是引擎的 spawn 目标。
 
@@ -28,6 +28,7 @@ worker 仍提供实用的隔离：
 在 worker 内，脚本会收到 `args` 以及以下钩子：
 
 - `agent(prompt, { label, phase, schema, model })` 启动一个宿主侧 subagent。提供 schema 时返回结构化值，否则返回最终文本。普通子 agent 失败会产生 `null`；
+- `activity(name, input)` 调用 `WorkflowStartRequest.activities` 中提供的带命名空间宿主 handler；输入和结果必须是无损普通 JSON 数据；
 - `parallel(thunks)` 在已配置的并发限制下运行 thunk；
 - `pipeline(items, ...stages)` 在没有跨阶段屏障的情况下传递 `(previous, item, index)`；
 - `phase(title)` 和 `log(message)` 发出观察器叙述。
@@ -48,6 +49,8 @@ worker 仍提供实用的隔离：
 
 提供方启动与已发布子 agent 分开跟踪。如果启动仍在等待，而取消、worker 死亡或正常工作流结算关闭了接纳，共享信号会中止该启动。即便提供方随后兑现，宿主也会 dispose 它，且绝不向 worker 通知。
 
+每次调用 `activity()` 时，worker 会确认该名称已经为本次运行声明，并发送普通 JSON 请求。宿主使用该次运行的唯一中止信号调用同进程 handler，对结果制作快照，然后返回 JSON 值或渲染后的失败。Activity 调用不会发出子 agent 生命周期事件，也不要求提供 `parent`。
+
 ## 值边界
 
 离开脚本的值会经过 `materializeFromRealm`；该函数接受普通的无损 JSON 数据，并拒绝特殊原型、函数、symbol、循环、稀疏数组、非有限数和嵌套 `undefined`。遍历在 worker 内执行，并把对象键定义为数据属性，使 `__proto__` 无法改变原型。
@@ -56,7 +59,7 @@ worker 仍提供实用的隔离：
 
 ## 取消与 dispose
 
-`WorkflowRun.cancel()` 会记录第一个原因、通知 worker 取消、中止每个待处理及已发布子 agent 共享的唯一信号，并启动 `disposeGraceMs` 定时器。worker 钩子会在下次 await 时抛出 `CANCELLED`。如果运行到期限仍未结算，宿主会将其以已取消状态兑现、为悬空的子 agent 生命周期事件配对，并终止 worker。
+`WorkflowRun.cancel()` 会记录第一个原因、通知 worker 取消、中止每个待处理子 agent、已发布子 agent 和宿主 activity 共享的唯一信号，并启动 `disposeGraceMs` 定时器。worker 钩子会在下次 await 时抛出 `CANCELLED`。如果运行到期限仍未结算，宿主会将其以已取消状态兑现、为悬空的子 agent 生命周期事件配对，并终止 worker。Activity handler 必须观察该信号才能及时停止；忽略信号的 handler 可能像缓慢的外部 Provider 操作一样，超过运行句柄的有限等待时间继续执行。
 
 subagent seam 只有一个取消通道：请求信号。不存在单独的子 agent 取消 RPC。已发布子 agent 使用 `run.dispose()` 清理；待处理的提供方启动在其 promise 拒绝或兑现前仍由提供方负责。
 

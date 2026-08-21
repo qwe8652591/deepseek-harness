@@ -1,5 +1,6 @@
 /**
- * LayoutController: the cross-plugin panel-action face behind ctx.layout.
+ * LayoutController: the cross-plugin panel and application-navigation face
+ * behind ctx.layout.
  * Panel geometry itself lives in the root entry's layout store (stores.ts);
  * the current-session selection lives with the runtime sessions service, and
  * the per-session active view dissolved into ui-conversation's session store
@@ -27,11 +28,27 @@ export interface ILayout {
   openDetails(): void
   /** Close the details panel. */
   closeDetails(): void
+  /** Open a registered application page by its keyed slot id. */
+  openApplication(applicationId: string): void
+  /** Return from an application page to the conversation surface. */
+  closeApplication(): void
+  /** Current application-navigation snapshot. */
+  getSnapshot(): ApplicationNavigationSnapshot
+  /** Observe application-navigation changes. */
+  subscribe(listener: () => void): () => void
+}
+
+/** Immutable viewing state shared by the frame and application menu entries. */
+export interface ApplicationNavigationSnapshot {
+  /** Key of the active `application` slot entry; absent means conversation. */
+  readonly activeApplication?: string
 }
 
 /** Cross-plugin panel-action face (ctx.layout). */
 export class LayoutController implements ILayout {
   #panels: PanelActions | undefined
+  #snapshot: ApplicationNavigationSnapshot = {}
+  readonly #listeners = new Set<() => void>()
 
   /**
    * Adopt the root entry's bound store actions. Called from the root
@@ -57,6 +74,38 @@ export class LayoutController implements ILayout {
   /** Close the details panel. */
   closeDetails(): void {
     this.#require().closeDetails()
+  }
+
+  /** Open a registered application page by its keyed slot id. */
+  openApplication(applicationId: string): void {
+    if (applicationId.length === 0 || applicationId !== applicationId.trim()) {
+      throw new Error('layout: application id must be a non-empty normalized string')
+    }
+    if (this.#snapshot.activeApplication === applicationId) return
+    this.#snapshot = { activeApplication: applicationId }
+    this.#notify()
+  }
+
+  /** Return from an application page to the conversation surface. */
+  closeApplication(): void {
+    if (this.#snapshot.activeApplication === undefined) return
+    this.#snapshot = {}
+    this.#notify()
+  }
+
+  /** Current immutable navigation snapshot. */
+  getSnapshot(): ApplicationNavigationSnapshot {
+    return this.#snapshot
+  }
+
+  /** Observe application-navigation changes. */
+  subscribe(listener: () => void): () => void {
+    this.#listeners.add(listener)
+    return () => { this.#listeners.delete(listener) }
+  }
+
+  #notify(): void {
+    for (const listener of this.#listeners) listener()
   }
 
   #require(): PanelActions {

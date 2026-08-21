@@ -1,0 +1,11 @@
+# Ontology packages
+
+English | [中文](README.zh.md)
+
+| Package | Role | `ctx` key |
+|---|---|---|
+| [`ontology`](ontology/README.md) | Service Definition for definitions, graph state, Functions, and Actions | `ontology` |
+| [`ontology-local`](ontology-local/README.md) | Durable local Provider over `storage-domain` | provides `ontology` |
+| [`ontology-remote`](ontology-remote/README.md) | Typed browser Consumer | `ontologyRemote` |
+
+Business definitions belong to Consumer plugins. Providers own graph storage and Function/Action execution, so a local or platform Provider can implement the same API. Workflow remains a separate orchestration capability that may invoke ontology primitives.
