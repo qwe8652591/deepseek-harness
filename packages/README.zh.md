@@ -31,6 +31,7 @@ npm scope 为 `@deepseek-ai/dsh-*`；Cordis `Service` 子类和函数插件通�
 | [`context/`](context/README.md) | 模型可见请求上下文，包括 workspace 指令和时间上下文 | 产品：稳定 API |
 | [`subagent/`](subagent/README.md) | subagent 能力系列：提供方注册表约定和面向模型的委托工具 | 产品：稳定 API |
 | [`jobs/`](jobs/README.md) | 通用后台任务运行时和面向模型的 `job_*` 控制工具 | 产品：稳定 API |
+| [`experimental/`](experimental/README.md) | 私有原型与内部专用插件 | 不发布 |
 | [`workflow/`](workflow/README.md) | 工作流 seam、worker 线程引擎和面向模型的 `workflow`/`ralph` 工具 | 产品：稳定 API |
 | [`web/`](web/README.md) | Web 能力系列：seam、搜索／获取提供方实现和面向模型的 Web 工具 | 产品：稳定 API |
 | [`attachment/`](attachment/README.md) | 持久附件标识、校验、本地内容寻址存储 | 产品：稳定 API |
@@ -47,8 +48,8 @@ npm scope 为 `@deepseek-ai/dsh-*`；Cordis `Service` 子类和函数插件通�
 | [`settings/`](settings/README.md) | 用户设置 seam + 基于文件的提供方 | 产品：稳定 API |
 | [`credentials/`](credentials/README.md) | 凭据引用 seam + 环境变量优先于 `.env` 的提供方 | 产品：稳定 API |
 | [`storage/`](storage/README.md) | 非会话存储中枢 + 后端 + 领域形式 | 产品：稳定 API |
-| [`ontology/`](ontology/README.md) | 本体 Service Definition 与本地 Provider | 产品：演进中 API |
-| [`business/`](business/README.md) | 可安装的领域应用及其本体定义 | 产品：演进中 API |
+| [`ontology/`](ontology/README.md) | 本体定义与提供方 | 产品：演进中 API |
+| [`business/`](business/README.md) | 可安装的领域应用 | 产品：演进中 API |
 | [`workspace/`](workspace/README.md) | Workspace 实体 | 产品：稳定 API |
 | [`sdk/`](sdk/README.md) | 进程外运行时 SDK：JSON-RPC 协议、TypeScript 客户端和服务器插件 | 产品：稳定 API |
 | [`acp/`](acp/README.md) | 仅面向自动化的 ACP（Agent Client Protocol）服务器 | 产品：稳定 API |

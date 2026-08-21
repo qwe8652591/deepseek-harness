@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-bid-studio-bundle",
   "description": "Installable profile bundle for the local ontology runtime and Bid Studio application plugin",
-  "version": "0.1.0-rc.5",
+  "version": "0.1.0-rc.8",
   "publishConfig": { "access": "public" },
   "repository": {
     "type": "git",

@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-ontology-remote",
   "description": "Typed browser Remote projection of the active ontology Provider",
-  "version": "0.1.0-rc.5",
+  "version": "0.1.0-rc.8",
   "publishConfig": { "access": "public" },
   "repository": {
     "type": "git",

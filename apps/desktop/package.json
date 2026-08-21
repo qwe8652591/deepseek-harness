@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-desktop",
   "description": "Electron supervisor for an independent local Harness runtime with the Bid Studio bundle",
-  "version": "0.1.0-rc.5",
+  "version": "0.1.0-rc.8",
   "publishConfig": { "access": "public" },
   "repository": {
     "type": "git",
@@ -15,6 +15,7 @@
     "start": "electron lib/main.js",
     "dist": "electron-builder"
   },
+  "license": "MIT",
   "dependencies": {
     "@deepseek-ai/dsh": "workspace:^",
     "@deepseek-ai/dsh-app-boot": "workspace:^",
