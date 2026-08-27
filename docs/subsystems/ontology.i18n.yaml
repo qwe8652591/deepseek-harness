@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write docs/subsystems/ontology.md
-ontology.md: cf29515dab9b6910606ea13aedc7a917cb1dc560
-ontology.zh.md: c47e42fc52067e773ff2c56f2a39e1c840c7a5b9
+ontology.md: 035e5384ee304c3008fd1ddf4b31c4a60a8d48a6
+ontology.zh.md: 3f20147066d5c3556e3f488a932f9ae26020f075

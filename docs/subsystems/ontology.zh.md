@@ -2,7 +2,7 @@
 
 [English](ontology.md) | 中文
 
-本体子系统为业务插件提供稳定的对象类型、有向关系、只读 Function 和改变状态的 Action 语言，同时不指定本地或平台存储。[`@deepseek-ai/dsh-ontology`](../../packages/ontology/ontology/README.md) 声明与 Provider 无关的 `ctx.ontology` 服务，[`@deepseek-ai/dsh-ontology-local`](../../packages/ontology/ontology-local/README.md) 提供持久化本地 Provider，[`@deepseek-ai/dsh-ontology-remote`](../../packages/ontology/ontology-remote/README.md) 将能力投影给浏览器 Consumer，[标书工作台](../../packages/business/bid-studio/README.md)等业务插件持有领域定义与 handler。[业务应用与本体 Agent Note](../../.agents/notes/implemented/architecture/2026-08-15-business-application-and-ontology-plugins.md)记录了这一职责划分。
+本体子系统为业务插件提供稳定的对象类型、有向关系、只读 Function 和改变状态的 Action 语言，同时不指定本地或平台存储。[`@deepseek-ai/dsh-ontology`](../../packages/ontology/ontology/README.zh.md) 声明与 Provider 无关的 `ctx.ontology` 服务，[`@deepseek-ai/dsh-ontology-local`](../../packages/ontology/ontology-local/README.zh.md) 提供持久化本地 Provider，[`@deepseek-ai/dsh-ontology-remote`](../../packages/ontology/ontology-remote/README.zh.md) 将能力投影给浏览器 Consumer，[标书工作台](../../packages/business/bid-studio/README.zh.md)等业务插件持有领域定义与 handler。[业务应用与本体 Agent Note](../../.agents/notes/implemented/architecture/2026-08-15-business-application-and-ontology-plugins.zh.md)记录了这一职责划分。
 
 ## 定义
 
@@ -22,7 +22,7 @@ Workflow 不属于 `OntologyDefinition`，而是位于 Function 和 Action 之�
 
 ## Cordis API
 
-Generated from source by `scripts/gen-cordis-catalog.ts` (verified fresh by `pnpm run verify-cordis-catalog` in doc-sync; regenerate with `pnpm run gen-cordis-catalog`) — this section is byte-identical in both language sides of the page. Signature blocks use a `ts cordis-catalog` fence and keep the original source JSDoc; dispatch modes are defined in the [primer](../cordis-primer.md#dispatch-modes), and the framework-inherited `ctx` API lives in [cordis-api/inherited.md](../cordis-api/inherited.md).
+Generated from source by `scripts/gen-cordis-catalog.ts` (verified fresh by `pnpm run verify-cordis-catalog` in doc-sync; regenerate with `pnpm run gen-cordis-catalog`) — the language sides differ only in locale-specific paired document paths. Signature blocks use a `ts cordis-catalog` fence and keep the original source JSDoc; dispatch modes are defined in the [primer](../cordis-primer.zh.md#dispatch-modes), and the framework-inherited `ctx` API lives in [cordis-api/inherited.md](../cordis-api/inherited.md).
 
 <a id="ctxontology--ontologyruntime-abstract-seam"></a>
 
@@ -104,7 +104,7 @@ abstract executeFunction( functionId: OntologyFunctionId, input: Readonly<Record
 abstract executeAction(action: OntologyActionId, input: Readonly<Record<string, OntologyPropertyValue>>): Promise<unknown>
 ```
 
-Source: [`packages/ontology/ontology/src/index.ts:30`](../../packages/ontology/ontology/src/index.ts)
+Source: [`packages/ontology/ontology/src/index.ts`](../../packages/ontology/ontology/src/index.ts)
 
 <a id="ctxontologyremote--ontologyremote"></a>
 
@@ -150,5 +150,5 @@ Remote Consumer that keeps transport concerns out of the Provider interface.
 @Remote('executeAction') async executeAction(action: OntologyActionId, input: Readonly<Record<string, OntologyPropertyValue>>): Promise<OntologyObject>
 ```
 
-Source: [`packages/ontology/ontology-remote/src/index.ts:27`](../../packages/ontology/ontology-remote/src/index.ts)
+Source: [`packages/ontology/ontology-remote/src/index.ts`](../../packages/ontology/ontology-remote/src/index.ts)
 <!-- END GENERATED cordis-surface -->

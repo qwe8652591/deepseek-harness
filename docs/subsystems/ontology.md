@@ -22,7 +22,7 @@ Workflow is not part of `OntologyDefinition`. It is the coordination layer above
 
 ## Cordis API
 
-Generated from source by `scripts/gen-cordis-catalog.ts` (verified fresh by `pnpm run verify-cordis-catalog` in doc-sync; regenerate with `pnpm run gen-cordis-catalog`) — this section is byte-identical in both language sides of the page. Signature blocks use a `ts cordis-catalog` fence and keep the original source JSDoc; dispatch modes are defined in the [primer](../cordis-primer.md#dispatch-modes), and the framework-inherited `ctx` API lives in [cordis-api/inherited.md](../cordis-api/inherited.md).
+Generated from source by `scripts/gen-cordis-catalog.ts` (verified fresh by `pnpm run verify-cordis-catalog` in doc-sync; regenerate with `pnpm run gen-cordis-catalog`) — the language sides differ only in locale-specific paired document paths. Signature blocks use a `ts cordis-catalog` fence and keep the original source JSDoc; dispatch modes are defined in the [primer](../cordis-primer.md#dispatch-modes), and the framework-inherited `ctx` API lives in [cordis-api/inherited.md](../cordis-api/inherited.md).
 
 <a id="ctxontology--ontologyruntime-abstract-seam"></a>
 
@@ -104,7 +104,7 @@ abstract executeFunction( functionId: OntologyFunctionId, input: Readonly<Record
 abstract executeAction(action: OntologyActionId, input: Readonly<Record<string, OntologyPropertyValue>>): Promise<unknown>
 ```
 
-Source: [`packages/ontology/ontology/src/index.ts:30`](../../packages/ontology/ontology/src/index.ts)
+Source: [`packages/ontology/ontology/src/index.ts`](../../packages/ontology/ontology/src/index.ts)
 
 <a id="ctxontologyremote--ontologyremote"></a>
 
@@ -150,5 +150,5 @@ Remote Consumer that keeps transport concerns out of the Provider interface.
 @Remote('executeAction') async executeAction(action: OntologyActionId, input: Readonly<Record<string, OntologyPropertyValue>>): Promise<OntologyObject>
 ```
 
-Source: [`packages/ontology/ontology-remote/src/index.ts:27`](../../packages/ontology/ontology-remote/src/index.ts)
+Source: [`packages/ontology/ontology-remote/src/index.ts`](../../packages/ontology/ontology-remote/src/index.ts)
 <!-- END GENERATED cordis-surface -->

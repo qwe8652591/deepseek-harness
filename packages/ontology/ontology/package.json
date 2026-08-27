@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-ontology",
   "description": "Ontology capability Service Definition: definitions, typed object ids, local-or-remote runtime contract",
-  "version": "0.1.0-rc.8",
+  "version": "0.1.1-rc.2",
   "publishConfig": { "access": "public" },
   "repository": {
     "type": "git",
