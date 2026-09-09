@@ -1,0 +1,78 @@
+- main:
+  - text: LOCAL ONTOLOGY APPLICATION
+  - heading "Bid Studio" [level=1]
+  - paragraph: Tender requirements, evidence, risks, responses, reviews, and formal artifacts.
+  - button "Back to conversation"
+  - region "Project overview":
+    - article:
+      - strong: "0"
+      - text: Requirements
+    - article:
+      - strong: "0"
+      - text: Evidence matches
+    - article:
+      - strong: "0"
+      - text: Open risks
+    - article:
+      - strong: 0/0
+      - text: Approved sections
+  - complementary:
+    - heading "Bid projects" [level=2]
+    - paragraph: Projects and process records are stored locally.
+    - textbox "Project name": City data platform bid
+    - button "Create"
+    - paragraph: No projects yet.
+  - heading "Tender and execution" [level=2]
+  - paragraph: Tender source requirements and review actions.
+  - text: Not started
+  - textbox "Tender source": 1. 投标人必须具备有效的 ISO 9001 质量管理体系认证，5分。 2. 提供城市数据平台或数据治理同类项目案例，10分。 3. 技术方案应覆盖数据采集、治理、共享交换和安全体系，20分。 4. 项目必须在合同签订后 90 日内完成实施交付和验收，10分。 5. 项目团队须包含项目经理、数据架构师和安全工程师，10分。 6. 投标报价不得超过采购预算，商务报价得分15分。
+  - button "Run to human review" [disabled]
+  - textbox "Reviewer": Project lead
+  - button "Approve review" [disabled]
+  - button "Export formal bid" [disabled]
+  - heading "标准投标应答流程" [level=2]
+  - paragraph: Process drivers and execution status.
+  - text: v2
+  - list:
+    - listitem:
+      - text: "1"
+      - strong: 导入招标文件
+      - text: Machine · Pending
+    - listitem:
+      - text: "2"
+      - strong: 解析要求与评分
+      - text: AI Agent · Pending
+    - listitem:
+      - text: "3"
+      - strong: 准备企业证据
+      - text: Machine · Pending
+    - listitem:
+      - text: "4"
+      - strong: 匹配企业证据
+      - text: Workflow · Pending
+    - listitem:
+      - text: "5"
+      - strong: 识别风险与任务
+      - text: Workflow · Pending
+    - listitem:
+      - text: "6"
+      - strong: 生成应答章节
+      - text: AI Agent · Pending
+    - listitem:
+      - text: "7"
+      - strong: 人工审核
+      - text: Human · Pending
+    - listitem:
+      - text: "8"
+      - strong: 汇编并导出
+      - text: Workflow · Pending
+  - article:
+    - heading "Requirements and responses" [level=2]
+    - paragraph: Category, score, evidence, and risk status by requirement.
+    - paragraph: No analysis results yet.
+  - article:
+    - heading "Formal artifacts" [level=2]
+    - paragraph: Human review required before export.
+    - button "Download" [disabled]
+    - text: No formal artifact yet.
+  - group "Bid ontology": Bid ontology (13 object types, 12 relationships, 3 Functions, 11 Actions)

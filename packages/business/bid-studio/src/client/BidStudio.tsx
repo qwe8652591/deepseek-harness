@@ -1,6 +1,6 @@
 /** Durable Bid Studio workbench for the complete standard response route. */
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {
   OntologyActionId,
   OntologyDefinition,
@@ -18,13 +18,14 @@ import {
 } from '../definition.ts'
 import css from './BidStudio.module.css'
 import { OntologyInspector } from './OntologyInspector.tsx'
+import { driverLabel } from './locales.ts'
 
 interface BidStudioRemote {
   listObjects(type?: OntologyObjectTypeId): Promise<readonly OntologyObject[]>
   execute(action: OntologyActionId, input: Readonly<Record<string, OntologyPropertyValue>>): Promise<unknown>
 }
 
-type Props = PropsRuntime<'application'> & {
+type Props = PropsRuntime<'main'> & PropsLocale<'bidStudio'> & {
   definition: OntologyDefinition
   remote: BidStudioRemote
   close: () => void
@@ -40,13 +41,13 @@ const DEFAULT_TENDER = [
 ].join('\n')
 
 /** Render the operational workbench and its secondary ontology inspector. */
-export function BidStudio({ definition, remote, close }: Props) {
+export function BidStudio({ definition, remote, close, t }: Props) {
   const [records, setRecords] = useState<Readonly<Record<string, readonly OntologyObject[]>>>({})
   const [projectId, setProjectId] = useState<string>()
   const [artifactId, setArtifactId] = useState<string>()
-  const [projectName, setProjectName] = useState('城市数据平台投标项目')
+  const [projectName, setProjectName] = useState(() => t('projects.defaultName'))
   const [tenderText, setTenderText] = useState(DEFAULT_TENDER)
-  const [reviewer, setReviewer] = useState('项目负责人')
+  const [reviewer, setReviewer] = useState(() => t('execution.defaultReviewer'))
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
 
@@ -113,7 +114,7 @@ export function BidStudio({ definition, remote, close }: Props) {
 
   async function approveReview(): Promise<void> {
     if (selectedProject === undefined) return
-    await runAction(APPROVE_BID_REVIEW, { projectId: selectedProject.id, reviewer, comment: '已核对要求、证据引用、风险和应答内容，同意导出。' })
+    await runAction(APPROVE_BID_REVIEW, { projectId: selectedProject.id, reviewer, comment: t('execution.approvalComment') })
   }
 
   async function exportDocument(): Promise<void> {
@@ -141,39 +142,39 @@ export function BidStudio({ definition, remote, close }: Props) {
     <main className={css.page}>
       <header className={css.header}>
         <div>
-          <div className={css.eyebrow}>LOCAL ONTOLOGY APPLICATION</div>
-          <h1>投标工作台</h1>
-          <p>标准流程把招标原文转成可追溯要求、证据、风险、应答、审核记录和正式制品。</p>
+          <div className={css.eyebrow}>{t('page.eyebrow')}</div>
+          <h1>{t('page.title')}</h1>
+          <p>{t('page.description')}</p>
         </div>
-        <button type="button" className={css.secondary} onClick={close}>返回对话</button>
+        <button type="button" className={css.secondary} onClick={close}>{t('page.close')}</button>
       </header>
 
       {error !== undefined && <div className={css.error} role="alert">{error}</div>}
 
-      <section className={css.metrics} aria-label="项目概览">
-        <article><strong>{requirements.length}</strong><span>招标要求</span></article>
-        <article><strong>{matches.length}</strong><span>证据匹配</span></article>
-        <article><strong>{risks.filter(risk => risk.properties.resolved !== true).length}</strong><span>待闭环风险</span></article>
+      <section className={css.metrics} aria-label={t('metrics.label')}>
+        <article><strong>{requirements.length}</strong><span>{t('metrics.requirements')}</span></article>
+        <article><strong>{matches.length}</strong><span>{t('metrics.matches')}</span></article>
+        <article><strong>{risks.filter(risk => risk.properties.resolved !== true).length}</strong><span>{t('metrics.risks')}</span></article>
         <article>
           <strong>{responses.filter(response => response.properties.approved === true).length}/{responses.length}</strong>
-          <span>已批准章节</span>
+          <span>{t('metrics.approved')}</span>
         </article>
       </section>
 
       <section className={css.workspace}>
         <aside className={css.projectPanel}>
-          <div className={css.panelTitle}><div><h2>投标项目</h2><p>项目和流程记录持久化在本机。</p></div></div>
+          <div className={css.panelTitle}><div><h2>{t('projects.title')}</h2><p>{t('projects.description')}</p></div></div>
           <div className={css.createRow}>
-            <input aria-label="项目名称" value={projectName} onChange={(event) => { setProjectName(event.target.value) }} />
+            <input aria-label={t('projects.name')} value={projectName} onChange={(event) => { setProjectName(event.target.value) }} />
             <button
               type="button"
               className={css.primary}
               disabled={busy || projectName.trim().length === 0}
               onClick={() => { void createProject() }}
-            >新建</button>
+            >{t('projects.create')}</button>
           </div>
           <div className={css.projectList}>
-            {projects.length === 0 && <p className={css.empty}>先新建项目，再输入招标原文运行完整流程。</p>}
+            {projects.length === 0 && <p className={css.empty}>{t('projects.empty')}</p>}
             {projects.map(project => (
               <button
                 type="button"
@@ -190,11 +191,11 @@ export function BidStudio({ definition, remote, close }: Props) {
 
         <section className={css.executionPanel}>
           <div className={css.panelTitle}>
-            <div><h2>招标原文与执行</h2><p>每行一个要求时，本地验证解析器可以给出最清晰的追溯结果。</p></div>
-            <span className={css.badge}>{currentRun === undefined ? '尚未运行' : stringProperty(currentRun, 'status')}</span>
+            <div><h2>{t('execution.title')}</h2><p>{t('execution.description')}</p></div>
+            <span className={css.badge}>{currentRun === undefined ? t('execution.idle') : stringProperty(currentRun, 'status')}</span>
           </div>
           <textarea
-            aria-label="招标原文"
+            aria-label={t('execution.tender')}
             value={tenderText}
             onChange={(event) => { setTenderText(event.target.value) }}
             disabled={currentRun !== undefined}
@@ -205,28 +206,28 @@ export function BidStudio({ definition, remote, close }: Props) {
               className={css.primary}
               disabled={busy || selectedProject === undefined || currentRun !== undefined || tenderText.trim().length < 20}
               onClick={() => { void runWorkflow() }}
-            >运行到人工审核</button>
-            <input aria-label="审核人" value={reviewer} onChange={(event) => { setReviewer(event.target.value) }} />
+            >{t('execution.run')}</button>
+            <input aria-label={t('execution.reviewer')} value={reviewer} onChange={(event) => { setReviewer(event.target.value) }} />
             <button
               type="button"
               className={css.secondary}
               disabled={busy || selectedReview === undefined || reviewApproved || reviewer.trim().length === 0}
               onClick={() => { void approveReview() }}
-            >审核通过</button>
+            >{t('execution.approve')}</button>
             <button
               type="button"
               className={css.primary}
               disabled={busy || !reviewApproved}
               onClick={() => { void exportDocument() }}
-            >导出正式标书</button>
+            >{t('execution.export')}</button>
           </div>
         </section>
       </section>
 
       <section className={css.panel}>
         <div className={css.panelTitle}>
-          <div><h2>{BID_WORKFLOW.label}</h2><p>驱动者来自流程定义；Agent 节点当前使用可重复的本地验证适配器。</p></div>
-          <span className={css.badge}>v{BID_WORKFLOW.version}</span>
+          <div><h2>{BID_WORKFLOW.label}</h2><p>{t('workflow.description')}</p></div>
+          <span className={css.badge}>{t('workflow.version', { version: BID_WORKFLOW.version })}</span>
         </div>
         <ol className={css.pipeline}>
           {BID_WORKFLOW.steps.map((definitionStep, index) => {
@@ -235,7 +236,7 @@ export function BidStudio({ definition, remote, close }: Props) {
             return (
               <li key={definitionStep.id} data-status={status}>
                 <b>{index + 1}</b>
-                <span><strong>{definitionStep.label}</strong><small>{driverLabel(definitionStep.driver)} · {status}</small></span>
+                <span><strong>{definitionStep.label}</strong><small>{driverLabel(definitionStep.driver, t)} · {step === undefined ? t('workflow.pending') : status}</small></span>
               </li>
             )
           })}
@@ -244,9 +245,9 @@ export function BidStudio({ definition, remote, close }: Props) {
 
       <section className={css.traceGrid}>
         <article className={css.panel}>
-          <div className={css.panelTitle}><div><h2>要求与应答追溯</h2><p>每条要求显示分类、分值、证据和风险状态。</p></div></div>
+          <div className={css.panelTitle}><div><h2>{t('trace.title')}</h2><p>{t('trace.description')}</p></div></div>
           <div className={css.traceList}>{requirements.length === 0
-            ? <p className={css.empty}>流程运行后显示解析结果。</p>
+            ? <p className={css.empty}>{t('trace.empty')}</p>
             : requirements.map((requirement) => {
               const matchCount = matches.filter(match => match.properties.requirementId === requirement.id).length
               const risk = risks.find(candidate => candidate.properties.requirementId === requirement.id)
@@ -258,9 +259,9 @@ export function BidStudio({ definition, remote, close }: Props) {
                     <strong>{stringProperty(requirement, 'title')}</strong>
                     <small>
                       {stringProperty(requirement, 'source')} ·
-                      {typeof requirement.properties.score === 'number' ? ` ${requirement.properties.score} 分` : ' 无评分'} ·
-                      证据 {matchCount} · {risk === undefined ? '无缺口' : stringProperty(risk, 'severity') + '风险'} ·
-                      {response === undefined ? '待应答' : stringProperty(response, 'status')}
+                      {typeof requirement.properties.score === 'number' ? t('trace.score', { score: requirement.properties.score }) : t('trace.noScore')} ·
+                      {t('trace.evidence', { count: matchCount })} · {risk === undefined ? t('trace.noGap') : t('trace.risk', { severity: stringProperty(risk, 'severity') })} ·
+                      {response === undefined ? t('trace.pending') : stringProperty(response, 'status')}
                     </small>
                   </div>
                 </div>
@@ -270,9 +271,9 @@ export function BidStudio({ definition, remote, close }: Props) {
 
         <article className={css.panel}>
           <div className={css.panelTitle}>
-            <div><h2>正式制品</h2><p>只有人工审核通过后才能汇编导出。</p></div>
+            <div><h2>{t('artifact.title')}</h2><p>{t('artifact.description')}</p></div>
             <div className={css.headerActions}>
-              <button type="button" className={css.secondary} disabled={selectedArtifact === undefined} onClick={downloadArtifact}>下载</button>
+              <button type="button" className={css.secondary} disabled={selectedArtifact === undefined} onClick={downloadArtifact}>{t('artifact.download')}</button>
             </div>
           </div>
           <div className={css.artifactTabs}>{artifacts.map(artifact => (
@@ -285,13 +286,13 @@ export function BidStudio({ definition, remote, close }: Props) {
           ))}</div>
           <pre className={css.preview}>
             {selectedArtifact === undefined
-              ? '完成审核并点击“导出正式标书”，这里会显示汇编结果。'
+              ? t('artifact.empty')
               : stringProperty(selectedArtifact, 'content')}
           </pre>
         </article>
       </section>
 
-      <OntologyInspector definition={definition} />
+      <OntologyInspector definition={definition} t={t} />
     </main>
   )
 }
@@ -323,8 +324,4 @@ function numberProperty(object: OntologyObject, key: string): number {
 
 function isOntologyObject(value: unknown): value is OntologyObject {
   return value !== null && typeof value === 'object' && 'id' in value && typeof value.id === 'string' && 'properties' in value
-}
-
-function driverLabel(driver: string): string {
-  return ({ machine: '机器', workflow: '工作流', agent: 'AI Agent', human: '人工' } as Record<string, string>)[driver] ?? driver
 }

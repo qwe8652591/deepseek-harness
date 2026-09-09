@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-08-15-business-application-and-ontology-plugins.md
-2026-08-15-business-application-and-ontology-plugins.md: cdb403f33b325f1a8272eaf5baf6f69f9abc2b14
-2026-08-15-business-application-and-ontology-plugins.zh.md: 73934b1b373eedd4f567bc601c0fff6ef2b77ce1
+2026-08-15-business-application-and-ontology-plugins.md: 02a5c57e4a7d0dba0c8fa6a1d891cdddbc5f7bcb
+2026-08-15-business-application-and-ontology-plugins.zh.md: 895605c7fa729ae0427b554774a225af532d4f9d

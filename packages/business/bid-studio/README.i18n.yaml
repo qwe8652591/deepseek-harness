@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/business/bid-studio/README.md
-README.md: 0f08cdf85f1c5bd2b4c67de7c9fcd13354e375f6
-README.zh.md: bea8ab8965587cd2675c3fd9386d3e01b4a23181
+README.md: e21394409a7c22ff07059113e90fe884537249d4
+README.zh.md: 7ef7343e276a79dad323e91d700a2789ce83b055

@@ -1,8 +1,25 @@
+---
+description: "A bid workbench with durable requirements, evidence, human review, and document export."
+kind: "package-reference"
+---
+
 # @deepseek-ai/dsh-bid-studio
 
 English | [中文](README.zh.md)
 
-Installable tender-workbench plugin. The Host contribution owns the complete bid ontology, standard response process, local validation adapters, and three model tools. The browser contribution owns the `投标工作台` navigation row and keyed application page. Removing or reloading the plugin removes both contributions through Cordis effects.
+## Summary
+
+Installable tender-workbench plugin. The Host contribution owns the complete bid ontology, standard response process, local validation adapters, and three model tools. The browser contribution registers its navigation icon and label in `sidebar.panellist` and its page in the root-scoped keyed `main` slot. Both use the same panel id; `ctx.layout.selectPanel(null)` returns to the conversation. Removing or reloading the plugin removes both contributions through Cordis effects.
+
+## Table of Contents
+
+- [Use this package](#use-this-package)
+- [Model Experience](#model-experience)
+- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
+- [Dev Note](#dev-note)
+
+<a id="use-this-package"></a>
+## Use this package
 
 The standard process imports tender text, extracts requirements and score criteria, prepares enterprise evidence, records evidence matches, identifies risks and tasks, generates response sections, and pauses at a human review gate. Approval is required before the process assembles a formal Markdown artifact for preview or download. The project, process steps, and every business object are durable; [`CONTEXT.md`](CONTEXT.md) defines the domain terms.
 
@@ -33,3 +50,8 @@ Stable until the bid tool names, descriptions, or schemas change.
 - **Markdown formal artifact** — the review gate and formal status execute, while DOCX/PDF layout, signature, and template adapters remain separate work.
 - **No Action transaction** — each object and relationship write is durable, but a multi-write Action is not yet committed as one storage transaction; the process records a failed step and a later recovery policy must decide whether to resume or compensate.
 - **One process run per project** — the validation composition idempotently returns the first run for a project; re-analysis, review rejection, and process-version migration need a new run policy.
+
+<a id="dev-note"></a>
+### Dev Note
+
+The Host compiler face retains peer dependencies for its tool registry and ontology adapters. The browser face uses the standard `bidStudio` locale namespace; interface labels follow the application language while ontology labels and stored records retain their source language. No invariant companion is published: the Host contribution is immutable after registry acceptance, and browser slot ownership belongs to the client runtime.

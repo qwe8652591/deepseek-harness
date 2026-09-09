@@ -1,17 +1,19 @@
 /** Interactive view of every object, relationship, Function, Action, and process definition. */
 import { useState } from 'react'
+import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { OntologyDefinition, OntologyObjectTypeId, OntologyPropertyValue } from '@deepseek-ai/dsh-ontology'
 import { BID_WORKFLOW } from '../definition.ts'
 import css from './BidStudio.module.css'
+import { driverLabel } from './locales.ts'
 
 type InspectorSection = 'objects' | 'links' | 'functions' | 'actions' | 'workflow'
 
-interface OntologyInspectorProps {
+interface OntologyInspectorProps extends PropsLocale<'bidStudio'> {
   definition: OntologyDefinition
 }
 
 /** Render the complete installable definition instead of only its object properties. */
-export function OntologyInspector({ definition }: OntologyInspectorProps) {
+export function OntologyInspector({ definition, t }: OntologyInspectorProps) {
   const [section, setSection] = useState<InspectorSection>('objects')
   const [selectedTypeId, setSelectedTypeId] = useState(definition.objectTypes[0]?.id)
   const [selectedLinkId, setSelectedLinkId] = useState(definition.linkTypes[0]?.id)
@@ -25,17 +27,16 @@ export function OntologyInspector({ definition }: OntologyInspectorProps) {
   const selectedStep = BID_WORKFLOW.steps.find(step => step.id === selectedStepId)
 
   return (
-    <details className={css.inspector} aria-label="标书本体定义">
+    <details className={css.inspector} aria-label={t('inspector.label')}>
       <summary>
-        查看完整标书本体定义（{definition.objectTypes.length} 个对象类型、{definition.linkTypes.length} 个关系、
-        {definition.functions.length} 个 Function、{definition.actions.length} 个 Action）
+        {t('inspector.summary', { objects: definition.objectTypes.length, links: definition.linkTypes.length, functions: definition.functions.length, actions: definition.actions.length })}
       </summary>
-      <nav className={css.inspectorTabs} aria-label="本体定义视图">
-        <InspectorTab active={section === 'objects'} onClick={() => { setSection('objects') }} label="对象类型" count={definition.objectTypes.length} />
-        <InspectorTab active={section === 'links'} onClick={() => { setSection('links') }} label="关系定义" count={definition.linkTypes.length} />
-        <InspectorTab active={section === 'functions'} onClick={() => { setSection('functions') }} label="Function 定义" count={definition.functions.length} />
-        <InspectorTab active={section === 'actions'} onClick={() => { setSection('actions') }} label="Action 定义" count={definition.actions.length} />
-        <InspectorTab active={section === 'workflow'} onClick={() => { setSection('workflow') }} label="运行流程" count={BID_WORKFLOW.steps.length} />
+      <nav className={css.inspectorTabs} aria-label={t('inspector.views')}>
+        <InspectorTab active={section === 'objects'} onClick={() => { setSection('objects') }} label={t('inspector.objects')} count={definition.objectTypes.length} />
+        <InspectorTab active={section === 'links'} onClick={() => { setSection('links') }} label={t('inspector.links')} count={definition.linkTypes.length} />
+        <InspectorTab active={section === 'functions'} onClick={() => { setSection('functions') }} label={t('inspector.functions')} count={definition.functions.length} />
+        <InspectorTab active={section === 'actions'} onClick={() => { setSection('actions') }} label={t('inspector.actions')} count={definition.actions.length} />
+        <InspectorTab active={section === 'workflow'} onClick={() => { setSection('workflow') }} label={t('inspector.workflow')} count={BID_WORKFLOW.steps.length} />
       </nav>
 
       {section === 'objects' && <div className={css.ontology}>
@@ -51,7 +52,7 @@ export function OntologyInspector({ definition }: OntologyInspectorProps) {
           <DefinitionHeading title={selectedType.label} description={selectedType.description} id={selectedType.id} />
           <div className={css.propertyGrid}>{selectedType.properties.map(property => (
             <div key={property.key}>
-              <code>{property.key}</code><span>{property.label}</span><small>{property.type}{property.required ? ' · 必填' : ''}{formatValues(property.values)}</small>
+              <code>{property.key}</code><span>{property.label}</span><small>{property.type}{property.required ? t('inspector.required') : ''}{formatValues(property.values)}</small>
             </div>
           ))}</div>
         </>}</div>
@@ -67,16 +68,16 @@ export function OntologyInspector({ definition }: OntologyInspectorProps) {
           ><span>{functionDefinition.label}</span><small>{functionDefinition.id}</small></button>
         ))}</div>
         <div className={css.typeDetail}>{selectedFunction !== undefined && <>
-          <DefinitionHeading title={selectedFunction.label} description={selectedFunction.description} id={selectedFunction.id} badge="只读计算" />
+          <DefinitionHeading title={selectedFunction.label} description={selectedFunction.description} id={selectedFunction.id} badge={t('inspector.readOnly')} />
           <div className={css.definitionMeta}>
-            <div><small>返回类型</small><strong>{functionResultLabel(selectedFunction.result, definition)}</strong></div>
+            <div><small>{t('inspector.resultType')}</small><strong>{functionResultLabel(selectedFunction.result, definition, t)}</strong></div>
           </div>
-          <h3 className={css.definitionSubheading}>输入参数</h3>
+          <h3 className={css.definitionSubheading}>{t('inspector.inputs')}</h3>
           {selectedFunction.inputs === undefined || selectedFunction.inputs.length === 0
-            ? <p className={css.empty}>无需输入参数。</p>
+            ? <p className={css.empty}>{t('inspector.noInputs')}</p>
             : <div className={css.propertyGrid}>{selectedFunction.inputs.map(input => (
               <div key={input.key}>
-                <code>{input.key}</code><span>{input.label}</span><small>{input.type}{input.required ? ' · 必填' : ''}{formatValues(input.values)}</small>
+                <code>{input.key}</code><span>{input.label}</span><small>{input.type}{input.required ? t('inspector.required') : ''}{formatValues(input.values)}</small>
               </div>
             ))}</div>}
         </>}</div>
@@ -92,15 +93,15 @@ export function OntologyInspector({ definition }: OntologyInspectorProps) {
           ><span>{link.label}</span><small>{link.id}</small></button>
         ))}</div>
         <div className={css.typeDetail}>{selectedLink !== undefined && <>
-          <DefinitionHeading title={selectedLink.label} description={selectedLink.description ?? '连接两个业务对象类型。'} id={selectedLink.id} />
+          <DefinitionHeading title={selectedLink.label} description={selectedLink.description ?? t('inspector.linkDescription')} id={selectedLink.id} />
           <div className={css.relationRoute}>
-            <ObjectReference label="来源对象" typeId={selectedLink.from} definition={definition} />
+            <ObjectReference label={t('inspector.source')} typeId={selectedLink.from} definition={definition} />
             <span aria-hidden="true">→</span>
-            <ObjectReference label="目标对象" typeId={selectedLink.to} definition={definition} />
+            <ObjectReference label={t('inspector.target')} typeId={selectedLink.to} definition={definition} />
           </div>
           <div className={css.definitionMeta}>
-            <div><small>关系基数</small><strong>{cardinalityLabel(selectedLink.cardinality)}</strong></div>
-            <div><small>方向</small><strong>从来源对象指向目标对象</strong></div>
+            <div><small>{t('inspector.cardinality')}</small><strong>{cardinalityLabel(selectedLink.cardinality, t)}</strong></div>
+            <div><small>{t('inspector.direction')}</small><strong>{t('inspector.forward')}</strong></div>
           </div>
         </>}</div>
       </div>}
@@ -112,20 +113,20 @@ export function OntologyInspector({ definition }: OntologyInspectorProps) {
             key={action.id}
             data-active={selectedActionId === action.id || undefined}
             onClick={() => { setSelectedActionId(action.id) }}
-          ><span>{action.label}</span><small>{driverLabel(action.driver)} · {action.id}</small></button>
+          ><span>{action.label}</span><small>{driverLabel(action.driver, t)} · {action.id}</small></button>
         ))}</div>
         <div className={css.typeDetail}>{selectedAction !== undefined && <>
-          <DefinitionHeading title={selectedAction.label} description={selectedAction.description} id={selectedAction.id} badge={`${driverLabel(selectedAction.driver)}驱动`} />
+          <DefinitionHeading title={selectedAction.label} description={selectedAction.description} id={selectedAction.id} badge={t('inspector.drivenBy', { driver: driverLabel(selectedAction.driver, t) })} />
           <div className={css.definitionMeta}>
-            <DefinitionReference label="作用对象" typeId={selectedAction.target} definition={definition} />
-            <DefinitionReference label="返回对象" typeId={selectedAction.result} definition={definition} />
+            <DefinitionReference label={t('inspector.actionTarget')} typeId={selectedAction.target} definition={definition} emptyLabel={t('inspector.none')} />
+            <DefinitionReference label={t('inspector.actionResult')} typeId={selectedAction.result} definition={definition} emptyLabel={t('inspector.none')} />
           </div>
-          <h3 className={css.definitionSubheading}>输入参数</h3>
+          <h3 className={css.definitionSubheading}>{t('inspector.inputs')}</h3>
           {selectedAction.inputs === undefined || selectedAction.inputs.length === 0
-            ? <p className={css.empty}>无需输入参数。</p>
+            ? <p className={css.empty}>{t('inspector.noInputs')}</p>
             : <div className={css.propertyGrid}>{selectedAction.inputs.map(input => (
               <div key={input.key}>
-                <code>{input.key}</code><span>{input.label}</span><small>{input.type}{input.required ? ' · 必填' : ''}{formatValues(input.values)}</small>
+                <code>{input.key}</code><span>{input.label}</span><small>{input.type}{input.required ? t('inspector.required') : ''}{formatValues(input.values)}</small>
               </div>
             ))}</div>}
         </>}</div>
@@ -138,26 +139,26 @@ export function OntologyInspector({ definition }: OntologyInspectorProps) {
             key={step.id}
             data-active={selectedStepId === step.id || undefined}
             onClick={() => { setSelectedStepId(step.id) }}
-          ><span>{index + 1}. {step.label}</span><small>{driverLabel(step.driver)} · {step.action}</small></button>
+          ><span>{index + 1}. {step.label}</span><small>{driverLabel(step.driver, t)} · {step.action}</small></button>
         ))}</div>
         <div className={css.typeDetail}>{selectedStep !== undefined && <>
           <DefinitionHeading
             title={BID_WORKFLOW.label}
-            description={`步骤 ${BID_WORKFLOW.steps.findIndex(step => step.id === selectedStep.id) + 1}：${selectedStep.description}`}
+            description={t('inspector.stepDescription', { step: BID_WORKFLOW.steps.findIndex(step => step.id === selectedStep.id) + 1, description: selectedStep.description })}
             id={`${BID_WORKFLOW.id}@${BID_WORKFLOW.version}`}
-            badge={driverLabel(selectedStep.driver)}
+            badge={driverLabel(selectedStep.driver, t)}
           />
           <div className={css.definitionMeta}>
-            <div><small>流程步骤</small><strong>{selectedStep.label}</strong><code>{selectedStep.id}</code></div>
+            <div><small>{t('inspector.step')}</small><strong>{selectedStep.label}</strong><code>{selectedStep.id}</code></div>
             <div>
-              <small>执行 Action</small>
+              <small>{t('inspector.execute')}</small>
               <strong>{definition.actions.find(action => action.id === selectedStep.action)?.label ?? selectedStep.action}</strong>
               <code>{selectedStep.action}</code>
             </div>
           </div>
-          <h3 className={css.definitionSubheading}>产出对象</h3>
+          <h3 className={css.definitionSubheading}>{t('inspector.outputs')}</h3>
           <div className={css.outputList}>{selectedStep.produces.map(typeId => (
-            <ObjectReference key={typeId} label="产出" typeId={typeId} definition={definition} />
+            <ObjectReference key={typeId} label={t('inspector.output')} typeId={typeId} definition={definition} />
           ))}</div>
         </>}</div>
       </div>}
@@ -188,13 +189,14 @@ function ObjectReference(
 }
 
 function DefinitionReference(
-  { label, typeId, definition }: {
+  { label, typeId, definition, emptyLabel }: {
     label: string
     typeId: OntologyObjectTypeId | undefined
     definition: OntologyDefinition
+    emptyLabel: string
   },
 ) {
-  if (typeId === undefined) return <div><small>{label}</small><strong>无</strong></div>
+  if (typeId === undefined) return <div><small>{label}</small><strong>{emptyLabel}</strong></div>
   return <ObjectReference label={label} typeId={typeId} definition={definition} />
 }
 
@@ -202,19 +204,17 @@ function formatValues(values: readonly OntologyPropertyValue[] | undefined): str
   return values === undefined ? '' : ` · ${values.join(' / ')}`
 }
 
-function cardinalityLabel(cardinality: 'one-to-one' | 'one-to-many' | 'many-to-many' | undefined): string {
-  return ({ 'one-to-one': '一对一', 'one-to-many': '一对多', 'many-to-many': '多对多' } as const)[cardinality ?? 'one-to-many']
+function cardinalityLabel(cardinality: 'one-to-one' | 'one-to-many' | 'many-to-many' | undefined, t: PropsLocale<'bidStudio'>['t']): string {
+  return ({ 'one-to-one': t('inspector.oneToOne'), 'one-to-many': t('inspector.oneToMany'), 'many-to-many': t('inspector.manyToMany') })[cardinality ?? 'one-to-many']
 }
 
 function functionResultLabel(
   result: OntologyDefinition['functions'][number]['result'],
   definition: OntologyDefinition,
+  t: PropsLocale<'bidStudio'>['t'],
 ): string {
   if (result.kind === 'scalar') return result.type
   const objectType = definition.objectTypes.find(type => type.id === result.objectType)
-  return `${objectType?.label ?? result.objectType}${result.kind === 'object-list' ? '列表' : ''}`
-}
-
-function driverLabel(driver: string): string {
-  return ({ machine: '机器', workflow: '工作流', agent: 'AI Agent', human: '人工' } as Record<string, string>)[driver] ?? driver
+  const type = objectType?.label ?? result.objectType
+  return result.kind === 'object-list' ? t('inspector.objectList', { type }) : type
 }
