@@ -40,12 +40,28 @@ try {
   for (const role of ['undo', 'redo', 'cut', 'copy', 'paste', 'selectAll']) {
     assert.ok(roles.includes(role.toLowerCase()), `Application menu is missing the native ${role} command`)
   }
+  const workspace = join(userData, 'clipboard-workspace')
+  mkdirSync(workspace)
+  const created = await page.evaluate(async path => {
+    const response = await fetch('/api/workspace/create', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({
+        type: 'client-request', rpcId: crypto.randomUUID(), method: 'workspace/create',
+        payload: { args: { request: { path } } },
+      }),
+    })
+    if (!response.ok) throw new Error(`Workspace setup failed: HTTP ${response.status}`)
+    return response.json()
+  }, workspace)
+  assert.equal(created.result.ok, true, JSON.stringify(created))
+  await page.getByRole('textbox', { name: /^(Choose workspace|选择工作区)$/ }).click({ timeout: 30000 })
+  await page.getByRole('menuitem', { name: 'clipboard-workspace', exact: true }).click({ timeout: 30000 })
+  const composer = page.locator('[contenteditable="true"][role="textbox"]')
+  await composer.waitFor({ timeout: 30000 })
   const savedClipboard = await app.evaluateHandle(async ({ clipboard, ClipboardItem }) => Promise.all(
     (await clipboard.read()).filter(item => item.types.length > 0).map(async item => new ClipboardItem(Object.fromEntries(
       await Promise.all(item.types.map(async type => [type, await item.getType(type)])),
     ))),
   ))
-  const composer = page.locator('[contenteditable="true"][role="textbox"]')
   const copied = 'Aiko native copy 复制'
   const pasted = 'Aiko native paste 粘贴'
   const clipboardEquals = async expected => {
@@ -59,7 +75,8 @@ try {
     assert.equal(actual, expected, 'Native clipboard command did not complete')
   }
   try {
-    await composer.fill(copied)
+    await composer.click()
+    await composer.pressSequentially(copied)
     await composer.press('Meta+A')
     await composer.press('Meta+C')
     await clipboardEquals(copied)
@@ -72,16 +89,12 @@ try {
     await page.waitForFunction(() => document.querySelector('[contenteditable="true"][role="textbox"]')?.textContent === '')
   } finally {
     try {
-      await composer.fill('')
+      await app.evaluate(async ({ clipboard }, saved) => {
+        clipboard.clear()
+        if (saved.length > 0) await clipboard.write(saved)
+      }, savedClipboard)
     } finally {
-      try {
-        await app.evaluate(async ({ clipboard }, saved) => {
-          clipboard.clear()
-          if (saved.length > 0) await clipboard.write(saved)
-        }, savedClipboard)
-      } finally {
-        await savedClipboard.dispose()
-      }
+      await savedClipboard.dispose()
     }
   }
   await page.screenshot({ path: join(output, 'desktop.png') })
