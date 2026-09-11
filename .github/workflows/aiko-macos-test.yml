@@ -1,0 +1,82 @@
+name: Aiko Mac test client
+
+on:
+  workflow_dispatch:
+    inputs:
+      architecture:
+        description: Native architecture to build
+        type: choice
+        options: [all, arm64, x64]
+        default: all
+
+permissions:
+  contents: read
+
+concurrency:
+  group: aiko-macos-test-${{ github.ref }}-${{ inputs.architecture }}
+  cancel-in-progress: false
+
+jobs:
+  desktop:
+    if: github.repository == 'aiko-dsh-plugins/deepseek-harness-source'
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: ${{ fromJSON(inputs.architecture == 'arm64' && '["arm64"]' || inputs.architecture == 'x64' && '["x64"]' || '["arm64","x64"]') }}
+    runs-on: ${{ matrix.arch == 'arm64' && 'macos-15' || 'macos-15-intel' }}
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: harness
+          persist-credentials: false
+      # Published Office fixtures exercise the installed tarball, not this source checkout.
+      - uses: actions/checkout@v6
+        with:
+          repository: aiko-dsh-plugins/dsh-office
+          ref: ea2c2ca70c1ad90bfa5c218c0afe581e7f1490d6
+          path: office-tests
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: harness/package.json
+      - name: Install build and test dependencies
+        run: |
+          pnpm --dir harness install --frozen-lockfile
+          pnpm --dir office-tests install --frozen-lockfile
+      - uses: actions/cache/restore@v4
+        id: core-cache
+        with:
+          key: aiko-mac-core-v2-${{ matrix.arch }}-${{ github.sha }}-ea2c2ca
+          path: |
+            harness/apps/desktop/lib
+            harness/apps/desktop/.desktop-build/targets/mac-${{ matrix.arch }}/prepared.json
+            harness/apps/desktop/.desktop-build/targets/mac-${{ matrix.arch }}/runtime
+            harness/apps/desktop/.desktop-build/targets/mac-${{ matrix.arch }}/package-set
+            harness/apps/desktop/.desktop-build/targets/mac-${{ matrix.arch }}/packed
+      - name: Build and validate the current private client
+        run: node harness/apps/desktop/scripts/aiko-build-macos-test.mjs office-tests
+      - uses: actions/cache/save@v4
+        if: always() && steps.core-cache.outputs.cache-hit != 'true' && hashFiles('harness/apps/desktop/.desktop-build/targets/*/prepared.json') != ''
+        with:
+          key: ${{ steps.core-cache.outputs.cache-primary-key }}
+          path: |
+            harness/apps/desktop/lib
+            harness/apps/desktop/.desktop-build/targets/mac-${{ matrix.arch }}/prepared.json
+            harness/apps/desktop/.desktop-build/targets/mac-${{ matrix.arch }}/runtime
+            harness/apps/desktop/.desktop-build/targets/mac-${{ matrix.arch }}/package-set
+            harness/apps/desktop/.desktop-build/targets/mac-${{ matrix.arch }}/packed
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dsh-aiko-test-${{ matrix.arch }}
+          include-hidden-files: true
+          path: |
+            harness/apps/desktop/.desktop-build/targets/mac-${{ matrix.arch }}/test-artifacts/*.zip
+            harness/apps/desktop/.desktop-build/targets/mac-${{ matrix.arch }}/test-artifacts/*.png
+            harness/apps/desktop/.desktop-build/targets/mac-${{ matrix.arch }}/test-artifacts/*.json
+            harness/apps/desktop/.desktop-build/targets/mac-${{ matrix.arch }}/test-artifacts/*.log
+            harness/apps/desktop/.desktop-build/targets/mac-${{ matrix.arch }}/test-artifacts/SHA256SUMS

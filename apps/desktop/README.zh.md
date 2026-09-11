@@ -75,6 +75,14 @@ pnpm run start:desktop
 
 Workspace 开发使用调用命令的 Node.js 运行当前 CLI 与私有 Desktop Host 包，并禁用桌面包修改；只有该模式明确链接的一次性 profile 可以从自身目录外解析 bundle。需要验证内置 Node.js、内置 pnpm、发布 seed、插件安装、staging 和 rollback 时，应运行未封装安装器的应用目录。
 
+## Aiko 源码与测试版发布
+
+Aiko 的活跃开发使用私有仓库 `aiko-dsh-plugins/deepseek-harness-source`。公开的[客户端发布页](https://github.com/aiko-dsh-plugins/deepseek-harness/releases)保留可下载的安装包和公开源码历史。[组织插件目录](https://github.com/aiko-dsh-plugins/dsh-plugin-catalog)维护源码与分发仓库的对应关系。本地开发向 `source` remote 推送；`upstream` 仍指向官方仓库。
+
+[Aiko Mac 测试工作流](../../.github/workflows/aiko-macos-test.yml)在原生 Apple Silicon 和 Intel runner 上构建选定的私有提交。[构建器](scripts/aiko-build-macos-test.mjs)准备当前客户端及已发布的预装插件；固定提交的公开 Office checkout 仅提供测试依赖和 fixture。每份私有 Actions artifact 包含 ZIP、SHA-256 校验和、源码标识、截图及[已安装应用的冒烟结果](scripts/aiko-smoke-macos-test.mjs)。维护者将验证通过的 ZIP 和校验和发布为公开客户端仓库中的新 prerelease；私有 Actions artifact 不是客户端的下载地址。
+
+Mac 测试应用使用临时签名、独立的 `DSH Aiko Test` 数据目录，且不启用自动更新。正式发布需要 Apple Developer ID 签名和公证。[分发决策](../../.agents/notes/implemented/process/2026-09-11-aiko-private-source-distribution.zh.md)记录了源码归属和发布验证要求。
+
 ## 打包
 
 正常打包只需执行一条完整命令。该命令会先准备发布资源，再生成宿主平台的安装包与更新元数据。所有目标都要求通过 `DSH_DESKTOP_APP_ID` 提供反向域名形式的应用 ID。macOS 目标还要求通过 `DSH_DESKTOP_MACOS_SIGNING_IDENTITY` 提供 electron-builder 证书限定名，通过 `DSH_DESKTOP_MACOS_TEAM_ID` 提供对应的 10 字符 Apple Team ID，并提供一套完整的 notarytool 凭据。App Store Connect API Key 方式使用以下变量：

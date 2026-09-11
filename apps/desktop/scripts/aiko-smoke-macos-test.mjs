@@ -1,0 +1,64 @@
+/** Launch the actual packaged client on a fresh offline profile and exercise its Office package. */
+import assert from 'node:assert/strict'
+import { spawn } from 'node:child_process'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
+import { join, resolve } from 'node:path'
+import { setTimeout } from 'node:timers/promises'
+
+const [bundle, officeRoot, output] = process.argv.slice(2).map(path => resolve(path))
+const { _electron } = createRequire(join(officeRoot, 'package.json'))('playwright')
+const executable = join(bundle, 'Contents/MacOS/DSH Aiko Test')
+const userData = mkdtempSync(join(output, 'smoke profile '))
+const offline = { ...process.env, HTTP_PROXY: 'http://127.0.0.1:9', HTTPS_PROXY: 'http://127.0.0.1:9', ALL_PROXY: 'http://127.0.0.1:9', NO_PROXY: '', NODE_USE_ENV_PROXY: '1' }
+delete offline.ELECTRON_RUN_AS_NODE
+let app
+let page
+const logs = []
+try {
+  app = await _electron.launch({ executablePath: executable, args: [`--user-data-dir=${userData}`, '--proxy-server=http://127.0.0.1:9'], env: offline, timeout: 120000 })
+  app.process().stderr.on('data', chunk => logs.push(chunk.toString()))
+  const home = await app.evaluate(({ app }) => app.getPath('userData'))
+  assert.equal(home, userData)
+  const profile = join(home, 'harness/profiles/desktop')
+  const deadline = Date.now() + 180000
+  while (Date.now() < deadline) {
+    page = app.windows().find(window => window.url().startsWith('dsh-app://app/'))
+    if (page) break
+    await setTimeout(500)
+  }
+  assert.ok(page, `Client did not finish offline first launch:\n${logs.join('')}`)
+  const welcome = page.getByRole('dialog', { name: /^(Internal Testing Notice|内测声明)$/ })
+  await welcome.waitFor({ state: 'visible', timeout: 30000 })
+  await page.screenshot({ path: join(output, 'welcome.png') })
+  await welcome.getByRole('button', { name: /^(Continue|继续)$/ }).click({ timeout: 30000 })
+  await page.getByRole('button', { name: /^(Configure later|稍后配置)$/ }).click({ timeout: 30000 })
+  await page.screenshot({ path: join(output, 'desktop.png') })
+  const installed = await page.evaluate(() => window.dshDesktop.market.list())
+  assert.deepEqual(installed.map(plugin => plugin.name).sort(), ['aiko-dsh-office', 'dshmarket'])
+  assert.equal(installed.find(plugin => plugin.name === 'aiko-dsh-office').version, '0.2.0')
+  const office = join(profile, 'node_modules/aiko-dsh-office')
+  assert.ok(existsSync(join(office, `runtime/darwin-${process.arch}/bin/python3.12`)))
+  assert.equal(JSON.parse(readFileSync(join(profile, 'package.json'), 'utf8')).dsh.profile.bundles.includes('dshmarket'), true)
+  const settings = page.getByRole('button', { name: /^(Settings|设置)$/ })
+  await settings.first().click({ timeout: 30000 })
+  await page.getByRole('button', { name: /^(Market|Plugin Market|Plugin market|插件市场)$/ }).click({ timeout: 30000 })
+  await page.screenshot({ path: join(output, 'market.png') })
+  mkdirSync(join(officeRoot, '.cache'), { recursive: true })
+  await new Promise((done, reject) => {
+    const child = spawn(join(bundle, 'Contents/Resources/runtime/node/node'), ['--test', 'test/documents.test.mjs', 'test/plugin.test.mjs'], {
+      cwd: officeRoot, env: { ...offline, OFFICE_TEST_PLUGIN_ROOT: office }, stdio: 'inherit',
+    })
+    child.once('error', reject)
+    child.once('close', code => code === 0 ? done() : reject(new Error(`Installed Office tests exited ${code}`)))
+  })
+  writeFileSync(join(output, 'smoke.json'), JSON.stringify({ architecture: process.arch, offlineFirstLaunch: true, marketUi: true, installedOfficeTests: true, plugins: installed }, null, 2) + '\n')
+} finally {
+  writeFileSync(join(output, 'electron.log'), logs.join(''))
+  try {
+    if (page && !page.isClosed()) await page.screenshot({ path: join(output, 'last-window.png') })
+  } finally {
+    if (app) await app.close()
+    rmSync(userData, { recursive: true, force: true })
+  }
+}

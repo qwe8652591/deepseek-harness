@@ -75,6 +75,14 @@ pnpm run start:desktop
 
 Workspace development runs the current CLI and private Desktop Host packages under the invoking Node.js and disables desktop package mutations. Its explicitly linked disposable profile is the only mode allowed to resolve bundles outside its own directory. Use an unpacked application to exercise the bundled Node.js, bundled pnpm, release seed, plugin installation, staging, and rollback paths.
 
+## Aiko source and test releases
+
+Active Aiko development uses the private `aiko-dsh-plugins/deepseek-harness-source` repository. The public [client releases](https://github.com/aiko-dsh-plugins/deepseek-harness/releases) retain downloadable installers and public source history. The [organization catalog](https://github.com/aiko-dsh-plugins/dsh-plugin-catalog) owns the source and distribution repository map. Local development pushes to the `source` remote; `upstream` remains the official repository.
+
+The [Aiko Mac test workflow](../../.github/workflows/aiko-macos-test.yml) builds the selected private commit on native Apple Silicon and Intel runners. Its [builder](scripts/aiko-build-macos-test.mjs) prepares the current client and published preinstalled plugins; a pinned public Office checkout supplies test dependencies and fixtures only. Each private Actions artifact includes a ZIP, SHA-256 checksum, source identity, screenshots and an [installed-application smoke result](scripts/aiko-smoke-macos-test.mjs). Maintainers publish validated ZIPs and checksums to a new prerelease in the public client repository; private Actions artifacts are not client download URLs.
+
+Mac test applications use ad-hoc signatures, the separate `DSH Aiko Test` data directory and no automatic updates. Apple Developer ID signing and notarization are required for production releases. The [distribution decision](../../.agents/notes/implemented/process/2026-09-11-aiko-private-source-distribution.md) records source ownership and release validation.
+
 ## Package
 
 The normal packaging path is one complete command. It performs release preparation before creating the host platform's installers and update metadata. Every target requires a reverse-DNS `DSH_DESKTOP_APP_ID`. macOS targets additionally require the electron-builder certificate qualifier in `DSH_DESKTOP_MACOS_SIGNING_IDENTITY`, its 10-character Apple Team ID in `DSH_DESKTOP_MACOS_TEAM_ID`, and one complete notarytool credential strategy. The App Store Connect API-key strategy uses these variables:
