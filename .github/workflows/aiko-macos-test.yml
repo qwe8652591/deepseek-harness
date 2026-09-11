@@ -30,13 +30,6 @@ jobs:
         with:
           path: harness
           persist-credentials: false
-      # Published Office fixtures exercise the installed tarball, not this source checkout.
-      - uses: actions/checkout@v6
-        with:
-          repository: aiko-dsh-plugins/dsh-office
-          ref: ea2c2ca70c1ad90bfa5c218c0afe581e7f1490d6
-          path: office-tests
-          persist-credentials: false
       - uses: actions/setup-node@v6
         with:
           node-version: '24'
@@ -44,13 +37,11 @@ jobs:
         with:
           package_json_file: harness/package.json
       - name: Install build and test dependencies
-        run: |
-          pnpm --dir harness install --frozen-lockfile
-          pnpm --dir office-tests install --frozen-lockfile
+        run: pnpm --dir harness install --frozen-lockfile
       - uses: actions/cache/restore@v4
         id: core-cache
         with:
-          key: aiko-mac-core-v2-${{ matrix.arch }}-${{ github.sha }}-ea2c2ca
+          key: aiko-mac-core-v3-${{ matrix.arch }}-${{ github.sha }}
           path: |
             harness/apps/desktop/lib
             harness/apps/desktop/.desktop-build/targets/mac-${{ matrix.arch }}/prepared.json
@@ -58,7 +49,7 @@ jobs:
             harness/apps/desktop/.desktop-build/targets/mac-${{ matrix.arch }}/package-set
             harness/apps/desktop/.desktop-build/targets/mac-${{ matrix.arch }}/packed
       - name: Build and validate the current private client
-        run: node harness/apps/desktop/scripts/aiko-build-macos-test.mjs office-tests
+        run: node harness/apps/desktop/scripts/aiko-build-macos-test.mjs
       - uses: actions/cache/save@v4
         if: always() && steps.core-cache.outputs.cache-hit != 'true' && hashFiles('harness/apps/desktop/.desktop-build/targets/*/prepared.json') != ''
         with:

@@ -1,13 +1,11 @@
-/** Launch the actual packaged client on a fresh offline profile and exercise its Office package. */
+/** Verify the packaged client's offline market installation and native editing shortcuts. */
 import assert from 'node:assert/strict'
-import { spawn } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { createRequire } from 'node:module'
 import { join, resolve } from 'node:path'
 import { setTimeout } from 'node:timers/promises'
+import { _electron } from 'playwright'
 
-const [bundle, officeRoot, output] = process.argv.slice(2).map(path => resolve(path))
-const { _electron } = createRequire(join(officeRoot, 'package.json'))('playwright')
+const [bundle, output] = process.argv.slice(2).map(path => resolve(path))
 const executable = join(bundle, 'Contents/MacOS/DSH Aiko Test')
 const userData = mkdtempSync(join(output, 'smoke profile '))
 const offline = { ...process.env, HTTP_PROXY: 'http://127.0.0.1:9', HTTPS_PROXY: 'http://127.0.0.1:9', ALL_PROXY: 'http://127.0.0.1:9', NO_PROXY: '', NODE_USE_ENV_PROXY: '1' }
@@ -99,24 +97,17 @@ try {
   }
   await page.screenshot({ path: join(output, 'desktop.png') })
   const installed = await page.evaluate(() => window.dshDesktop.market.list())
-  assert.deepEqual(installed.map(plugin => plugin.name).sort(), ['aiko-dsh-office', 'dshmarket'])
-  assert.equal(installed.find(plugin => plugin.name === 'aiko-dsh-office').version, '0.2.0')
-  const office = join(profile, 'node_modules/aiko-dsh-office')
-  assert.ok(existsSync(join(office, `runtime/darwin-${process.arch}/bin/python3.12`)))
-  assert.equal(JSON.parse(readFileSync(join(profile, 'package.json'), 'utf8')).dsh.profile.bundles.includes('dshmarket'), true)
+  assert.deepEqual(installed.map(plugin => plugin.name), ['dshmarket'])
+  assert.equal(existsSync(join(profile, 'node_modules/aiko-dsh-office')), false)
+  const manifest = JSON.parse(readFileSync(join(profile, 'package.json'), 'utf8'))
+  assert.equal(manifest.dsh.profile.bundles.includes('dshmarket'), true)
+  assert.equal(manifest.dsh.profile.bundles.includes('aiko-dsh-office'), false)
+  assert.equal(manifest.dependencies['aiko-dsh-office'], undefined)
   const settings = page.getByRole('button', { name: /^(Settings|设置)$/ })
   await settings.first().click({ timeout: 30000 })
   await page.getByRole('button', { name: /^(Market|Plugin Market|Plugin market|插件市场)$/ }).click({ timeout: 30000 })
   await page.screenshot({ path: join(output, 'market.png') })
-  mkdirSync(join(officeRoot, '.cache'), { recursive: true })
-  await new Promise((done, reject) => {
-    const child = spawn(join(bundle, 'Contents/Resources/runtime/node/node'), ['--test', 'test/documents.test.mjs', 'test/plugin.test.mjs'], {
-      cwd: officeRoot, env: { ...offline, OFFICE_TEST_PLUGIN_ROOT: office }, stdio: 'inherit',
-    })
-    child.once('error', reject)
-    child.once('close', code => code === 0 ? done() : reject(new Error(`Installed Office tests exited ${code}`)))
-  })
-  writeFileSync(join(output, 'smoke.json'), JSON.stringify({ architecture: process.arch, offlineFirstLaunch: true, nativeEditing: true, marketUi: true, installedOfficeTests: true, plugins: installed }, null, 2) + '\n')
+  writeFileSync(join(output, 'smoke.json'), JSON.stringify({ architecture: process.arch, offlineFirstLaunch: true, nativeEditing: true, marketUi: true, officeNotPreinstalled: true, plugins: installed }, null, 2) + '\n')
 } finally {
   writeFileSync(join(output, 'electron.log'), logs.join(''))
   try {

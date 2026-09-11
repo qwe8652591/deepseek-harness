@@ -33,7 +33,7 @@ Electron 根据应用 locale 选择类型化的中英文字典，并以英文作
 
 ### Seed 安装
 
-[预装插件表](preinstalled-plugins.json)指定新 Desktop profile 的可选 bundle。Seed 准备过程下载其精确发布来源，并将它们纳入离线锁文件与 store；此发行配置预装 Aiko 市场和 Aiko Office。Office 自带 Windows x64、macOS arm64 和 macOS x64 的原生 Python 与文档处理库。这些插件仍可通过原生插件管理器卸载。重启与发布校准保留活跃 profile 的插件版本、来源和卸载结果，不会重新安装已卸载的默认插件。应用升级不会向已有 profile 追加新的默认插件。
+[预装插件表](preinstalled-plugins.json)指定新 Desktop profile 的可选 bundle。Seed 准备过程下载其精确发布来源，并将它们纳入离线锁文件与 store；此发行配置只预装 Aiko 市场。用户需要时从市场安装 Aiko Office，包括其 Python 运行时与文档处理库。插件可通过原生插件管理器卸载。重启与发布校准保留活跃 profile 的插件版本、来源和卸载结果，包括后续 seed 中不再包含的插件。应用升级不会向已有 profile 追加新的默认插件。
 
 `DSH_DESKTOP_FETCH_TIMEOUT_MS` 将 pnpm 下载超时设置为正整数毫秒值；未设置时保留 pnpm 默认值。Seed 准备过程可以复用 `DSH_DESKTOP_PREFETCHED_STORE` 指定的已下载 pnpm store，以及 `DSH_DESKTOP_PREFETCHED_LOCKFILE` 指定的已审查锁文件。核心包验证、冻结锁文件安装、内容完整性检查和最终离线安装仍会执行。这些输入用于配置构建，不会复制到用户设置中。
 
@@ -81,7 +81,7 @@ Workspace 开发使用调用命令的 Node.js 运行当前 CLI 与私有 Desktop
 
 Aiko 的活跃开发使用私有仓库 `aiko-dsh-plugins/deepseek-harness-source`。公开的[客户端发布页](https://github.com/aiko-dsh-plugins/deepseek-harness/releases)保留可下载的安装包和公开源码历史。[组织插件目录](https://github.com/aiko-dsh-plugins/dsh-plugin-catalog)维护源码与分发仓库的对应关系。本地开发向 `source` remote 推送；`upstream` 仍指向官方仓库。
 
-[Aiko Mac 测试工作流](../../.github/workflows/aiko-macos-test.yml)在原生 Apple Silicon 和 Intel runner 上构建选定的私有提交。[构建器](scripts/aiko-build-macos-test.mjs)准备当前客户端及已发布的预装插件；固定提交的公开 Office checkout 仅提供测试依赖和 fixture。每份私有 Actions artifact 包含 ZIP、SHA-256 校验和、源码标识、截图及[已安装应用的冒烟结果](scripts/aiko-smoke-macos-test.mjs)。维护者将验证通过的 ZIP 和校验和发布为公开客户端仓库中的新 prerelease；私有 Actions artifact 不是客户端的下载地址。
+[Aiko Mac 测试工作流](../../.github/workflows/aiko-macos-test.yml)在原生 Apple Silicon 和 Intel runner 上构建选定的私有提交。[构建器](scripts/aiko-build-macos-test.mjs)准备当前客户端及已发布的预装市场；客户端自身声明 Playwright 测试依赖。每份私有 Actions artifact 包含 ZIP、SHA-256 校验和、源码标识、截图及确认全新 profile 未安装 Office 的[已安装应用冒烟结果](scripts/aiko-smoke-macos-test.mjs)。维护者将验证通过的 ZIP 和校验和发布为公开客户端仓库中的新 prerelease；私有 Actions artifact 不是客户端的下载地址。
 
 Mac 测试应用使用临时签名、独立的 `DSH Aiko Test` 数据目录，且不启用自动更新。正式发布需要 Apple Developer ID 签名和公证。[分发决策](../../.agents/notes/implemented/process/2026-09-11-aiko-private-source-distribution.zh.md)记录了源码归属和发布验证要求。
 

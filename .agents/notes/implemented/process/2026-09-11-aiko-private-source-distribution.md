@@ -12,15 +12,17 @@ Aiko clients install plugins from public GitHub Release URLs. Restricting those 
 
 Independent private repositories own active client and plugin development. Public repositories retain published history and immutable release assets; the public organization catalog keeps its distribution identities and download URLs. Local checkouts use a private `source` push remote and retain the official upstream remote. Aiko plugin packages omit optional TypeScript source and browser source maps; executable JavaScript and required Python remain distributed. Core packages retain their upstream publication manifests.
 
-The [Mac test workflow](../../../../.github/workflows/aiko-macos-test.yml) builds the selected private client commit. Its cache identity includes that commit, architecture and the pinned public Office test revision. Office fixtures exercise the plugin installed from its published tarball; they do not supply client implementation. Private artifacts contain checksums and provenance. Maintainers publish validated binaries to the public client repository without pushing private implementation commits or embedding GitHub credentials in the application.
+The [Mac test workflow](../../../../.github/workflows/aiko-macos-test.yml) builds the selected private client commit. Its cache identity includes that commit and architecture. The client owns its Playwright dependency and requires no Office checkout. Private artifacts contain checksums and provenance. Maintainers publish validated binaries to the public client repository without pushing private implementation commits or embedding GitHub credentials in the application.
 
-The test application retains an independent data directory and no update feed. Ad-hoc signatures allow native validation without changing production signing requirements. The workflow verifies ZIP extraction, signatures, offline first launch, native clipboard shortcuts in the composer, the market entry and installed Office document operations on both Mac architectures. Electron's standard Edit menu owns editing actions and platform shortcuts; renderer-only key handlers cannot supply the macOS application menu. Clipboard validation retains the original clipboard items inside Electron and restores them before completion.
+The test application retains an independent data directory and no update feed. Ad-hoc signatures allow native validation without changing production signing requirements. The workflow verifies ZIP extraction, signatures, offline first launch, native clipboard shortcuts in the composer, the market entry and Office's absence from the fresh profile on both Mac architectures. Electron's standard Edit menu owns editing actions and platform shortcuts; renderer-only key handlers cannot supply the macOS application menu. Clipboard validation retains the original clipboard items inside Electron and restores them before completion.
+
+Fresh profiles preinstall only the Aiko market. Office is an optional market download so its document runtimes do not enter every client seed. Release reconciliation preserves Office in existing profiles, because changing defaults does not authorize uninstalling user plugins. Office's own platform workflow owns document and skill verification.
 
 ## Alternatives considered
 
 **Make distribution repositories private.** This would invalidate anonymous downloads and does not convert an existing public fork into an independent private repository.
 
-**Build clients from an Office-owned upstream patch.** That duplicates client ownership and can omit private client changes. Client builds use their own checkout; the public Office revision supplies only released verification fixtures.
+**Build clients from an Office-owned upstream patch.** That duplicates client ownership and can omit private client changes. Client builds and smoke dependencies belong to the client checkout.
 
 **Replace published packages in place.** Existing clients and lockfiles depend on their bytes and checksums. Updated artifacts use new versions; relocation copies existing bytes and preserves old URLs.
 

@@ -10,7 +10,6 @@ import { pathToFileURL } from 'node:url'
 assert.equal(process.platform, 'darwin', 'Mac test packages must be built on a native Mac runner')
 assert.ok(['arm64', 'x64'].includes(process.arch))
 const root = resolve(import.meta.dirname, '../../..')
-const officeRoot = resolve(process.argv[2])
 const appRoot = join(root, 'apps/desktop')
 const require = createRequire(join(appRoot, 'package.json'))
 const { load, dump } = require('js-yaml')
@@ -29,7 +28,7 @@ const pnpm = (...args) => run('pnpm', args)
 const json = path => JSON.parse(readFileSync(path, 'utf8'))
 
 const commit = cwd => execFileSync('git', ['rev-parse', 'HEAD'], { cwd, encoding: 'utf8' }).trim()
-const preparation = { format: 2, source: commit(root), officeTests: commit(officeRoot), architecture: process.arch }
+const preparation = { format: 3, source: commit(root), architecture: process.arch }
 const preparedPath = join(paths.root, 'prepared.json')
 if (existsSync(preparedPath)) {
   assert.deepEqual(json(preparedPath), preparation, 'Cached core artifacts do not match the selected source')
@@ -142,7 +141,7 @@ try {
   await run('/usr/bin/ditto', ['-x', '-k', `${archive}.pending`, extracted])
   const application = join(extracted, 'DSH Aiko Test.app')
   await run('/usr/bin/codesign', ['--verify', '--deep', '--strict', application])
-  await run(process.execPath, [resolve(import.meta.dirname, 'aiko-smoke-macos-test.mjs'), application, officeRoot, output])
+  await run(process.execPath, [resolve(import.meta.dirname, 'aiko-smoke-macos-test.mjs'), application, output])
 } finally {
   rmSync(extracted, { recursive: true, force: true })
 }

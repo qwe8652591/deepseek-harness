@@ -190,7 +190,7 @@ describe('desktop package policy', () => {
     expect(() => { createTestSeedMetadata(seed, release(), plugins) }).toThrow()
   })
 
-  it('preinstalls the published Aiko market and Office plugins', () => {
+  it('preinstalls the Aiko market and leaves Office for user installation', () => {
     const seed = join(temporaryRoot(), 'seed')
     const plugins: unknown = JSON.parse(readFileSync(new URL('../preinstalled-plugins.json', import.meta.url), 'utf8'))
     createTestSeedMetadata(seed, release(), plugins)
@@ -199,14 +199,12 @@ describe('desktop package policy', () => {
       dsh: { profile: { bundles: string[] } }
     }
     expect(manifest.dsh.profile.bundles).toEqual([
-      '@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', 'dshmarket', 'aiko-dsh-office',
+      '@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', 'dshmarket',
     ])
     expect(manifest.dependencies.dshmarket).toMatch(
       /^https:\/\/github\.com\/aiko-dsh-plugins\/dsh-market\/releases\/download\/v[^/]+\/dshmarket-[^/]+\.tgz$/u,
     )
-    expect(manifest.dependencies['aiko-dsh-office']).toMatch(
-      /^https:\/\/github\.com\/aiko-dsh-plugins\/dsh-office\/releases\/download\/v[^/]+\/aiko-dsh-office-[^/]+\.tgz$/u,
-    )
+    expect(manifest.dependencies['aiko-dsh-office']).toBeUndefined()
   })
 
   it('accepts registry package specs but rejects alternate sources and flags', () => {
@@ -229,13 +227,13 @@ describe('desktop package policy', () => {
 })
 
 describe('desktop project transactions', () => {
-  it.each([false, true])('preserves default-plugin updates and removals across releases with business plugins: %s', async (withBusiness) => {
+  it.each([false, true])('preserves installed plugins when release defaults change and respects removals with business plugins: %s', async (withBusiness) => {
     const root = temporaryRoot()
     const source = 'https://github.com/org/market/releases/download/v1.2.3/market.tgz'
     const defaults = { market: source, optional: '1.0.0' }
-    const prepare = (version: string): string => {
+    const prepare = (version: string, plugins: Record<string, string> = defaults): string => {
       const seed = join(root, version)
-      createTestSeedMetadata(seed, release(version), defaults)
+      createTestSeedMetadata(seed, release(version), plugins)
       writeFileSync(join(seed, 'pnpm-lock.yaml'), 'lockfileVersion: 9\n')
       archiveStore(seed)
       writeIntegrity(seed)
@@ -250,8 +248,9 @@ describe('desktop project transactions', () => {
     ])
     const updated = 'https://github.com/org/market/releases/download/v1.2.4/market.tgz'
     await manager.mutate({ type: 'plugins-add', specs: [`market@${updated}`, ...(withBusiness ? ['business@2.0.0'] : [])] }, hooks())
-    await manager.applyRelease(prepare('2.0.0'), '2.0.0', hooks())
+    await manager.applyRelease(prepare('2.0.0', { market: source }), '2.0.0', hooks())
     expect(manager.listPlugins()[0]?.spec).toBe(`market@${updated}`)
+    expect(manager.listPlugins()).toContainEqual({ name: 'optional', version: '1.0.0' })
     await manager.mutate({ type: 'plugin-remove', name: 'market' }, hooks())
     await manager.mutate({ type: 'plugin-remove', name: 'optional' }, hooks())
     expect(await manager.applyRelease(join(root, '2.0.0'), '2.0.0', hooks())).toBe(false)
