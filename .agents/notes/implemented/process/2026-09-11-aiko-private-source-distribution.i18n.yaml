@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/process/2026-09-11-aiko-private-source-distribution.md
-2026-09-11-aiko-private-source-distribution.md: e0d9946fc8fbc05c316a07c590f4d264e5a00221
-2026-09-11-aiko-private-source-distribution.zh.md: dabefd2d4ccb989cffce51067e3cb9ecf1659052
+2026-09-11-aiko-private-source-distribution.md: b43f01843c664af40900344f16fcbeaacc5df228
+2026-09-11-aiko-private-source-distribution.zh.md: 971f15a2f49bd61dbf34ac2190814902f45362a3

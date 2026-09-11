@@ -40,8 +40,11 @@ try {
   for (const role of ['undo', 'redo', 'cut', 'copy', 'paste', 'selectAll']) {
     assert.ok(roles.includes(role.toLowerCase()), `Application menu is missing the native ${role} command`)
   }
-  // This workflow owns an isolated hosted runner, including its initially empty clipboard.
-  assert.deepEqual(await app.evaluate(({ clipboard }) => clipboard.availableFormats()), [])
+  const savedClipboard = await app.evaluateHandle(async ({ clipboard, ClipboardItem }) => Promise.all(
+    (await clipboard.read()).filter(item => item.types.length > 0).map(async item => new ClipboardItem(Object.fromEntries(
+      await Promise.all(item.types.map(async type => [type, await item.getType(type)])),
+    ))),
+  ))
   const composer = page.locator('[contenteditable="true"][role="textbox"]')
   const copied = 'Aiko native copy 复制'
   const pasted = 'Aiko native paste 粘贴'
@@ -71,7 +74,14 @@ try {
     try {
       await composer.fill('')
     } finally {
-      await app.evaluate(({ clipboard }) => clipboard.clear())
+      try {
+        await app.evaluate(async ({ clipboard }, saved) => {
+          clipboard.clear()
+          if (saved.length > 0) await clipboard.write(saved)
+        }, savedClipboard)
+      } finally {
+        await savedClipboard.dispose()
+      }
     }
   }
   await page.screenshot({ path: join(output, 'desktop.png') })
