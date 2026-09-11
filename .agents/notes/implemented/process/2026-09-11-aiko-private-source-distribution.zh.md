@@ -10,7 +10,7 @@ Aiko 客户端通过公开的 GitHub Release URL 安装插件。限制这些 URL
 
 ## 决策
 
-独立的私有仓库负责客户端和插件的活跃开发。公开仓库保留已发布历史及不可变的发布制品；公开组织目录保留其分发标识和下载 URL。本地 checkout 使用私有的 `source` 推送 remote，并保留官方 upstream remote。公开运行包省略可选的 TypeScript 源码及 source map；可执行 JavaScript 和必需的 Python 仍随包分发。
+独立的私有仓库负责客户端和插件的活跃开发。公开仓库保留已发布历史及不可变的发布制品；公开组织目录保留其分发标识和下载 URL。本地 checkout 使用私有的 `source` 推送 remote，并保留官方 upstream remote。Aiko 插件包省略可选的 TypeScript 源码及浏览器 source map；可执行 JavaScript 和必需的 Python 仍随包分发。核心包保留上游的发布清单。
 
 [Mac 测试工作流](../../../../.github/workflows/aiko-macos-test.yml)构建选定的私有客户端提交。缓存标识包含该提交、架构及固定的公开 Office 测试版本。Office fixture 验证从已发布 tarball 安装的插件，不提供客户端实现。私有制品包含校验和及来源信息。维护者将验证通过的二进制文件发布到公开客户端仓库，不推送私有实现提交，也不向应用嵌入 GitHub 凭据。
 

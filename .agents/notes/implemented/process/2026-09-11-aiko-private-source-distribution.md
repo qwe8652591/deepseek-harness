@@ -10,7 +10,7 @@ Aiko clients install plugins from public GitHub Release URLs. Restricting those 
 
 ## Decision
 
-Independent private repositories own active client and plugin development. Public repositories retain published history and immutable release assets; the public organization catalog keeps its distribution identities and download URLs. Local checkouts use a private `source` push remote and retain the official upstream remote. Public runtime packages omit optional TypeScript source and source maps; executable JavaScript and required Python remain distributed.
+Independent private repositories own active client and plugin development. Public repositories retain published history and immutable release assets; the public organization catalog keeps its distribution identities and download URLs. Local checkouts use a private `source` push remote and retain the official upstream remote. Aiko plugin packages omit optional TypeScript source and browser source maps; executable JavaScript and required Python remain distributed. Core packages retain their upstream publication manifests.
 
 The [Mac test workflow](../../../../.github/workflows/aiko-macos-test.yml) builds the selected private client commit. Its cache identity includes that commit, architecture and the pinned public Office test revision. Office fixtures exercise the plugin installed from its published tarball; they do not supply client implementation. Private artifacts contain checksums and provenance. Maintainers publish validated binaries to the public client repository without pushing private implementation commits or embedding GitHub credentials in the application.
 
