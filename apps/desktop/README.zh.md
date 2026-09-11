@@ -29,6 +29,8 @@ dsh 主渲染进程获得桌面协议标记及带版本的 `dshDesktop.market` �
 
 Electron 根据应用 locale 选择类型化的中英文字典，并以英文作为 fallback。菜单、原生对话框与插件管理渲染进程使用同一 locale 数据；仓库的 Client UI i18n gate 会检查这些桌面源文件。
 
+原生“编辑”菜单提供撤销、重做、剪切、复制、粘贴和全选。macOS 使用 Command+C / Command+V 复制和粘贴，Windows 使用 Ctrl+C / Ctrl+V。标准菜单文案及平台快捷键由 Electron 提供。
+
 ### Seed 安装
 
 [预装插件表](preinstalled-plugins.json)指定新 Desktop profile 的可选 bundle。Seed 准备过程下载其精确发布来源，并将它们纳入离线锁文件与 store；此发行配置预装 Aiko 市场和 Aiko Office。Office 自带 Windows x64、macOS arm64 和 macOS x64 的原生 Python 与文档处理库。这些插件仍可通过原生插件管理器卸载。重启与发布校准保留活跃 profile 的插件版本、来源和卸载结果，不会重新安装已卸载的默认插件。应用升级不会向已有 profile 追加新的默认插件。

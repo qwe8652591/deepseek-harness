@@ -33,6 +33,47 @@ try {
   await page.screenshot({ path: join(output, 'welcome.png') })
   await welcome.getByRole('button', { name: /^(Continue|继续)$/ }).click({ timeout: 30000 })
   await page.getByRole('button', { name: /^(Configure later|稍后配置)$/ }).click({ timeout: 30000 })
+  const roles = await app.evaluate(({ Menu }) => {
+    const collect = menu => menu.items.flatMap(item => [item.role?.toLowerCase(), ...(item.submenu ? collect(item.submenu) : [])])
+    return collect(Menu.getApplicationMenu())
+  })
+  for (const role of ['undo', 'redo', 'cut', 'copy', 'paste', 'selectAll']) {
+    assert.ok(roles.includes(role.toLowerCase()), `Application menu is missing the native ${role} command`)
+  }
+  // This workflow owns an isolated hosted runner, including its initially empty clipboard.
+  assert.deepEqual(await app.evaluate(({ clipboard }) => clipboard.availableFormats()), [])
+  const composer = page.locator('[contenteditable="true"][role="textbox"]')
+  const copied = 'Aiko native copy 复制'
+  const pasted = 'Aiko native paste 粘贴'
+  const clipboardEquals = async expected => {
+    const deadline = Date.now() + 10000
+    let actual
+    do {
+      actual = await app.evaluate(({ clipboard }) => clipboard.readText())
+      if (actual === expected) return
+      await setTimeout(50)
+    } while (Date.now() < deadline)
+    assert.equal(actual, expected, 'Native clipboard command did not complete')
+  }
+  try {
+    await composer.fill(copied)
+    await composer.press('Meta+A')
+    await composer.press('Meta+C')
+    await clipboardEquals(copied)
+    await app.evaluate(({ clipboard }, text) => clipboard.writeText(text), pasted)
+    await composer.press('Meta+V')
+    await page.waitForFunction(text => document.querySelector('[contenteditable="true"][role="textbox"]')?.textContent === text, pasted)
+    await composer.press('Meta+A')
+    await composer.press('Meta+X')
+    await clipboardEquals(pasted)
+    await page.waitForFunction(() => document.querySelector('[contenteditable="true"][role="textbox"]')?.textContent === '')
+  } finally {
+    try {
+      await composer.fill('')
+    } finally {
+      await app.evaluate(({ clipboard }) => clipboard.clear())
+    }
+  }
   await page.screenshot({ path: join(output, 'desktop.png') })
   const installed = await page.evaluate(() => window.dshDesktop.market.list())
   assert.deepEqual(installed.map(plugin => plugin.name).sort(), ['aiko-dsh-office', 'dshmarket'])
@@ -52,7 +93,7 @@ try {
     child.once('error', reject)
     child.once('close', code => code === 0 ? done() : reject(new Error(`Installed Office tests exited ${code}`)))
   })
-  writeFileSync(join(output, 'smoke.json'), JSON.stringify({ architecture: process.arch, offlineFirstLaunch: true, marketUi: true, installedOfficeTests: true, plugins: installed }, null, 2) + '\n')
+  writeFileSync(join(output, 'smoke.json'), JSON.stringify({ architecture: process.arch, offlineFirstLaunch: true, nativeEditing: true, marketUi: true, installedOfficeTests: true, plugins: installed }, null, 2) + '\n')
 } finally {
   writeFileSync(join(output, 'electron.log'), logs.join(''))
   try {

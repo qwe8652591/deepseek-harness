@@ -29,6 +29,8 @@ Market installation accepts registry package names and `name@https://host/path/p
 
 Electron chooses typed English or Chinese shell copy from its application locale and falls back to English. Menus, native dialogs, and the plugin-management renderer use the same locale payload; the repository Client UI i18n gate checks these desktop sources.
 
+The native Edit menu provides undo, redo, cut, copy, paste and select all. Copy and paste use Command+C / Command+V on macOS and Ctrl+C / Ctrl+V on Windows. Electron owns the standard menu labels and platform shortcuts.
+
 ### Seed installation
 
 The [preinstalled plugin map](preinstalled-plugins.json) selects optional bundles for a new Desktop profile. Seed preparation downloads their exact published sources and includes them in the offline lockfile and store; this distribution preinstalls the Aiko market and Aiko Office. Office includes native Python and document libraries for Windows x64, macOS arm64 and macOS x64. These plugins remain removable through the native plugin manager. Restart and release reconciliation retain the active profile's plugin versions, sources, and removals, so a removed default is not installed again. An existing profile does not acquire new defaults from an application upgrade.
