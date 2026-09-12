@@ -22,6 +22,8 @@ import {
   writeSync,
 } from 'node:fs'
 import { basename, delimiter, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { isDeepStrictEqual } from 'node:util'
+import { JSON_SCHEMA, load } from 'js-yaml'
 import { valid as validVersion } from 'semver'
 import {
   DESKTOP_PACKAGES_DIR,
@@ -138,6 +140,24 @@ function workspaceFile(overrides: Readonly<Record<string, string>> = {}): string
 
 function releaseFile(projectDir: string): DesktopRelease {
   return parseDesktopRelease(readJson(join(projectDir, 'desktop-release.json')))
+}
+
+/** pnpm may persist exact non-core release-age exclusions, including versions later removed. */
+function workspaceMatches(source: string, overrides: Readonly<Record<string, string>>): boolean {
+  const value: unknown = load(source, { schema: JSON_SCHEMA })
+  if (!isRecord(value)) return false
+  const { minimumReleaseAgeExclude, ...settings } = value
+  if (minimumReleaseAgeExclude !== undefined) {
+    if (!Array.isArray(minimumReleaseAgeExclude) || !minimumReleaseAgeExclude.every((entry: unknown) => {
+      if (typeof entry !== 'string') return false
+      const at = entry.lastIndexOf('@')
+      const name = entry.slice(0, at)
+      const version = entry.slice(at + 1)
+      return at > 0 && PACKAGE_NAME_PATTERN.test(name) && validVersion(version) === version
+        && !Object.hasOwn(overrides, name) && !DESKTOP_PROFILE_BUNDLES.some(bundle => bundle === name)
+    })) return false
+  }
+  return isDeepStrictEqual(settings, load(workspaceFile(overrides), { schema: JSON_SCHEMA }))
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -281,7 +301,7 @@ function projectManifest(projectDir: string): DesktopProjectManifest {
   const expectedOverrides = desktopCorePackageOverrides(packageSet)
   if (manifest.dependencies[DSH_PACKAGE] !== desktopDshPackageSpec(packageSet)
     || Object.entries(expectedOverrides).some(([name, spec]) => manifest.dependencies[name] !== spec)
-    || readFileSync(join(projectDir, 'pnpm-workspace.yaml'), 'utf8') !== workspaceFile(expectedOverrides)) {
+    || !workspaceMatches(readFileSync(join(projectDir, 'pnpm-workspace.yaml'), 'utf8'), expectedOverrides)) {
     throw new Error(`desktop project: core package mapping does not match ${DESKTOP_PACKAGE_SET_FILE}`)
   }
   return manifest

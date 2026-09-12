@@ -151,6 +151,21 @@ await import(${JSON.stringify(pathToFileURL(delegate).href)})
   return path
 }
 
+function writeWorkspaceChangingPnpm(root: string, search: string, replacement: string): string {
+  const delegate = writeFakePnpm(root)
+  const path = join(root, 'workspace-pnpm.mjs')
+  writeFileSync(path, `
+import { readFileSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
+await import(${JSON.stringify(pathToFileURL(delegate).href)})
+if (process.argv.includes('add')) {
+  const workspace = join(process.cwd(), 'pnpm-workspace.yaml')
+  writeFileSync(workspace, readFileSync(workspace, 'utf8').replace(${JSON.stringify(search)}, ${JSON.stringify(replacement)}))
+}
+`)
+  return path
+}
+
 function hooks(overrides: Partial<DesktopProjectHooks> = {}): DesktopProjectHooks {
   return {
     healthCheck: async () => {},
@@ -469,6 +484,52 @@ describe('desktop project transactions', () => {
     expect(invocation.args).toContain('@scope/plugin@2.0.0')
     expect(invocation.args).toContain('--config.registry=https://registry.npmjs.org/')
     expect(invocation.env.NPM_CONFIG_REGISTRY).toBe('https://registry.npmjs.org/')
+  })
+
+  it.each(['@scope/plugin', 'plugin'])('accepts pnpm exact release-age exclusions through install and removal: %s', async (name) => {
+    const root = temporaryRoot()
+    const seed = join(root, 'seed')
+    createTestSeedMetadata(seed, release())
+    writeFileSync(join(seed, 'pnpm-lock.yaml'), 'lockfileVersion: 9\n')
+    archiveStore(seed)
+    writeIntegrity(seed)
+    const paths = resolveDesktopPaths(join(root, '.dsh'))
+    const pnpm = writeWorkspaceChangingPnpm(root, 'strictDepBuilds: true',
+      `strictDepBuilds: true\nminimumReleaseAgeExclude:\n  - ${JSON.stringify(`${name}@2.0.0`)}`)
+    const manager = new DesktopProjectManager(paths, { node: process.execPath, pnpm })
+    await manager.applyRelease(seed, '1.0.0', hooks())
+    await manager.mutate({ type: 'plugin-add', spec: `${name}@2.0.0` }, hooks())
+    expect(manager.listPlugins()).toEqual([{ name, version: '2.0.0' }])
+    await manager.mutate({ type: 'plugin-remove', name }, hooks())
+    expect(manager.listPlugins()).toEqual([])
+    expect(readFileSync(join(paths.profile, 'pnpm-workspace.yaml'), 'utf8')).toContain(`${name}@2.0.0`)
+  })
+
+  it.each([
+    ['wildcard exclusion', 'strictDepBuilds: true', 'strictDepBuilds: true\nminimumReleaseAgeExclude: ["@scope/*"]'],
+    ['range exclusion', 'strictDepBuilds: true', 'strictDepBuilds: true\nminimumReleaseAgeExclude: ["plugin@^2.0.0"]'],
+    ['core exclusion', 'strictDepBuilds: true', 'strictDepBuilds: true\nminimumReleaseAgeExclude: ["@deepseek-ai/dsh@1.0.0"]'],
+    ['malformed exclusion', 'strictDepBuilds: true', 'strictDepBuilds: true\nminimumReleaseAgeExclude: 123'],
+    ['core override', 'file:./desktop-packages/deepseek-ai-dsh-1.0.0.tgz', 'https://example.test/core.tgz'],
+    ['build permission', 'strictDepBuilds: true', 'strictDepBuilds: false'],
+    ['global age bypass', 'strictDepBuilds: true', 'strictDepBuilds: true\nminimumReleaseAge: 0'],
+  ])('rolls back an unapproved workspace change: %s', async (_label, search, replacement) => {
+    const root = temporaryRoot()
+    const seed = join(root, 'seed')
+    createTestSeedMetadata(seed, release())
+    writeFileSync(join(seed, 'pnpm-lock.yaml'), 'lockfileVersion: 9\n')
+    archiveStore(seed)
+    writeIntegrity(seed)
+    const paths = resolveDesktopPaths(join(root, '.dsh'))
+    const manager = new DesktopProjectManager(paths, {
+      node: process.execPath, pnpm: writeWorkspaceChangingPnpm(root, search, replacement),
+    })
+    await manager.applyRelease(seed, '1.0.0', hooks())
+    const workspace = readFileSync(join(paths.profile, 'pnpm-workspace.yaml'), 'utf8')
+    await expect(manager.mutate({ type: 'plugin-add', spec: 'plugin@2.0.0' }, hooks()))
+      .rejects.toThrow(/core package mapping/u)
+    expect(manager.listPlugins()).toEqual([])
+    expect(readFileSync(join(paths.profile, 'pnpm-workspace.yaml'), 'utf8')).toBe(workspace)
   })
 
   it('reconciles dsh to the packaged release without removing desktop plugins', async () => {

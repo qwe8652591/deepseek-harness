@@ -18,6 +18,8 @@ The test application retains an independent data directory and no update feed. A
 
 Fresh profiles preinstall only an exact npm version of `aiko-dsh-market`. pnpm records registry integrity in the seed lockfile; direct HTTPS tarballs are downloaded and receive integrity before the offline store is populated. Office is an optional market download so its document runtimes do not enter every client seed. Release reconciliation preserves existing plugin names and sources, because changing defaults does not authorize replacing user plugins. Users remove `dshmarket` through the native manager before adding `aiko-dsh-market`; the packages cannot coexist. Office's own platform workflow owns document and skill verification.
 
+pnpm records explicit fresh-version installations in `minimumReleaseAgeExclude`. Desktop compares parsed workspace settings so pnpm formatting and exact non-core exclusions do not invalidate an otherwise unchanged core mapping. Historical exact exclusions remain valid after removal; broader selectors and changes to owned settings fail validation. This preserves pnpm's release-age policy without globally disabling it.
+
 ## Alternatives considered
 
 **Make distribution repositories private.** This would invalidate anonymous downloads and does not convert an existing public fork into an independent private repository.

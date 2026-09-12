@@ -57,6 +57,8 @@ Startup installs or reconciles the seed as one serialized transaction:
 
 GUI plugin mutations use the same staging, health-check, activation, and rollback path after installing published packages into the shared Desktop pnpm store.
 
+Workspace validation compares parsed YAML settings with the packaged core mappings and build permissions. pnpm may retain `minimumReleaseAgeExclude` entries for exact non-core package versions, including removed versions. Package-wide exclusions, ranges, core exclusions, and other setting changes are rejected.
+
 The process-lifetime Electron lock is the primary desktop owner. The transaction lock is depth defense: it records Electron while preparing local state, records the spawned pnpm worker while that worker can still write, and returns ownership to Electron after the worker exits. A later process cannot treat a live orphaned worker as a stale transaction.
 
 ## Develop
