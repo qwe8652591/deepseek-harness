@@ -79,8 +79,7 @@ await install(false, true)
 // Direct release tarballs need integrity in the lockfile to resolve without an HTTP HEAD.
 const lockPath = join(seed, 'pnpm-lock.yaml')
 const lock = load(readFileSync(lockPath, 'utf8'))
-for (const source of Object.values(plugins)) {
-  assert.ok(source.startsWith('https://github.com/'))
+for (const source of Object.values(plugins).filter(source => source.startsWith('https://'))) {
   const response = await fetch(source)
   assert.equal(response.status, 200, `Preinstalled release download failed: ${source}`)
   const body = Buffer.from(await response.arrayBuffer())

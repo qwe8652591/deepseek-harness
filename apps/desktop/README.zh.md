@@ -33,7 +33,7 @@ Electron 根据应用 locale 选择类型化的中英文字典，并以英文作
 
 ### Seed 安装
 
-[预装插件表](preinstalled-plugins.json)指定新 Desktop profile 的可选 bundle。Seed 准备过程下载其精确发布来源，并将它们纳入离线锁文件与 store；此发行配置只预装 Aiko 市场。用户需要时从市场安装 Aiko Office，包括其 Python 运行时与文档处理库。插件可通过原生插件管理器卸载。重启与发布校准保留活跃 profile 的插件版本、来源和卸载结果，包括后续 seed 中不再包含的插件。应用升级不会向已有 profile 追加新的默认插件。
+[预装插件表](preinstalled-plugins.json)指定新 Desktop profile 的可选 bundle。Seed 准备过程下载其精确发布来源，并将它们纳入离线锁文件与 store；此发行配置只从公开 npm 预装 `aiko-dsh-market`。用户需要时从市场安装 Aiko Office，包括其 Python 运行时与文档处理库。插件可通过原生插件管理器卸载。重启与发布校准保留活跃 profile 的插件版本、来源和卸载结果，包括后续 seed 中不再包含的插件。应用升级不会向已有 profile 追加新的默认插件。迁移市场时，通过原生插件管理器先移除 `dshmarket` 再添加 `aiko-dsh-market`；两个包使用同一 Cordis 配置行，不能共存。
 
 `DSH_DESKTOP_FETCH_TIMEOUT_MS` 将 pnpm 下载超时设置为正整数毫秒值；未设置时保留 pnpm 默认值。Seed 准备过程可以复用 `DSH_DESKTOP_PREFETCHED_STORE` 指定的已下载 pnpm store，以及 `DSH_DESKTOP_PREFETCHED_LOCKFILE` 指定的已审查锁文件。核心包验证、冻结锁文件安装、内容完整性检查和最终离线安装仍会执行。这些输入用于配置构建，不会复制到用户设置中。
 

@@ -199,11 +199,10 @@ describe('desktop package policy', () => {
       dsh: { profile: { bundles: string[] } }
     }
     expect(manifest.dsh.profile.bundles).toEqual([
-      '@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', 'dshmarket',
+      '@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', 'aiko-dsh-market',
     ])
-    expect(manifest.dependencies.dshmarket).toMatch(
-      /^https:\/\/github\.com\/aiko-dsh-plugins\/dsh-market\/releases\/download\/v[^/]+\/dshmarket-[^/]+\.tgz$/u,
-    )
+    expect(manifest.dependencies['aiko-dsh-market']).toBe('1.37.1')
+    expect(manifest.dependencies.dshmarket).toBeUndefined()
     expect(manifest.dependencies['aiko-dsh-office']).toBeUndefined()
   })
 
