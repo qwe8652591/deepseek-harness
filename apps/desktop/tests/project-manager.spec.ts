@@ -258,18 +258,18 @@ describe('desktop project transactions', () => {
     await manager.applyRelease(prepare('1.0.0'), '1.0.0', hooks())
     expect(manager.listPlugins()).toEqual([
       { name: 'market', version: '1.2.3', spec: `market@${source}` },
-      { name: 'optional', version: '1.0.0' },
+      { name: 'optional', version: '1.0.0', spec: 'optional@1.0.0' },
     ])
     const updated = 'https://github.com/org/market/releases/download/v1.2.4/market.tgz'
     await manager.mutate({ type: 'plugins-add', specs: [`market@${updated}`, ...(withBusiness ? ['business@2.0.0'] : [])] }, hooks())
     await manager.applyRelease(prepare('2.0.0', { market: source }), '2.0.0', hooks())
     expect(manager.listPlugins()[0]?.spec).toBe(`market@${updated}`)
-    expect(manager.listPlugins()).toContainEqual({ name: 'optional', version: '1.0.0' })
+    expect(manager.listPlugins()).toContainEqual({ name: 'optional', version: '1.0.0', spec: 'optional@1.0.0' })
     await manager.mutate({ type: 'plugin-remove', name: 'market' }, hooks())
     await manager.mutate({ type: 'plugin-remove', name: 'optional' }, hooks())
     expect(await manager.applyRelease(join(root, '2.0.0'), '2.0.0', hooks())).toBe(false)
     await manager.applyRelease(prepare('3.0.0'), '3.0.0', hooks())
-    expect(manager.listPlugins()).toEqual(withBusiness ? [{ name: 'business', version: '2.0.0' }] : [])
+    expect(manager.listPlugins()).toEqual(withBusiness ? [{ name: 'business', version: '2.0.0', spec: 'business@2.0.0' }] : [])
     const manifest = JSON.parse(readFileSync(join(paths.profile, 'package.json'), 'utf8')) as { dependencies: Record<string, string> }
     expect(manifest.dependencies.market).toBeUndefined()
     expect(manifest.dependencies.optional).toBeUndefined()
@@ -290,7 +290,7 @@ describe('desktop project transactions', () => {
     await manager.mutate({ type: 'plugins-add', specs: [`ontology@${source}`, 'bid@1.0.0'] }, hooks())
     expect(manager.listPlugins()).toEqual([
       { name: 'ontology', version: '1.2.3', spec: `ontology@${source}` },
-      { name: 'bid', version: '1.0.0' },
+      { name: 'bid', version: '1.0.0', spec: 'bid@1.0.0' },
     ])
     const next = join(root, 'next')
     createTestSeedMetadata(next, release('2.0.0'))
@@ -411,7 +411,7 @@ describe('desktop project transactions', () => {
 
     manager.recover()
 
-    expect(manager.listPlugins()).toEqual([{ name: '@scope/plugin', version: '2.0.0' }])
+    expect(manager.listPlugins()).toEqual([{ name: '@scope/plugin', version: '2.0.0', spec: '@scope/plugin@2.0.0' }])
     expect(existsSync(stagingProfile)).toBe(false)
     expect(existsSync(paths.pending)).toBe(false)
   })
@@ -479,6 +479,9 @@ describe('desktop project transactions', () => {
     expect(readFileSync(join(paths.profile, 'pnpm-workspace.yaml'), 'utf8'))
       .toContain(`${JSON.stringify('@deepseek-ai/dsh')}: ${JSON.stringify(coreSpec)}`)
     expect(manifest.dependencies['@scope/plugin']).toBe('2.0.0')
+    expect(manager.listPlugins()).toEqual([
+      { name: '@scope/plugin', version: '2.0.0', spec: '@scope/plugin@2.0.0' },
+    ])
     const invocation = JSON.parse(readFileSync(log, 'utf8')) as { args: string[]; env: Record<string, string> }
     expect(invocation.args).toContain('add')
     expect(invocation.args).toContain('@scope/plugin@2.0.0')
@@ -499,7 +502,7 @@ describe('desktop project transactions', () => {
     const manager = new DesktopProjectManager(paths, { node: process.execPath, pnpm })
     await manager.applyRelease(seed, '1.0.0', hooks())
     await manager.mutate({ type: 'plugin-add', spec: `${name}@2.0.0` }, hooks())
-    expect(manager.listPlugins()).toEqual([{ name, version: '2.0.0' }])
+    expect(manager.listPlugins()).toEqual([{ name, version: '2.0.0', spec: `${name}@2.0.0` }])
     await manager.mutate({ type: 'plugin-remove', name }, hooks())
     expect(manager.listPlugins()).toEqual([])
     expect(readFileSync(join(paths.profile, 'pnpm-workspace.yaml'), 'utf8')).toContain(`${name}@2.0.0`)
@@ -557,7 +560,7 @@ describe('desktop project transactions', () => {
     await expect(manager.applyRelease(nextSeed, '1.1.0', hooks())).resolves.toBe(true)
     expect(manager.releaseVersion()).toBe('1.1.0')
     expect(manager.dshVersion()).toBe('1.1.0')
-    expect(manager.listPlugins()).toEqual([{ name: '@scope/plugin', version: '2.0.0' }])
+    expect(manager.listPlugins()).toEqual([{ name: '@scope/plugin', version: '2.0.0', spec: '@scope/plugin@2.0.0' }])
     const profile = JSON.parse(readFileSync(join(paths.profile, 'package.json'), 'utf8')) as {
       dsh: { profile: { bundles: string[] } }
     }

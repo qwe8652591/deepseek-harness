@@ -51,7 +51,8 @@ const DESKTOP_PROJECT_FILES = [
 export interface DesktopPluginRecord {
   readonly name: string
   readonly version: string
-  readonly spec?: string
+  /** Exact npm name/version or explicitly named HTTPS artifact used for reinstalls. */
+  readonly spec: string
 }
 
 /** Installed desktop project manifest slice. */
@@ -363,7 +364,7 @@ function inspectPlugin(projectDir: string, requestedName: string): DesktopPlugin
   if ((patchPath !== packageDir && !patchPath.startsWith(packageDir + sep)) || !existsSync(patchPath)) {
     throw new Error(`desktop project: ${requestedName}@${manifest.version} declares an invalid bundle patch`)
   }
-  return { name: requestedName, version: manifest.version }
+  return { name: requestedName, version: manifest.version, spec: `${requestedName}@${manifest.version}` }
 }
 
 /** Transactional desktop npm project manager. */
@@ -461,7 +462,7 @@ export class DesktopProjectManager {
           if (plugins.length > 0) {
             await this.runPnpm(stagingProfile, [
               'add',
-              ...plugins.map(plugin => plugin.spec ?? `${plugin.name}@${plugin.version}`),
+              ...plugins.map(plugin => plugin.spec),
               '--save-exact',
               '--offline',
             ])

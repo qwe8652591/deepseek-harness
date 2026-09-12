@@ -20,6 +20,8 @@ Fresh profiles preinstall only an exact npm version of `aiko-dsh-market`. pnpm r
 
 pnpm records explicit fresh-version installations in `minimumReleaseAgeExclude`. Desktop compares parsed workspace settings so pnpm formatting and exact non-core exclusions do not invalidate an otherwise unchanged core mapping. Historical exact exclusions remain valid after removal; broader selectors and changes to owned settings fail validation. This preserves pnpm's release-age policy without globally disabling it.
 
+Installed-plugin records carry explicit npm or HTTPS specs. An absent npm spec makes the market treat a registry installation as an unknown source; the desktop owner resolves that identity before exposing the record to either renderer.
+
 ## Alternatives considered
 
 **Make distribution repositories private.** This would invalidate anonymous downloads and does not convert an existing public fork into an independent private repository.
