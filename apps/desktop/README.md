@@ -87,7 +87,7 @@ Active Aiko development uses the private `aiko-dsh-plugins/deepseek-harness-sour
 
 The [Aiko Mac test workflow](../../.github/workflows/aiko-macos-test.yml) builds the selected private commit on native Apple Silicon and Intel runners. Its [builder](scripts/aiko-build-macos-test.mjs) prepares the current client and published preinstalled market; the client owns its Playwright test dependency. Each private Actions artifact includes a ZIP, SHA-256 checksum, source identity, screenshots and an [installed-application smoke result](scripts/aiko-smoke-macos-test.mjs) confirming that Office is absent from a fresh profile. Maintainers publish validated ZIPs and checksums to a new prerelease in the public client repository; private Actions artifacts are not client download URLs.
 
-Mac test applications use ad-hoc signatures, the separate `DSH Aiko Test` data directory and no automatic updates. Apple Developer ID signing and notarization are required for production releases. The [distribution decision](../../.agents/notes/implemented/process/2026-09-11-aiko-private-source-distribution.md) records source ownership and release validation.
+Mac test applications use ad-hoc signatures, the separate `DSH Aiko Test` data directory and no automatic updates. Apple Developer ID signing and notarization are required for production releases. The [distribution decision](../../.agents/notes/implemented/process/2026-09-11-aiko-private-source-distribution.md) records source ownership and release validation; the [npm catalog decision](../../.agents/notes/implemented/architecture/2026-09-12-aiko-npm-catalog-content.md) records plugin help and preview delivery.
 
 ## Package
 

@@ -87,7 +87,7 @@ Aiko 的活跃开发使用私有仓库 `aiko-dsh-plugins/deepseek-harness-source
 
 [Aiko Mac 测试工作流](../../.github/workflows/aiko-macos-test.yml)在原生 Apple Silicon 和 Intel runner 上构建选定的私有提交。[构建器](scripts/aiko-build-macos-test.mjs)准备当前客户端及已发布的预装市场；客户端自身声明 Playwright 测试依赖。每份私有 Actions artifact 包含 ZIP、SHA-256 校验和、源码标识、截图及确认全新 profile 未安装 Office 的[已安装应用冒烟结果](scripts/aiko-smoke-macos-test.mjs)。维护者将验证通过的 ZIP 和校验和发布为公开客户端仓库中的新 prerelease；私有 Actions artifact 不是客户端的下载地址。
 
-Mac 测试应用使用临时签名、独立的 `DSH Aiko Test` 数据目录，且不启用自动更新。正式发布需要 Apple Developer ID 签名和公证。[分发决策](../../.agents/notes/implemented/process/2026-09-11-aiko-private-source-distribution.zh.md)记录了源码归属和发布验证要求。
+Mac 测试应用使用临时签名、独立的 `DSH Aiko Test` 数据目录，且不启用自动更新。正式发布需要 Apple Developer ID 签名和公证。[分发决策](../../.agents/notes/implemented/process/2026-09-11-aiko-private-source-distribution.zh.md)记录了源码归属和发布验证要求；[npm 目录决策](../../.agents/notes/implemented/architecture/2026-09-12-aiko-npm-catalog-content.zh.md)记录了插件说明和预览的分发方式。
 
 ## 打包
 
