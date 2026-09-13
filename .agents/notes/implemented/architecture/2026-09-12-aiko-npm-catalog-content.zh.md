@@ -10,6 +10,8 @@ Status: implemented
 
 ## 决策
 
+[插件自有元数据决策](2026-09-13-package-owned-plugin-metadata.zh.md)替代本记录中的目录存储与迁移安排。完整性、内容大小限制和展示链接规则仍然适用。
+
 公开的 `aiko-dsh-plugin-catalog` npm 数据包携带精确的 npm 安装目标、插件依赖引用、本地化 Markdown 和内嵌位图预览。Aiko 市场通过 `additionalRegistryPackages` 读取它；宿主在向任一客户端提供内容前验证压缩包完整性和大小。Markdown 展示不执行原始 HTML，也不请求仓库图片。目录不执行代码，也不激活 profile bundle。
 
 仓库 URL 保留为目录合并和依赖引用的兼容标识。独立的公开主页与反馈字段负责导航。npm 安装按包名匹配，并保留明确的安装来源。已有 GitHub 安装需要明确迁移；删除仓库无法重定向其锁文件 URL。[桌面 seed](../../../../apps/desktop/preinstalled-plugins.json)固定使用支持 npm 内容的市场版本。

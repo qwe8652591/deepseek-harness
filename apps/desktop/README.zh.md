@@ -33,7 +33,7 @@ Electron 根据应用 locale 选择类型化的中英文字典，并以英文作
 
 ### Seed 安装
 
-[预装插件表](preinstalled-plugins.json)指定新 Desktop profile 的可选 bundle。Seed 准备过程下载其精确发布来源，并将它们纳入离线锁文件与 store；此发行配置只从公开 npm 预装 `aiko-dsh-market`。用户需要时从市场安装 Aiko Office，包括其 Python 运行时与文档处理库。插件可通过原生插件管理器卸载。重启与发布校准保留活跃 profile 的插件版本、来源和卸载结果，包括后续 seed 中不再包含的插件。应用升级不会向已有 profile 追加新的默认插件。迁移市场时，通过原生插件管理器先移除 `dshmarket` 再添加 `aiko-dsh-market`；两个包使用同一 Cordis 配置行，不能共存。
+[预装插件表](preinstalled-plugins.json)指定新 Desktop profile 的可选 bundle。Seed 准备过程下载其精确发布来源，并将它们纳入离线锁文件与 store；此发行配置只从公开 npm 预装 `aiko-dsh-market`。用户需要时从市场安装 Aiko Office，包括其 Python 运行时与文档处理库。插件可通过原生插件管理器卸载。重启与发布校准保留活跃 profile 的插件版本、来源和卸载结果，包括后续 seed 中不再包含的插件。应用升级不会向已有 profile 追加新的默认插件。[退役来源修复](../../.agents/notes/implemented/architecture/2026-09-13-package-owned-plugin-metadata.zh.md)是保留来源与版本规则的明确例外；它也避免两个市场身份共用同一 Cordis 配置行。
 
 `DSH_DESKTOP_FETCH_TIMEOUT_MS` 将 pnpm 下载超时设置为正整数毫秒值；未设置时保留 pnpm 默认值。Seed 准备过程可以复用 `DSH_DESKTOP_PREFETCHED_STORE` 指定的已下载 pnpm store，以及 `DSH_DESKTOP_PREFETCHED_LOCKFILE` 指定的已审查锁文件。核心包验证、冻结锁文件安装、内容完整性检查和最终离线安装仍会执行。这些输入用于配置构建，不会复制到用户设置中。
 
@@ -88,6 +88,12 @@ Aiko 的活跃开发使用私有仓库 `aiko-dsh-plugins/deepseek-harness-source
 [Aiko Mac 测试工作流](../../.github/workflows/aiko-macos-test.yml)在原生 Apple Silicon 和 Intel runner 上构建选定的私有提交。[构建器](scripts/aiko-build-macos-test.mjs)准备当前客户端及已发布的预装市场；客户端自身声明 Playwright 测试依赖。每份私有 Actions artifact 包含 ZIP、SHA-256 校验和、源码标识、截图及确认全新 profile 未安装 Office 的[已安装应用冒烟结果](scripts/aiko-smoke-macos-test.mjs)。维护者将验证通过的 ZIP 和校验和发布为公开客户端仓库中的新 prerelease；私有 Actions artifact 不是客户端的下载地址。
 
 Mac 测试应用使用临时签名、独立的 `DSH Aiko Test` 数据目录，且不启用自动更新。正式发布需要 Apple Developer ID 签名和公证。[分发决策](../../.agents/notes/implemented/process/2026-09-11-aiko-private-source-distribution.zh.md)记录了源码归属和发布验证要求；[npm 目录决策](../../.agents/notes/implemented/architecture/2026-09-12-aiko-npm-catalog-content.zh.md)记录了插件说明和预览的分发方式。
+
+## 插件兼容性与退役来源
+
+插件在 `package.json` 的 `dsh.compatibility.host` 中声明支持的应用版本范围，在 `dsh.compatibility.plugins` 中声明必需插件的版本范围。Desktop 在 staging 安装激活前校验这些声明。市场显示范围，并在提议安装前检查当前应用版本；未声明的旧插件仍属于未验证状态。
+
+启动和包事务会将来自四个已退役 Aiko 插件仓库的已安装制品迁往固定的 npm 替代版本，包括重命名 `dshmarket`。官方 npm 市场在需要时升级到 schema-2 基线。即使应用版本不变，该修复也会执行；它可能需要访问 npm，解析或健康检查失败会保留活跃安装。其他发行来源和会话数据保持原状。[插件元数据决策](../../.agents/notes/implemented/architecture/2026-09-13-package-owned-plugin-metadata.zh.md)定义归属与限制。
 
 ## 打包
 

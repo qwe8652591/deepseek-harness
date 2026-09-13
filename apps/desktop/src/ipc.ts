@@ -12,6 +12,7 @@ export const DESKTOP_IPC = {
   pluginsRemove: 'dsh-desktop:plugins-remove',
   pluginsUpdate: 'dsh-desktop:plugins-update',
   marketList: 'dsh-desktop:market-list',
+  marketHostVersion: 'dsh-desktop:market-host-version',
   marketRequest: 'dsh-desktop:market-request',
   updatesCheck: 'dsh-desktop:updates-check',
   updatesInstall: 'dsh-desktop:updates-install',
@@ -22,6 +23,8 @@ export const DESKTOP_IPC = {
 export interface DshDesktopMarketApi {
   readonly protocolVersion: 1
   list(): Promise<readonly DesktopPluginRecord[]>
+  /** Exact application release used for plugin compatibility checks. */
+  hostVersion(): Promise<string>
   request(request: DesktopMarketRequest): Promise<{ readonly applied: boolean }>
 }
 

@@ -23,7 +23,7 @@ import {
 } from 'node:fs'
 import { basename, delimiter, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { isDeepStrictEqual } from 'node:util'
-import { JSON_SCHEMA, load } from 'js-yaml'
+import { dump, JSON_SCHEMA, load } from 'js-yaml'
 import { valid as validVersion } from 'semver'
 import {
   DESKTOP_PACKAGES_DIR,
@@ -37,6 +37,8 @@ import {
 import type { DesktopPaths } from './paths.ts'
 import { parseDesktopRelease, type DesktopRelease } from './release.ts'
 import { extractPnpmStoreArchives, mergePnpmStore } from './seed-store.ts'
+import { migrateRetiredPlugin } from './retired-plugin-sources.ts'
+import { assertPluginCompatibility } from './plugin-compatibility.ts'
 
 /** Files the package transaction copies between active and staging projects. */
 const DESKTOP_PROJECT_FILES = [
@@ -154,11 +156,30 @@ function workspaceMatches(source: string, overrides: Readonly<Record<string, str
       const at = entry.lastIndexOf('@')
       const name = entry.slice(0, at)
       const version = entry.slice(at + 1)
-      return at > 0 && PACKAGE_NAME_PATTERN.test(name) && validVersion(version) === version
+      return at > 0 && PACKAGE_NAME_PATTERN.test(name)
+        && version.split('||').every(part => part.trim() !== '' && validVersion(part.trim()) === part.trim())
         && !Object.hasOwn(overrides, name) && !DESKTOP_PROFILE_BUNDLES.some(bundle => bundle === name)
     })) return false
   }
   return isDeepStrictEqual(settings, load(workspaceFile(overrides), { schema: JSON_SCHEMA }))
+}
+
+/** pnpm matches the first rule for a package; combine existing exact approvals without widening them. */
+function normalizeReleaseAgeExclusions(projectDir: string): void {
+  const path = join(projectDir, 'pnpm-workspace.yaml')
+  const workspace: unknown = load(readFileSync(path, 'utf8'), { schema: JSON_SCHEMA })
+  if (!isRecord(workspace) || !Array.isArray(workspace.minimumReleaseAgeExclude)) return
+  const versions = new Map<string, Set<string>>()
+  for (const entry of workspace.minimumReleaseAgeExclude as string[]) {
+    const at = entry.lastIndexOf('@')
+    const name = entry.slice(0, at)
+    const values = versions.get(name) ?? new Set<string>()
+    for (const version of entry.slice(at + 1).split('||')) values.add(version.trim())
+    versions.set(name, values)
+  }
+  const normalized = [...versions].map(([name, values]) => `${name}@${[...values].join(' || ')}`)
+  if (isDeepStrictEqual(normalized, workspace.minimumReleaseAgeExclude)) return
+  writeFileSync(path, dump({ ...workspace, minimumReleaseAgeExclude: normalized }, { lineWidth: -1, noRefs: true }), { mode: 0o600 })
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -446,13 +467,31 @@ export class DesktopProjectManager {
         && this.dshVersion() === target.version
         && this.installedPackageVersion(DESKTOP_HOST_PACKAGE) === target.version) {
         verifyDesktopCorePackageSet(this.paths.profile, target.version)
+        const plugins = pluginRecords(this.paths.profile)
+        if (plugins.some(plugin => migrateRetiredPlugin(plugin) !== plugin)) {
+          const stagingProfile = this.newStagingProfile()
+          try {
+            copyMetadata(this.paths.profile, stagingProfile)
+            this.migratePluginSources(stagingProfile, plugins)
+            await this.runPnpm(stagingProfile, ['install', '--no-frozen-lockfile'])
+            assertPluginCompatibility(stagingProfile, target.version, pluginRecords(stagingProfile))
+            await hooks.healthCheck(stagingProfile)
+            await this.activate(stagingProfile, hooks)
+            return true
+          } catch (error) {
+            removeOwnedDirectory(stagingProfile)
+            throw error
+          }
+        }
         return false
       }
       this.mergeSeedPnpmState(seedDir)
       const stagingProfile = this.newStagingProfile()
       try {
         if (existsSync(this.paths.profile)) {
-          const plugins = pluginRecords(this.paths.profile)
+          const previous = pluginRecords(this.paths.profile)
+          const plugins = previous.map(migrateRetiredPlugin)
+          const migrated = plugins.some((plugin, index) => plugin !== previous[index])
           copyMetadata(seedDir, stagingProfile)
           await this.runPnpm(stagingProfile, ['install', '--offline', '--frozen-lockfile', '--trust-lockfile'])
           const removedDefaults = profilePluginNames(stagingProfile).filter(name => !plugins.some(plugin => plugin.name === name))
@@ -464,7 +503,7 @@ export class DesktopProjectManager {
               'add',
               ...plugins.map(plugin => plugin.spec),
               '--save-exact',
-              '--offline',
+              ...(migrated ? [] : ['--offline']),
             ])
           }
           writeProfilePlugins(stagingProfile, plugins)
@@ -472,6 +511,7 @@ export class DesktopProjectManager {
           copyMetadata(seedDir, stagingProfile)
           await this.runPnpm(stagingProfile, ['install', '--offline', '--frozen-lockfile', '--trust-lockfile'])
         }
+        assertPluginCompatibility(stagingProfile, target.version, pluginRecords(stagingProfile))
         await hooks.healthCheck(stagingProfile)
         await this.activate(stagingProfile, hooks)
         return true
@@ -491,7 +531,15 @@ export class DesktopProjectManager {
       const stagingProfile = this.newStagingProfile()
       try {
         copyMetadata(this.paths.profile, stagingProfile)
-        await this.applyMutation(stagingProfile, mutation)
+        const plugins = pluginRecords(this.paths.profile)
+        this.migratePluginSources(stagingProfile, plugins)
+        let normalized = mutation
+        if (mutation.type === 'plugin-remove' || mutation.type === 'plugin-update') {
+          const previous = plugins.find(plugin => plugin.name === mutation.name)
+          if (previous !== undefined) normalized = { ...mutation, name: migrateRetiredPlugin(previous).name }
+        }
+        await this.applyMutation(stagingProfile, normalized)
+        assertPluginCompatibility(stagingProfile, this.releaseVersion(), pluginRecords(stagingProfile))
         await hooks.healthCheck(stagingProfile)
         await this.activate(stagingProfile, hooks)
       } catch (error) {
@@ -505,6 +553,23 @@ export class DesktopProjectManager {
     const path = join(this.paths.staging, randomUUID(), 'profile')
     mkdirSync(path, { recursive: true, mode: 0o700 })
     return path
+  }
+
+  private migratePluginSources(projectDir: string, plugins: readonly DesktopPluginRecord[]): void {
+    const manifest = projectManifest(projectDir)
+    const dependencies = new Map(Object.entries(manifest.dependencies))
+    for (const plugin of plugins) {
+      const migrated = migrateRetiredPlugin(plugin)
+      if (migrated !== plugin) {
+        if (migrated.name !== plugin.name && dependencies.has(migrated.name)) {
+          throw new Error(`desktop project: migration conflicts with installed ${migrated.name}`)
+        }
+        dependencies.delete(plugin.name)
+        dependencies.set(migrated.name, migrated.version)
+      }
+    }
+    writeJson(join(projectDir, 'package.json'), { ...manifest, dependencies: Object.fromEntries(dependencies) })
+    writeProfilePlugins(projectDir, plugins.map(migrateRetiredPlugin))
   }
 
   private async applyMutation(projectDir: string, mutation: DesktopProjectMutation): Promise<void> {
@@ -527,7 +592,7 @@ export class DesktopProjectManager {
           return name
         })
         if (new Set(names).size !== names.length) throw new Error('desktop project: duplicate plugin packages')
-        const previous = pluginRecords(this.paths.profile)
+        const previous = pluginRecords(this.paths.profile).map(migrateRetiredPlugin)
         await this.runPnpm(projectDir, ['add', ...specs, '--save-exact'])
         const installed = names.map(name => inspectPlugin(projectDir, name))
         const current = previous.filter(plugin => !names.includes(plugin.name))
@@ -543,7 +608,7 @@ export class DesktopProjectManager {
         if (!profilePluginNames(projectDir).includes(mutation.name)) {
           throw new Error(`desktop project: plugin ${JSON.stringify(mutation.name)} is not installed`)
         }
-        const remaining = pluginRecords(this.paths.profile).filter(plugin => plugin.name !== mutation.name)
+        const remaining = pluginRecords(this.paths.profile).filter(plugin => migrateRetiredPlugin(plugin).name !== mutation.name)
         for (const plugin of remaining) {
           const manifest = readJson(join(this.paths.profile, 'node_modules', ...plugin.name.split('/'), 'package.json'))
           if (!isRecord(manifest)) throw new Error(`desktop project: invalid plugin manifest ${plugin.name}`)
@@ -554,7 +619,7 @@ export class DesktopProjectManager {
           }
         }
         await this.runPnpm(projectDir, ['remove', mutation.name])
-        writeProfilePlugins(projectDir, remaining)
+        writeProfilePlugins(projectDir, remaining.map(migrateRetiredPlugin))
         return
       }
       case 'plugin-update':
@@ -624,6 +689,7 @@ export class DesktopProjectManager {
   private async runPnpm(projectDir: string, args: readonly string[]): Promise<void> {
     const [command, ...commandArgs] = args
     if (command === undefined) throw new Error('desktop project: pnpm command is required')
+    normalizeReleaseAgeExclusions(projectDir)
     for (const path of [this.paths.root, this.paths.pnpm.store, this.paths.pnpm.cache,
       this.paths.pnpm.state, this.paths.pnpm.config, this.paths.pnpm.home]) {
       mkdirSync(path, { recursive: true, mode: 0o700 })

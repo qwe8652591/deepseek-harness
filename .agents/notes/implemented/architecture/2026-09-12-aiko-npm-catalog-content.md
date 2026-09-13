@@ -10,6 +10,8 @@ Publishing runtime packages to npm does not remove a market's dependency on publ
 
 ## Decision
 
+The [package-owned metadata decision](2026-09-13-package-owned-plugin-metadata.md) supersedes this note’s directory storage and migration choices. The integrity, bounded-content and presentation-link rules remain applicable.
+
 The public `aiko-dsh-plugin-catalog` npm data package carries exact npm installation targets, plugin dependency references, localized Markdown and embedded raster previews. The Aiko market reads it through `additionalRegistryPackages`; the host verifies archive integrity and size before exposing content to either client. Markdown renders without raw HTML or repository image requests. The catalog does not execute code or activate a profile bundle.
 
 Repository URLs remain compatibility identifiers for catalog merging and dependencies. Separate public homepage and feedback fields own navigation. Npm installations match package names and retain their explicit sources. Existing GitHub installations require explicit migration; deleting a repository cannot redirect their lockfile URLs. The [desktop seed](../../../../apps/desktop/preinstalled-plugins.json) pins the market version that consumes npm content.

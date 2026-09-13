@@ -195,6 +195,60 @@ afterEach(async () => {
 })
 
 describe('desktop package policy', () => {
+  it.each(['add', 'remove', 'update'] as const)('migrates retired Aiko sources together before pnpm %s', async (operation) => {
+    const root = temporaryRoot()
+    const seed = join(root, 'seed')
+    createTestSeedMetadata(seed, release())
+    writeFileSync(join(seed, 'pnpm-lock.yaml'), 'lockfileVersion: 9\n')
+    archiveStore(seed)
+    writeIntegrity(seed)
+    const paths = resolveDesktopPaths(join(root, 'home'))
+    const delegate = writeFakePnpm(root)
+    const original = new DesktopProjectManager(paths, { node: process.execPath, pnpm: delegate })
+    await original.applyRelease(seed, '1.0.0', hooks())
+    await original.mutate({ type: 'plugins-add', specs: [
+      'dshmarket@https://github.com/aiko-dsh-plugins/dsh-market/releases/download/v1.37.0-aiko.3/market.tgz',
+      'aiko-dsh-office@https://github.com/aiko-dsh-plugins/dsh-office/releases/download/v0.2.0/aiko-dsh-office-0.2.0.tgz',
+      'aiko-dsh-ontology-kernel@https://github.com/aiko-dsh-plugins/dsh-ontology-kernel/releases/download/v0.1.2/aiko-dsh-ontology-kernel-0.1.2.tgz',
+    ] }, hooks())
+    const pnpm = join(root, 'retired-source-pnpm.mjs')
+    writeFileSync(pnpm, `
+await import(${JSON.stringify(pathToFileURL(delegate).href)})
+const { readFileSync } = await import('node:fs')
+const manifest = JSON.parse(readFileSync('package.json', 'utf8'))
+if (Object.values(manifest.dependencies).some(spec => String(spec).includes('github.com/aiko-dsh-plugins/'))) {
+  throw new Error('ERR_PNPM_FETCH_404: retired GitHub plugin release')
+}
+`)
+    const manager = new DesktopProjectManager(paths, { node: process.execPath, pnpm })
+    await manager.mutate(operation === 'add' ? { type: 'plugin-add', spec: 'aiko-dsh-market@1.39.0' }
+      : operation === 'remove' ? { type: 'plugin-remove', name: 'aiko-dsh-office' }
+        : { type: 'plugin-update', name: 'dshmarket', version: '1.39.0' }, hooks())
+    expect(manager.listPlugins().map(plugin => plugin.spec)).toEqual(([
+      'aiko-dsh-market@1.39.0', 'aiko-dsh-office@0.3.1', 'aiko-dsh-ontology-kernel@0.1.5',
+    ]).filter(spec => operation !== 'remove' || !spec.startsWith('aiko-dsh-office@')))
+  })
+
+  it('repairs a retired market on same-version application startup and preserves the profile if validation fails', async () => {
+    const root = temporaryRoot()
+    const seed = join(root, 'seed')
+    createTestSeedMetadata(seed, release())
+    writeFileSync(join(seed, 'pnpm-lock.yaml'), 'lockfileVersion: 9\n')
+    archiveStore(seed)
+    writeIntegrity(seed)
+    const paths = resolveDesktopPaths(join(root, 'home'))
+    const manager = new DesktopProjectManager(paths, { node: process.execPath, pnpm: writeFakePnpm(root) })
+    await manager.applyRelease(seed, '1.0.0', hooks())
+    const old = 'dshmarket@https://github.com/aiko-dsh-plugins/dsh-market/releases/download/v1.37.0-aiko.3/market.tgz'
+    await manager.mutate({ type:'plugin-add', spec:old }, hooks())
+    const before = readFileSync(join(paths.profile, 'package.json'), 'utf8')
+    await expect(manager.applyRelease(seed, '1.0.0', hooks({ healthCheck: async () => { throw new Error('cannot boot') } }))).rejects.toThrow('cannot boot')
+    expect(readFileSync(join(paths.profile, 'package.json'), 'utf8')).toBe(before)
+    expect(await manager.applyRelease(seed, '1.0.0', hooks())).toBe(true)
+    expect(manager.listPlugins().map(plugin => plugin.spec)).toEqual(['aiko-dsh-market@1.39.0'])
+    expect(await manager.applyRelease(seed, '1.0.0', hooks())).toBe(false)
+  })
+
   it.each([
     null, [], 'plugin', { plugin: 12 }, { plugin: 'latest' }, { plugin: '^1.2.3' },
     { plugin: 'file:../plugin' }, { plugin: 'http://example.test/plugin.tgz' },
@@ -216,7 +270,7 @@ describe('desktop package policy', () => {
     expect(manifest.dsh.profile.bundles).toEqual([
       '@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', 'aiko-dsh-market',
     ])
-    expect(manifest.dependencies['aiko-dsh-market']).toBe('1.37.1')
+    expect(manifest.dependencies['aiko-dsh-market']).toBe('1.39.0')
     expect(manifest.dependencies.dshmarket).toBeUndefined()
     expect(manifest.dependencies['aiko-dsh-office']).toBeUndefined()
   })
@@ -508,8 +562,27 @@ describe('desktop project transactions', () => {
     expect(readFileSync(join(paths.profile, 'pnpm-workspace.yaml'), 'utf8')).toContain(`${name}@2.0.0`)
   })
 
+  it('combines exact approvals for successive versions before resolving an update', async () => {
+    const root = temporaryRoot()
+    const seed = join(root, 'seed')
+    createTestSeedMetadata(seed, release())
+    writeFileSync(join(seed, 'pnpm-lock.yaml'), 'lockfileVersion: 9\n')
+    archiveStore(seed)
+    writeIntegrity(seed)
+    const paths = resolveDesktopPaths(join(root, 'home'))
+    const manager = new DesktopProjectManager(paths, { node: process.execPath, pnpm: writeFakePnpm(root) })
+    await manager.applyRelease(seed, '1.0.0', hooks())
+    const workspace = join(paths.profile, 'pnpm-workspace.yaml')
+    writeFileSync(workspace, readFileSync(workspace, 'utf8') + 'minimumReleaseAgeExclude:\n  - plugin@1.0.0\n  - plugin@2.0.0\n')
+    await manager.mutate({ type: 'plugin-add', spec: 'plugin@2.0.0' }, hooks())
+    expect(readFileSync(workspace, 'utf8')).toContain('plugin@1.0.0 || 2.0.0')
+    await manager.mutate({ type: 'plugin-remove', name: 'plugin' }, hooks())
+    expect(manager.listPlugins()).toEqual([])
+  })
+
   it.each([
     ['wildcard exclusion', 'strictDepBuilds: true', 'strictDepBuilds: true\nminimumReleaseAgeExclude: ["@scope/*"]'],
+    ['range in union', 'strictDepBuilds: true', 'strictDepBuilds: true\nminimumReleaseAgeExclude: ["plugin@1.0.0 || ^2.0.0"]'],
     ['range exclusion', 'strictDepBuilds: true', 'strictDepBuilds: true\nminimumReleaseAgeExclude: ["plugin@^2.0.0"]'],
     ['core exclusion', 'strictDepBuilds: true', 'strictDepBuilds: true\nminimumReleaseAgeExclude: ["@deepseek-ai/dsh@1.0.0"]'],
     ['malformed exclusion', 'strictDepBuilds: true', 'strictDepBuilds: true\nminimumReleaseAgeExclude: 123'],

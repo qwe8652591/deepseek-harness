@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-12-aiko-npm-catalog-content.md
-2026-09-12-aiko-npm-catalog-content.md: 57d86bd7771abac25d65a7d5b3f18a619720ec65
-2026-09-12-aiko-npm-catalog-content.zh.md: ce2fb842a18db8db30c956322a7da2d25a84c7aa
+2026-09-12-aiko-npm-catalog-content.md: 45968d930ed8ad4ad2009f0bc7124dec52242cfa
+2026-09-12-aiko-npm-catalog-content.zh.md: 3104a9017e58562333adcba9c253bacf9638903b

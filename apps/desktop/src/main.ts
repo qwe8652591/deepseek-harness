@@ -274,6 +274,10 @@ async function main(): Promise<void> {
     assertMarketSender(event)
     return manager.listPlugins()
   })
+  ipcMain.handle(DESKTOP_IPC.marketHostVersion, (event) => {
+    assertMarketSender(event)
+    return manager.releaseVersion()
+  })
   let marketRequestPending = false
   ipcMain.handle(DESKTOP_IPC.marketRequest, async (event, value: unknown) => {
     assertMarketSender(event)
