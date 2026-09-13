@@ -3,6 +3,7 @@ import { existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, renameSy
 import { tmpdir } from 'node:os'
 import { dirname, join, relative, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { load } from 'js-yaml'
 import { afterEach, describe, expect, it } from 'vitest'
 import { resolveDesktopPaths } from '../src/paths.ts'
 import {
@@ -530,8 +531,10 @@ describe('desktop project transactions', () => {
     }
     const coreSpec = manifest.dependencies['@deepseek-ai/dsh']
     expect(coreSpec).toMatch(/^file:\.\/desktop-packages\//u)
-    expect(readFileSync(join(paths.profile, 'pnpm-workspace.yaml'), 'utf8'))
-      .toContain(`${JSON.stringify('@deepseek-ai/dsh')}: ${JSON.stringify(coreSpec)}`)
+    const workspace = load(readFileSync(join(paths.profile, 'pnpm-workspace.yaml'), 'utf8')) as {
+      overrides: Record<string, string>
+    }
+    expect(workspace.overrides['@deepseek-ai/dsh']).toBe(coreSpec)
     expect(manifest.dependencies['@scope/plugin']).toBe('2.0.0')
     expect(manager.listPlugins()).toEqual([
       { name: '@scope/plugin', version: '2.0.0', spec: '@scope/plugin@2.0.0' },
@@ -541,6 +544,8 @@ describe('desktop project transactions', () => {
     expect(invocation.args).toContain('@scope/plugin@2.0.0')
     expect(invocation.args).toContain('--config.registry=https://registry.npmjs.org/')
     expect(invocation.env.NPM_CONFIG_REGISTRY).toBe('https://registry.npmjs.org/')
+    expect(readFileSync(join(paths.profile, 'pnpm-workspace.yaml'), 'utf8'))
+      .toContain('@scope/plugin@2.0.0')
   })
 
   it.each(['@scope/plugin', 'plugin'])('accepts pnpm exact release-age exclusions through install and removal: %s', async (name) => {
@@ -551,15 +556,37 @@ describe('desktop project transactions', () => {
     archiveStore(seed)
     writeIntegrity(seed)
     const paths = resolveDesktopPaths(join(root, '.dsh'))
-    const pnpm = writeWorkspaceChangingPnpm(root, 'strictDepBuilds: true',
-      `strictDepBuilds: true\nminimumReleaseAgeExclude:\n  - ${JSON.stringify(`${name}@2.0.0`)}`)
-    const manager = new DesktopProjectManager(paths, { node: process.execPath, pnpm })
+    const manager = new DesktopProjectManager(paths, { node: process.execPath, pnpm: writeFakePnpm(root) })
     await manager.applyRelease(seed, '1.0.0', hooks())
+    writeFileSync(
+      join(paths.profile, 'pnpm-workspace.yaml'),
+      readFileSync(join(paths.profile, 'pnpm-workspace.yaml'), 'utf8')
+        + `minimumReleaseAgeExclude:\n  - ${JSON.stringify(`${name}@1.0.0`)}\n`,
+    )
     await manager.mutate({ type: 'plugin-add', spec: `${name}@2.0.0` }, hooks())
     expect(manager.listPlugins()).toEqual([{ name, version: '2.0.0', spec: `${name}@2.0.0` }])
     await manager.mutate({ type: 'plugin-remove', name }, hooks())
     expect(manager.listPlugins()).toEqual([])
-    expect(readFileSync(join(paths.profile, 'pnpm-workspace.yaml'), 'utf8')).toContain(`${name}@2.0.0`)
+    expect(readFileSync(join(paths.profile, 'pnpm-workspace.yaml'), 'utf8'))
+      .toContain(`${name}@1.0.0 || 2.0.0`)
+  })
+
+  it('does not exempt registry tags or HTTPS artifacts from release age', async () => {
+    const root = temporaryRoot()
+    const seed = join(root, 'seed')
+    createTestSeedMetadata(seed, release())
+    writeFileSync(join(seed, 'pnpm-lock.yaml'), 'lockfileVersion: 9\n')
+    archiveStore(seed)
+    writeIntegrity(seed)
+    const paths = resolveDesktopPaths(join(root, '.dsh'))
+    const manager = new DesktopProjectManager(paths, { node: process.execPath, pnpm: writeFakePnpm(root) })
+    await manager.applyRelease(seed, '1.0.0', hooks())
+    await manager.mutate({
+      type: 'plugins-add',
+      specs: ['tagged-plugin@latest', 'remote-plugin@https://example.test/remote-plugin.tgz'],
+    }, hooks())
+    expect(readFileSync(join(paths.profile, 'pnpm-workspace.yaml'), 'utf8'))
+      .not.toContain('minimumReleaseAgeExclude')
   })
 
   it('combines exact approvals for successive versions before resolving an update', async () => {
@@ -602,7 +629,7 @@ describe('desktop project transactions', () => {
     })
     await manager.applyRelease(seed, '1.0.0', hooks())
     const workspace = readFileSync(join(paths.profile, 'pnpm-workspace.yaml'), 'utf8')
-    await expect(manager.mutate({ type: 'plugin-add', spec: 'plugin@2.0.0' }, hooks()))
+    await expect(manager.mutate({ type: 'plugin-add', spec: 'plugin@latest' }, hooks()))
       .rejects.toThrow(/core package mapping/u)
     expect(manager.listPlugins()).toEqual([])
     expect(readFileSync(join(paths.profile, 'pnpm-workspace.yaml'), 'utf8')).toBe(workspace)

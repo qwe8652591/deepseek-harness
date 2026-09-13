@@ -59,7 +59,7 @@ GUI plugin mutations use the same staging, health-check, activation, and rollbac
 
 Every installed-plugin record includes `spec`: an exact `name@version` for npm packages or `name@https://…` for remote artifacts. The native manager and market use the same source identity for catalog matching and reinstalls.
 
-Workspace validation compares parsed YAML settings with the packaged core mappings and build permissions. pnpm may retain `minimumReleaseAgeExclude` entries for exact non-core package versions, including removed versions. Package-wide exclusions, ranges, core exclusions, and other setting changes are rejected.
+Workspace validation compares parsed YAML settings with the packaged core mappings and build permissions. The manager records each selected exact registry version in `minimumReleaseAgeExclude`; tags and remote artifact sources receive no exemption. pnpm may retain exact non-core package entries, including removed versions. Package-wide exclusions, ranges, core exclusions, and other setting changes are rejected.
 
 The process-lifetime Electron lock is the primary desktop owner. The transaction lock is depth defense: it records Electron while preparing local state, records the spawned pnpm worker while that worker can still write, and returns ownership to Electron after the worker exits. A later process cannot treat a live orphaned worker as a stale transaction.
 

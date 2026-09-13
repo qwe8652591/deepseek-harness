@@ -59,7 +59,7 @@ GUI 插件修改会在把发布包安装到共享 Desktop pnpm store 后，使�
 
 每条已安装插件记录都包含 `spec`：npm 包使用准确的 `name@version`，远程制品使用 `name@https://…`。原生管理器与市场使用相同的来源标识匹配目录并重新安装。
 
-Workspace 验证将解析后的 YAML 设置与随包提供的核心包映射和构建权限比较。pnpm 可以保留 `minimumReleaseAgeExclude` 中非核心包的精确版本条目，包括已移除的版本。按整个包排除、版本范围、核心包排除和其他设置变更都会被拒绝。
+Workspace 验证将解析后的 YAML 设置与随包提供的核心包映射和构建权限比较。管理器会把每次选择的 npm 精确版本记录到 `minimumReleaseAgeExclude`；标签和远程制品来源不会获得豁免。pnpm 可以保留非核心包的精确版本条目，包括已移除的版本。按整个包排除、版本范围、核心包排除和其他设置变更都会被拒绝。
 
 进程生命周期 Electron 锁是桌面端的主要 owner。事务锁用于纵深防御：准备本地状态时记录 Electron，在 pnpm worker 仍可能写入时记录该 worker，worker 退出后再把 owner 交还 Electron。后续进程不会把仍然存活的孤儿 worker 误判为陈旧事务。
 

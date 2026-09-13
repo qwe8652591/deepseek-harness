@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-13-package-owned-plugin-metadata.md
-2026-09-13-package-owned-plugin-metadata.md: 1be5fa6358e447ae61aee5aafe31d18d8006624c
-2026-09-13-package-owned-plugin-metadata.zh.md: 4cf68d3f5b65e75b7b20c81e64dde4242504e4b1
+2026-09-13-package-owned-plugin-metadata.md: e68d459c9ddf3acf7673ab1334e01701b2bdaeb3
+2026-09-13-package-owned-plugin-metadata.zh.md: 904f1edeee99c886a46c1d7be6e83ce9f6cf6229

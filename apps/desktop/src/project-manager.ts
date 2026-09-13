@@ -182,6 +182,28 @@ function normalizeReleaseAgeExclusions(projectDir: string): void {
   writeFileSync(path, dump({ ...workspace, minimumReleaseAgeExclude: normalized }, { lineWidth: -1, noRefs: true }), { mode: 0o600 })
 }
 
+/** Record exact registry versions selected for this profile without weakening pnpm's release-age policy. */
+function approveExactReleaseAgeExclusions(projectDir: string, specs: readonly string[]): void {
+  const approvals = specs.flatMap((spec) => {
+    const name = packageNameFromSpec(spec)
+    if (name === undefined) return []
+    const version = spec.slice(name.length + 1)
+    return validVersion(version) === version ? [`${name}@${version}`] : []
+  })
+  if (approvals.length === 0) return
+  const path = join(projectDir, 'pnpm-workspace.yaml')
+  const workspace: unknown = load(readFileSync(path, 'utf8'), { schema: JSON_SCHEMA })
+  if (!isRecord(workspace)) throw new Error('desktop project: invalid pnpm workspace settings')
+  const existing = workspace.minimumReleaseAgeExclude
+  if (existing !== undefined && (!Array.isArray(existing) || !existing.every((entry): entry is string => typeof entry === 'string'))) {
+    throw new Error('desktop project: invalid pnpm release-age exclusions')
+  }
+  writeFileSync(path, dump({
+    ...workspace,
+    minimumReleaseAgeExclude: [...(existing ?? []), ...approvals],
+  }, { lineWidth: -1, noRefs: true }), { mode: 0o600 })
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
@@ -499,6 +521,7 @@ export class DesktopProjectManager {
             await this.runPnpm(stagingProfile, ['remove', ...removedDefaults, '--config.offline=true'])
           }
           if (plugins.length > 0) {
+            approveExactReleaseAgeExclusions(stagingProfile, plugins.map(plugin => plugin.spec))
             await this.runPnpm(stagingProfile, [
               'add',
               ...plugins.map(plugin => plugin.spec),
@@ -558,8 +581,8 @@ export class DesktopProjectManager {
   private migratePluginSources(projectDir: string, plugins: readonly DesktopPluginRecord[]): void {
     const manifest = projectManifest(projectDir)
     const dependencies = new Map(Object.entries(manifest.dependencies))
-    for (const plugin of plugins) {
-      const migrated = migrateRetiredPlugin(plugin)
+    const migrations = plugins.map(plugin => ({ plugin, migrated: migrateRetiredPlugin(plugin) }))
+    for (const { plugin, migrated } of migrations) {
       if (migrated !== plugin) {
         if (migrated.name !== plugin.name && dependencies.has(migrated.name)) {
           throw new Error(`desktop project: migration conflicts with installed ${migrated.name}`)
@@ -569,7 +592,8 @@ export class DesktopProjectManager {
       }
     }
     writeJson(join(projectDir, 'package.json'), { ...manifest, dependencies: Object.fromEntries(dependencies) })
-    writeProfilePlugins(projectDir, plugins.map(migrateRetiredPlugin))
+    writeProfilePlugins(projectDir, migrations.map(({ migrated }) => migrated))
+    approveExactReleaseAgeExclusions(projectDir, migrations.map(({ migrated }) => migrated.spec))
   }
 
   private async applyMutation(projectDir: string, mutation: DesktopProjectMutation): Promise<void> {
@@ -593,6 +617,7 @@ export class DesktopProjectManager {
         })
         if (new Set(names).size !== names.length) throw new Error('desktop project: duplicate plugin packages')
         const previous = pluginRecords(this.paths.profile).map(migrateRetiredPlugin)
+        approveExactReleaseAgeExclusions(projectDir, specs)
         await this.runPnpm(projectDir, ['add', ...specs, '--save-exact'])
         const installed = names.map(name => inspectPlugin(projectDir, name))
         const current = previous.filter(plugin => !names.includes(plugin.name))
@@ -629,6 +654,7 @@ export class DesktopProjectManager {
         if (!profilePluginNames(projectDir).includes(mutation.name)) {
           throw new Error(`desktop project: plugin ${JSON.stringify(mutation.name)} is not installed`)
         }
+        approveExactReleaseAgeExclusions(projectDir, [`${mutation.name}@${mutation.version}`])
         await this.runPnpm(projectDir, ['add', `${mutation.name}@${mutation.version}`, '--save-exact'])
         {
           const installed = inspectPlugin(projectDir, mutation.name)

@@ -92,7 +92,7 @@ await run('/usr/bin/ditto', ['-x', '-k', archive, verify])
 await run('/usr/bin/codesign', ['--verify', '--deep', '--strict', join(verify, 'DSH Aiko Test.app')])
 writeFileSync(join(output, 'SHA256SUMS'), `${hash(archive)}  ${archive.split('/').at(-1)}\n`)
 writeFileSync(join(output, 'repack.json'), JSON.stringify({ baseSha256: hash(base), architecture: process.arch,
-  appVersion: oldRelease.version, build: '20260913.2', corePackagesUnchanged: true,
+  appVersion: oldRelease.version, build: '20260913.3', corePackagesUnchanged: true,
   changedShellFiles: Object.fromEntries(changed.map(name => [name, hash(join(patch, name))])),
   market: 'aiko-dsh-market@1.39.0', signature: 'ad-hoc', notarized: false,
   archiveSha256: hash(archive), offlineFirstLaunch: true, migration: json(join(output, 'migration.json')),
