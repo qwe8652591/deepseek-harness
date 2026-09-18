@@ -29,7 +29,7 @@ This package boots an application fixture the way an installed consumer would an
 
 ### Booting an application fixture
 
-`runLoaderSmoke` takes bin and config paths, optional complete bin arguments, environment overrides, stdin, pre-run setup, and pre-cleanup inspection. It owns the isolated cwd, DSH homes, diagnostics, deadline, termination, EOF, and cleanup, and returns both streams after a zero exit or rejects with both streams on failure:
+`runLoaderSmoke` takes bin and config paths, optional complete bin arguments, environment overrides, stdin, pre-run setup, and pre-cleanup inspection. It owns the isolated cwd, DSH homes, diagnostics, deadline, termination, EOF, and cleanup of a cwd it created (a caller-provided cwd is left in place), and returns both streams after a zero exit or rejects with both streams on failure:
 
 ```text
 const result = await runLoaderSmoke({
@@ -45,13 +45,15 @@ Set `expectedExitCode` when the scenario pins a designed failure surface — a o
 
 ### Testing a shipped profile
 
-Profile integration drivers use the repository-only `tests/fixtures/production-profile.ts` helper. It loads the named shipped profile and its bundle patches through `loadProfile`, reconciles the profile's module fallback, and passes the bundle patches followed by the test's `*.patch.yml` files to the root `cordis:include` mounted by `boot`. Those patches should contain only the test provider or model, isolated persistence paths, and subject-specific changes. Package-level unit tests that need an agent loop without profile integration mount `dsh-agent-loop-testkit` locally instead.
+Profile integration drivers use the repository-only `tests/fixtures/production-profile.ts` helper. It loads the named shipped profile and its bundle patches through `loadProfile`, materializes the retained link-mode fallback, mounts `PluginPackages` with native lookup as the link-mode launcher does, and passes the bundle patches followed by the test's `*.patch.yml` files to the root `cordis:include` mounted by `boot`. Those patches should contain only the test provider or model, isolated persistence paths, and subject-specific changes. Package-level unit tests that need an agent loop without profile integration mount `dsh-agent-loop-testkit` locally instead.
 
 ### Driving a fixture turn
 
 `runFixtureTurn(ctx, options)` drives one task through exactly one configured root agent: it waits for the task to reach the durable inbox, forwards canonical events to your observer, flushes the session, and returns the final assistant text plus accumulated usage. Example-local drivers keep configuration, rendering, and assertion ownership.
 
 ### Source or built mode
+
+Pass `sourceImport: 'tsx/esm'` to `runLoaderSmoke` when launching the dsh source entry, which requires the ESM-only hook. The headless Session replay uses this option.
 
 `resolveExampleLaunch` picks the artifact an example bin boots from. `src` mode runs the bin under tsx with `TSX_TSCONFIG_PATH` set, so workspace imports resolve through the tsconfig `paths` map — the zero-build dev path. `lib` mode runs the built `lib/` bin under plain Node, so bare package plugins resolve through real package `exports`, exactly as an installed consumer resolves them. The mode comes from an explicit value or `DSH_EXAMPLE_MODE` (CI sets `lib`, dev leaves it unset); anything else fails loud.
 
@@ -73,7 +75,7 @@ This section explains the design of the harness; the observable behavior is full
 
 ### Design
 
-The harness is built on one separation: the smoke runs in a child process under an isolated world, and the test process only observes and asserts. `runLoaderSmoke` creates a temporary cwd, prepares world state there, spawns the resolved bin with isolated DSH homes (`DSH_HOME`, `DSH_AGENTS_HOME` under the temp cwd), closes stdin immediately, and awaits a clean exit within the deadline before inspecting and cleaning up on every outcome. `runFixtureTurn` stays in-process: it looks up the composition's single root agent, follows the task from its durable inbox receipt through whole-agent idle, sums per-step usage, and flushes the session before returning.
+The harness is built on one separation: the smoke runs in a child process under an isolated world, and the test process only observes and asserts. `runLoaderSmoke` creates a temporary cwd (or reuses a caller-provided one), prepares world state there, spawns the resolved bin with isolated DSH homes (`DSH_HOME`, `DSH_AGENTS_HOME` under that cwd), closes stdin immediately, and awaits a clean exit within the deadline before inspecting on every outcome and removing only a cwd it created. `runFixtureTurn` stays in-process: it looks up the composition's single root agent, follows the task from its durable inbox receipt through whole-agent idle, sums per-step usage, and flushes the session before returning.
 
 ### Source map
 

@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-10-desktop-market-proposals.md
-2026-09-10-desktop-market-proposals.md: 4fee40c77f1991f3901e500a1da06f402145f51c
-2026-09-10-desktop-market-proposals.zh.md: 5eb020c952be5687e40921012da9d1a874d1adb3
+2026-09-10-desktop-market-proposals.md: 3e0b35d6f62c998d18941ab0e34816b436cc884f
+2026-09-10-desktop-market-proposals.zh.md: 79d093a2d838acc5bfbe92a5a25e03bc7f9fd019

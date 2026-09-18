@@ -1,5 +1,5 @@
 /** One-time npm replacements for Aiko's four deleted public release repositories. */
-import type { DesktopPluginRecord } from './project-manager.ts'
+import type { DesktopPluginRecord } from './market-project.ts'
 import { lt, valid } from 'semver'
 
 const marketBaseline = '1.39.0'

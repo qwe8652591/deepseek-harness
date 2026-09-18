@@ -10,6 +10,8 @@ Aiko 客户端通过公开的 GitHub Release URL 安装插件。限制这些 URL
 
 ## 决策
 
+此处描述的 Mac seed 工作流适用于 `0.1.5-alpha.2`，其构建与修复入口拒绝更新的发行版。不可变运行时的 Desktop 集成由[市场事务决策](../architecture/2026-09-10-desktop-market-proposals.zh.md)记录；发布前需要重新验证原生打包和预装。
+
 独立的私有仓库负责客户端和插件的活跃开发。Aiko 插件以独立包名向公开 npm 发布构建产物；Mac 应用 ZIP 仍通过公开 GitHub Releases 分发。组织目录为 npm 安装和旧版 GitHub 安装提供独立的源，旧源的不可变下载 URL 保持有效。本地 checkout 使用私有的 `source` 推送 remote，并保留官方 upstream remote。Aiko 插件包省略可选的 TypeScript 源码及浏览器 source map；可执行 JavaScript 和必需的 Python 仍随包分发。核心包保留上游的发布清单。
 
 [Mac 测试工作流](../../../../.github/workflows/aiko-macos-test.yml)构建选定的私有客户端提交。缓存标识包含该提交和架构。客户端自身声明 Playwright 依赖，无需 Office checkout。私有制品包含校验和及来源信息。维护者将验证通过的二进制文件发布到公开客户端仓库，不推送私有实现提交，也不向应用嵌入 GitHub 凭据。

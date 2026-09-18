@@ -6,20 +6,20 @@ English | [中文](2026-09-10-desktop-market-proposals.zh.md)
 
 ## Problem
 
-Independent plugin catalogs distribute dependencies and GitHub release archives, while Desktop owns an isolated package project and exposes installation only to its trusted management window. A market plugin cannot use Web routes or mutate the reserved profile through the CLI.
+Independent plugin catalogs propose package installations, while Electron owns the Desktop profile and its running Host. The immutable application runtime cannot be replaced through a catalog request.
 
 ## Decision
 
-The application renderer can submit structured installation and removal proposals. Electron validates the sender and payload, displays every package source in a native confirmation, and performs accepted proposals through its existing transactional project manager. Batches preserve dependency order and have one health check and activation. Package metadata records remote sources for offline release reconciliation; release-owned packages cannot be replaced and required plugins cannot be removed.
+The application renderer submits structured installation and removal proposals. Electron validates the owned top-level sender and payload, lists every source in a native confirmation, and rejects changes while tasks, application installation, or another market transaction are active. Source-development profiles reject mutations.
 
-Catalog loading, dependency planning, and business interfaces remain independently distributed plugins. The shell has no organization catalog or business package names. Sandboxed preloads build separately so their shared IPC constants cannot become local CommonJS chunks.
+The [market transaction manager](../../../../apps/desktop/src/market-project.ts) stages external plugin metadata, dependencies and the user's patch after confirmed Host shutdown. It checks package-owned compatibility declarations and boots the staged profile before directory replacement. An activation journal and rollback directory support recovery; activation failure restores the original profile. Application runtime packages remain protected. Disabled bundles stay disabled unless explicitly selected for installation.
 
-The release's preinstalled plugin map adds published optional bundles to the offline seed. First installation activates them; reconciliation restores the active plugin list, including removals and independently updated sources. Preinstallation grants no release-owned protection: the native manager can remove a default, and a later application release cannot silently restore it. This keeps the market available on first use without making it a permanent core dependency. The market omits its own distribution records from catalog cards and retains its installed version in the header.
+The `0.1.5-alpha.2` implementation used a preinstalled market seed. The `0.1.6-alpha.2` runtime does not consume that seed or its preinstalled map. Those native packaging and repair entry points reject newer releases; a compatible market release and a new native packaging workflow are required before restoring preinstallation.
 
 ## Alternatives considered
 
-Giving the market direct filesystem or pnpm access would bypass staging and recovery. Loading workspace plugins would make published catalog provenance unverifiable. Restricting distribution to npm would exclude the organization's existing release artifacts. A native confirmation keeps installation authority in Electron while allowing a catalog to propose sources.
+Giving the market direct filesystem or pnpm access would bypass staging and recovery. Retaining the old core-package project would conflict with the signed immutable runtime. Native confirmation and a separate external-plugin transaction retain the catalog integration without changing application package ownership.
 
 ## Consequences
 
-Desktop carries a small integration change that must accompany compatible market releases. Marketplace install proposals can restart the backend and reload the application only after approval. Source-development profiles remain immutable. Focused tests cover proposal rejection, dependency order, retained sources, protected dependencies, first-install defaults, retained removals, and rollback; installed-artifact checks exercise the private Host and actual bundled package manager.
+Catalog content and dependency planning remain independently distributed. Accepted changes can restart the Host and reload the application. Compatibility declarations qualify only the releases they name; the legacy Mac checks do not establish compatibility with the new runtime. The shared Web Plugin Manager remains available through the upstream application.

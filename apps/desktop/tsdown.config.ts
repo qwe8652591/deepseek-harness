@@ -12,11 +12,9 @@ export default defineConfig([
     clean: false,
     deps: { neverBundle: ['electron'] },
   },
-  ...['preload', 'preload-app'].map(name => ({
-    // Sandboxed preloads cannot require shared local chunks.
-    entry: {
-      [name]: `lib/types/${name}.js`,
-    },
+  ...(['preload-app', 'preload-mandatory', 'preload-update-dialog'] as const).map(name => ({
+    // Sandboxed Electron preloads run as CommonJS even though the application package is ESM.
+    entry: { [name]: `lib/types/${name}.js` },
     outDir: 'lib',
     format: ['cjs'] as const,
     platform: 'node' as const,

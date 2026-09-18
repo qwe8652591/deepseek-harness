@@ -6,6 +6,8 @@ import { join, relative, resolve } from 'node:path'
 import { build } from 'tsdown'
 
 const root = resolve(import.meta.dirname, '../../..')
+assert.equal(JSON.parse(readFileSync(join(root, 'apps/desktop/package.json'), 'utf8')).version, '0.1.5-alpha.2',
+  'This legacy Aiko seed repair supports 0.1.5-alpha.2 only; it cannot repair immutable-runtime releases')
 const output = resolve(process.argv[2])
 assert.notEqual(output, root)
 mkdirSync(output, { recursive: true })

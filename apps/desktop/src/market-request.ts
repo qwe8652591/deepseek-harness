@@ -1,6 +1,6 @@
 /** Validated package proposals from the application renderer. */
 
-import { packageNameFromSpec, type DesktopProjectMutation } from './project-manager.ts'
+import { packageNameFromSpec, type DesktopProjectMutation } from './market-project.ts'
 
 /** Market operations require a native confirmation before package state changes. */
 export type DesktopMarketRequest = Extract<DesktopProjectMutation, { type: 'plugins-add' | 'plugin-remove' }>

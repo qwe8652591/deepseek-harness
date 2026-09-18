@@ -11,6 +11,8 @@ assert.equal(process.platform, 'darwin', 'Mac test packages must be built on a n
 assert.ok(['arm64', 'x64'].includes(process.arch))
 const root = resolve(import.meta.dirname, '../../..')
 const appRoot = join(root, 'apps/desktop')
+assert.equal(JSON.parse(readFileSync(join(appRoot, 'package.json'), 'utf8')).version, '0.1.5-alpha.2',
+  'This legacy Aiko seed builder supports 0.1.5-alpha.2 only; the immutable-runtime release needs a new native packaging workflow')
 const require = createRequire(join(appRoot, 'package.json'))
 const { load, dump } = require('js-yaml')
 const target = `mac-${process.arch}`

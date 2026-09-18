@@ -1,13 +1,42 @@
-/** Minimal marker that selects the desktop custom-protocol API carrier. */
+/** Origin-scoped boot, native directory selection, and update presentation with native confirmation actions. */
 
 import { contextBridge, ipcRenderer } from 'electron'
-import { DESKTOP_IPC, type DshDesktopMarketApi } from './ipc.ts'
+import { DESKTOP_IPC, SCHEME, type DshDesktopProductApi, type DshDesktopMarketApi, type DesktopUpdatePresentation } from './ipc.ts'
+import { markDocumentPlatform } from './preload-platform.ts'
+import { syncNativeTheme } from './preload-theme.ts'
+import { syncWindowsAppearance } from './preload-windows.ts'
 
-const market: DshDesktopMarketApi = {
+const product: DshDesktopProductApi = {
   protocolVersion: 1,
-  list: () => ipcRenderer.invoke(DESKTOP_IPC.marketList) as ReturnType<DshDesktopMarketApi['list']>,
-  hostVersion: () => ipcRenderer.invoke(DESKTOP_IPC.marketHostVersion) as Promise<string>,
-  request: request => ipcRenderer.invoke(DESKTOP_IPC.marketRequest, request) as ReturnType<DshDesktopMarketApi['request']>,
+  market: {
+    protocolVersion: 1,
+    list: () => ipcRenderer.invoke(DESKTOP_IPC.marketList) as ReturnType<DshDesktopMarketApi['list']>,
+    hostVersion: () => ipcRenderer.invoke(DESKTOP_IPC.marketHostVersion) as Promise<string>,
+    request: request => ipcRenderer.invoke(DESKTOP_IPC.marketRequest, request) as ReturnType<DshDesktopMarketApi['request']>,
+  },
+  updates: {
+    status: () => ipcRenderer.invoke(DESKTOP_IPC.updatesStatus) as Promise<DesktopUpdatePresentation>,
+    open: () => ipcRenderer.invoke(DESKTOP_IPC.updatesOpen) as Promise<void>,
+    subscribe(listener) {
+      const handle = (_event: Electron.IpcRendererEvent, state: DesktopUpdatePresentation): void => { listener(state) }
+      ipcRenderer.on(DESKTOP_IPC.updatesPresentation, handle)
+      return () => { ipcRenderer.off(DESKTOP_IPC.updatesPresentation, handle) }
+    },
+  },
 }
 
-contextBridge.exposeInMainWorld('dshDesktop', { protocolVersion: 1, market })
+if (location.protocol === `${SCHEME}:` && location.hostname === 'app') {
+  syncWindowsAppearance()
+  contextBridge.exposeInMainWorld('__DSH_DIRECTORY_PICKER__', {
+    pick: () => ipcRenderer.invoke(DESKTOP_IPC.directoryPick) as Promise<string | null>,
+  })
+  contextBridge.exposeInMainWorld('dshDesktopBoot', {
+    ready: () => ipcRenderer.invoke(DESKTOP_IPC.boot) as Promise<unknown>,
+    failed: (message: string) => ipcRenderer.invoke(DESKTOP_IPC.bootFailed, message) as Promise<void>,
+  })
+}
+
+markDocumentPlatform()
+syncNativeTheme()
+// Main-process IPC also verifies the owning window and top frame.
+contextBridge.exposeInMainWorld('dshDesktop', location.protocol === `${SCHEME}:` && location.hostname === 'app' ? product : { protocolVersion: 1 })

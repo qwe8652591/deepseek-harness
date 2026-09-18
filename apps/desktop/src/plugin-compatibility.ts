@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { satisfies, validRange } from 'semver'
-import type { DesktopPluginRecord } from './project-manager.ts'
+import type { DesktopPluginRecord } from './market-project.ts'
 
 function record(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
