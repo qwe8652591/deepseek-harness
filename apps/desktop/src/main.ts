@@ -62,9 +62,11 @@ import { DesktopBackgroundNotice } from './background-notice.ts'
 import { readAikoDeployment, prepareAikoDesktopProfile, type AikoDeployment } from './aiko-deployment.ts'
 import { signInAikoDesktop, installAikoAccountBridge } from './aiko-account-window.ts'
 import type { DesktopAccount } from './aiko-account.ts'
+import { readNativeDesktopBrand, type DesktopBrand } from './desktop-brand.ts'
 
 let aikoDeployment: AikoDeployment | undefined
 let aikoAccount: DesktopAccount | undefined
+let nativeBrand: DesktopBrand | undefined
 
 let focusPrimaryWindow = (): void => {}
 let stopForRecovery = async (): Promise<void> => {}
@@ -211,6 +213,7 @@ function platformLoginUrl(authorizeUrl: string): string {
 
 function createWindow(preload: string, show = false, primary = false): BrowserWindow {
   const window = new BrowserWindow({
+    ...(nativeBrand === undefined ? {} : { icon: nativeBrand.icon }),
     width: 1280,
     height: 820,
     minWidth: 520,
@@ -942,10 +945,10 @@ async function main(): Promise<void> {
     updates.dispose()
   })
 
-  const applicationIconPath = development ? join(app.getAppPath(), 'resources', 'icon-windows.png')
-    : join(process.resourcesPath, 'icon.png')
+  const applicationIconPath = nativeBrand?.icon ?? (development ? join(app.getAppPath(), 'resources', 'icon-windows.png')
+    : join(process.resourcesPath, 'icon.png'))
   app.setAboutPanelOptions({
-    applicationName: 'DeepSeek Harness',
+    applicationName: nativeBrand?.productName ?? 'DeepSeek Harness',
     applicationVersion: app.getVersion(),
     // The release has no separate build number; omit Electron's bundle version.
     version: '',
@@ -1001,7 +1004,7 @@ async function main(): Promise<void> {
     tray?.relabel()
   }
   refreshApplicationMenu()
-  const trayIconPath = development ? join(app.getAppPath(), 'resources', 'tray-windows.ico') : join(process.resourcesPath, 'tray.ico')
+  const trayIconPath = nativeBrand?.tray ?? (development ? join(app.getAppPath(), 'resources', 'tray-windows.ico') : join(process.resourcesPath, 'tray.ico'))
   if (process.platform === 'win32') {
     // The tray is the way back to a hidden window; without it, relaunching the application still focuses it.
     try {
@@ -1379,8 +1382,17 @@ const ownsDesktopInstance = claimDesktopSingleInstance(app, () => { focusPrimary
 
 if (ownsDesktopInstance) void app.whenReady().then(async () => {
   const deploymentFile = process.env.DSH_DESKTOP_DEPLOYMENT
-  if (deploymentFile !== undefined) {
-    aikoDeployment = await readAikoDeployment(deploymentFile)
+  if (deploymentFile !== undefined) aikoDeployment = await readAikoDeployment(deploymentFile)
+  const packagedManifest = app.isPackaged
+    ? JSON.parse(await readFile(join(app.getAppPath(), 'package.json'), 'utf8')) as Record<string, unknown> : undefined
+  nativeBrand = readNativeDesktopBrand(app.isPackaged, process.resourcesPath,
+    process.env.DSH_DESKTOP_BRAND_RESOURCES, aikoDeployment?.brand, packagedManifest?.dshDesktopBrand)
+  if (nativeBrand !== undefined) {
+    const icon = nativeBrand.icon
+    app.dock?.setIcon(icon)
+    app.on('browser-window-created', (_event, window) => { window.setIcon(icon) })
+  }
+  if (aikoDeployment !== undefined) {
     aikoAccount = await signInAikoDesktop(aikoDeployment)
     process.env.DSH_HOME = aikoAccount.home()
     const relay = await aikoAccount.startRelay()

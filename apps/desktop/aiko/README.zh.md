@@ -42,7 +42,24 @@ corepack pnpm run start:desktop
 
 部署通过 profile 的包管理器 overrides 将自身插件及静态目录固定到运行时目录。安装社区插件时保留这些链接及其他 overrides。部署插件通过准备好的压缩包更新，本地目录条目不提供公开源替换操作。
 
+## 打包时写入原生图标
+
+在 `apps/desktop/.env.windows` 或 `.env.macos` 中设置 `DSH_DESKTOP_BRAND=aiko` 或 `yunyao`，并将 `DSH_DESKTOP_BRAND_RUNTIME` 指向准备好的插件运行时。运行时必须包含所选主题的 `./desktop-icon` 导出。这些设置由目标平台的 dotenv 文件管理，环境变量不能覆盖发布品牌。使用本部署自己的 `DSH_DESKTOP_APP_ID` 和对应平台打包命令；不设置两个品牌选项时保留上游图标。
+
+打包钩子仅读取所选主题，生成 1024 像素 PNG 和多尺寸 ICO，随应用一起打包。Windows 可执行文件、安装器、卸载器、快捷方式、任务栏、托盘及关于窗口使用该图形；macOS 打包使用 PNG 生成应用图标。技术层面的应用文件名和上游安装器横幅保持原样。启动时拒绝与安装包图标品牌不一致的部署主题。源码启动器在打开 Electron 前根据 `DSH_DESKTOP_DEPLOYMENT` 准备相同资源；开发版 Electron 可执行文件本身保留上游图标。
+
+例如云遥构建增加以下配置：
+
+```dotenv
+DSH_DESKTOP_BRAND=yunyao
+DSH_DESKTOP_BRAND_RUNTIME=D:/runtime/desktop-plugins
+```
+
+使用既有发布配置运行 `corepack pnpm run package:desktop:win:x64:unsigned` 生成本地未签名 Windows 包；签名打包仍需签名凭据。选择图标不会配置更新源，也不会捆绑平台登录部署。分发前须另外准备平台配置并验收自有更新服务。
+
 ## 验证
+
+运行 `corepack pnpm exec vitest run apps/desktop/tests/desktop-brand.spec.ts apps/desktop/tests/installer-packaging.spec.ts apps/desktop/tests/desktop-package-environment.spec.ts`，检查原生图标生成、打包资源选择、拒绝主题不一致以及发布设置隔离。原生资源选择有本模块快照；签名安装包、更新通道及 macOS 外观仍需发布负责人验收。
 
 运行 `corepack pnpm exec vitest run apps/desktop/tests/aiko-deployment.spec.ts apps/desktop/tests/project-manager.spec.ts`，检查品牌选择、拒绝非托管路径、保留恢复配置和 profile 锁。所选欢迎文案有本模块快照。既有 Desktop 构建检查 bundle 导入及 TypeScript 程序。
 

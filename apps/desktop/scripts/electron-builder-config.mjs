@@ -28,6 +28,7 @@ import { installWindowsDirectoryInstaller } from './windows-directory-installer.
 import { preserveWindowsRuntimeSignature, signWindowsCode } from './windows-runtime-signature.mjs'
 import { prepareWindowsAsarUnpack, verifyWindowsAsarUnpack } from './windows-asar-unpack.mjs'
 import { recordPackagingEvent } from './packaging-run.mjs'
+import { desktopBrandDirectory, readDesktopBrand } from './desktop-brand.mjs'
 import {
   resolveMacOSAppUpdateFeed,
   verifyMacOSAppUpdateConfig,
@@ -66,6 +67,8 @@ export function createElectronBuilderConfig(
   const macOSSigning = packagesMacOS ? resolveMacOSSigningEnvironment(env) : undefined
   if (packagesMacOS) resolveMacOSNotarizationEnvironment(env)
   const buildPaths = desktopTargetBuildPaths(resolveDesktopBuildTarget(env, hostPlatform, hostArch))
+  const brand = readDesktopBrand(env)
+  const brandDirectory = brand === undefined ? undefined : desktopBrandDirectory(buildPaths.root, brand.brand)
   let primaryRuntimeDestination
   let dshDestination
   let windowsCode = []
@@ -102,6 +105,7 @@ export function createElectronBuilderConfig(
     protocols: [{ name: 'DeepSeek Harness', schemes: ['dsh'] }],
     extraMetadata: {
       dshDesktopAppId: appId,
+      ...brand === undefined ? {} : { dshDesktopBrand: brand.brand },
       dshMandatoryUpdatePolicy: policy,
       ...buildVersion === productVersion ? {} : { version: buildVersion },
       ...packaged === undefined ? {} : { dshBuildCommit: packaged.commit, dshBuildDirty: packaged.dirty },
@@ -114,6 +118,14 @@ export function createElectronBuilderConfig(
     electronDist: buildPaths.electron,
     electronFuses: { runAsNode: true },
     beforeBuild: async () => {
+      if (brand !== undefined) {
+        await promisify(execFile)(process.execPath, ['--import', 'tsx/esm',
+          fileURLToPath(new URL('./prepare-desktop-brand.ts', import.meta.url))], {
+          cwd: fileURLToPath(new URL('..', import.meta.url)),
+          env: { ...scrubWindowsSigningEnvironment(env), DSH_DESKTOP_TARGET_PLATFORM: resolvedPlatform, DSH_DESKTOP_TARGET_ARCH: resolvedArch },
+          windowsHide: true,
+        })
+      }
       if (resolvedPlatform !== 'win32') return true
       await promisify(execFile)('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File',
         fileURLToPath(new URL('./prepare-windows-installer.ps1', import.meta.url)),
@@ -130,6 +142,7 @@ export function createElectronBuilderConfig(
       'lib/main.js',
       'lib/welcome/**/*',
       'lib/preload-app.cjs',
+      'lib/preload-aiko-account.cjs',
       'lib/preload-mandatory.cjs',
       'lib/preload-platform-account.cjs',
       'lib/preload-update-dialog.cjs',
@@ -143,12 +156,13 @@ export function createElectronBuilderConfig(
     asarUnpack: unpack,
     extraResources: [
       { from: buildPaths.runtime, to: 'runtime' },
-      { from: fileURLToPath(new URL('../resources/icon-windows.png', import.meta.url)), to: 'icon.png' },
+      ...(brandDirectory === undefined ? [] : [{ from: brandDirectory, to: 'branding' }]),
+      { from: brandDirectory === undefined ? fileURLToPath(new URL('../resources/icon-windows.png', import.meta.url)) : join(brandDirectory, 'icon.png'), to: 'icon.png' },
       // Windows tray bitmaps; macOS keeps the Dock and ships no menu bar icon.
-      ...(packagesWindows ? [{ from: fileURLToPath(new URL('../resources/tray-windows.ico', import.meta.url)), to: 'tray.ico' }] : []),
+      ...(packagesWindows ? [{ from: brandDirectory === undefined ? fileURLToPath(new URL('../resources/tray-windows.ico', import.meta.url)) : join(brandDirectory, 'icon.ico'), to: 'tray.ico' }] : []),
     ],
     mac: {
-      icon: fileURLToPath(new URL('../resources/icon-macos.png', import.meta.url)),
+      icon: brandDirectory === undefined ? fileURLToPath(new URL('../resources/icon-macos.png', import.meta.url)) : join(brandDirectory, 'icon.png'),
       category: 'public.app-category.developer-tools',
       // macOS matches the application locale against this bundle, not Electron Framework resources.
       extendInfo: { CFBundleLocalizations: ['en', 'zh_CN'] },
@@ -221,7 +235,7 @@ export function createElectronBuilderConfig(
       )
     },
     win: {
-      icon: fileURLToPath(new URL('../resources/icon-windows.png', import.meta.url)),
+      icon: brandDirectory === undefined ? fileURLToPath(new URL('../resources/icon-windows.png', import.meta.url)) : join(brandDirectory, 'icon.ico'),
       forceCodeSigning: !unsigned,
       signtoolOptions: {
         sign: windowsSigner,
@@ -235,6 +249,11 @@ export function createElectronBuilderConfig(
       target: ['AppImage'],
     },
     nsis: {
+      ...(brandDirectory === undefined ? {} : {
+        installerIcon: join(brandDirectory, 'icon.ico'),
+        uninstallerIcon: join(brandDirectory, 'icon.ico'),
+        installerHeaderIcon: join(brandDirectory, 'icon.ico'),
+      }),
       installerSidebar: join(buildPaths.root, 'installer-ui', 'uninstaller-sidebar.bmp'),
       uninstallerSidebar: join(buildPaths.root, 'installer-ui', 'uninstaller-sidebar.bmp'),
       include: fileURLToPath(new URL('./installer.nsh', import.meta.url)),

@@ -42,7 +42,24 @@ The preparation command installs plugins before application startup. It is not a
 
 The deployment pins its plugins and passive catalog to runtime directories through profile package-manager overrides. Installing community plugins retains these links and unrelated overrides. Deployment plugins are updated from the prepared archives; their local catalog entries do not offer public-source replacement.
 
+## Native icons at packaging
+
+Set `DSH_DESKTOP_BRAND=aiko` or `yunyao` and `DSH_DESKTOP_BRAND_RUNTIME` to the prepared plugin runtime in `apps/desktop/.env.windows` or `.env.macos`. That runtime must contain the selected theme's `./desktop-icon` export. These settings belong to the target dotenv file; ambient brand settings cannot override a release. Use a deployment-owned `DSH_DESKTOP_APP_ID` and the normal target packaging command. Omitting both brand settings preserves upstream icons.
+
+The packaging hook reads only the selected theme, renders a 1024-pixel PNG and a multi-size ICO, and includes them in the application. Windows executable, installer, uninstaller, shortcuts, taskbar, tray and About use that artwork; macOS packaging consumes the PNG for its app icon. The technical application filename and upstream installer banner remain unchanged. Startup rejects a deployment theme that differs from the packaged icon. Source launchers prepare the same assets from `DSH_DESKTOP_DEPLOYMENT` before opening Electron; the development Electron executable itself remains upstream.
+
+For a Yunyao build, add:
+
+```dotenv
+DSH_DESKTOP_BRAND=yunyao
+DSH_DESKTOP_BRAND_RUNTIME=D:/runtime/desktop-plugins
+```
+
+Run `corepack pnpm run package:desktop:win:x64:unsigned` for a local unsigned Windows package using the existing release configuration; signed packaging still requires signing credentials. Icon selection does not configure an update feed or bundle a platform login deployment. Prepare the platform configuration separately and qualify a custom update service before distribution.
+
 ## Verification
+
+Run `corepack pnpm exec vitest run apps/desktop/tests/desktop-brand.spec.ts apps/desktop/tests/installer-packaging.spec.ts apps/desktop/tests/desktop-package-environment.spec.ts` for native artwork generation, packaged resource selection, theme mismatch rejection and release setting isolation. Native asset selection has owner-local snapshots. Signed installer, update-channel and macOS visual qualification remain release-operator checks.
 
 Run `corepack pnpm exec vitest run apps/desktop/tests/aiko-deployment.spec.ts apps/desktop/tests/project-manager.spec.ts` for brand selection, unmanaged-path rejection, recovery preservation and profile locking. The selected welcome copy has an owner-local snapshot. The existing Desktop build checks its bundled imports and TypeScript programs.
 
