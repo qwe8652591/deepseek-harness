@@ -22,6 +22,22 @@ function page(name: string) {
   return { dom, document, element, run }
 }
 
+it.each(['en', 'zh-CN'])('explains source-build updates without an error or retry: %s', async (language) => {
+  const p = page('update-dialog')
+  const locale = resolveDesktopLocale(language)
+  const state: UpdateDialogView = { revision: 1, locale: locale.id, title: locale.messages.updateCheckTitle,
+    message: locale.messages.updateDevelopment, detail: locale.messages.updateDevelopmentDetail,
+    buttons: [locale.messages.updateAcknowledge], cancelId: 0, closeLabel: locale.messages.updateClose,
+    technicalDetailsLabel: locale.messages.updateTechnicalDetails, technicalDetails: '' }
+  const api: UpdateDialogApi = { status: async () => state, respond: async () => {}, subscribe: () => () => {} }
+  Object.defineProperty(p.dom.window, 'dshUpdateDialog', { value: api })
+  p.run()
+  await expect.poll(() => p.element('dialog').hidden).toBe(false)
+  expect(p.element('technical-details').hidden).toBe(true)
+  const copy = ['title', 'detail', 'actions'].map(id => p.element(id).textContent)
+  await expect(JSON.stringify(copy, null, 2) + '\n').toMatchFileSnapshot(`./expected/update-development-${language}.json`)
+})
+
 it.each(['en', 'zh-CN'])('keeps ordinary diagnostics folded, text-only, and keyboard-accessible: %s', async (language) => {
   const p = page('update-dialog')
   const locale = resolveDesktopLocale(language)
@@ -228,6 +244,7 @@ it.each(['en', 'zh-CN'])('records mandatory update guidance and actions across i
   p.run()
   await expect.poll(() => p.element('title').textContent).toBe(locale.messages.mandatoryTitle)
   const states: MandatoryUpdateView[] = [base,
+    { ...base, update: { phase: 'unavailable' } },
     { ...base, update: { ...base.update, phase: 'ready' }, confirmation: { active: false, version: '0.1.7-alpha.2', revision: 1 } },
     { ...base, update: { ...base.update, phase: 'ready' }, confirmation: { active: true, version: '0.1.7-alpha.2', revision: 1 } },
     { ...base, update: { ...base.update, phase: 'ready' }, deferred: true },
@@ -237,7 +254,7 @@ it.each(['en', 'zh-CN'])('records mandatory update guidance and actions across i
   ]
   const snapshots = states.map((state) => {
     publish(state)
-    return Object.fromEntries(['title', 'detail', 'version', 'error', 'update', 'later', 'page', 'browser-message', 'copy-message']
+    return Object.fromEntries(['title', 'detail', 'version', 'status', 'error', 'update', 'later', 'page', 'browser-message', 'copy-message']
       .filter(id => !p.element(id).hidden && !p.element(id).closest('[hidden]'))
       .map(id => [id, p.element(id).textContent]))
   })

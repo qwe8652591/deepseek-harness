@@ -839,6 +839,12 @@ async function main(): Promise<void> {
         }
         if (isMandatory()) { mandatoryUI?.focus(); return }
         if (state.phase === 'error' && state.failedOperation === 'check') { await showUpdateFailure(state); return }
+        if (state.phase === 'unavailable') {
+          await ordinaryMessageBox({ type: 'info', title: locale.messages.updateCheckTitle,
+            message: locale.messages.updateDevelopment,
+            detail: locale.messages.updateDevelopmentDetail })
+          return
+        }
         if (state.phase === 'idle') {
           await ordinaryMessageBox({ type: 'info', title: locale.messages.updateCheckTitle,
             message: locale.messages.updateCurrent,

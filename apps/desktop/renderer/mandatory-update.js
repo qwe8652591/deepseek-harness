@@ -22,10 +22,11 @@ function render(view) {
     'tasks-changed': messages.updateTasksChanged,
     'tasks-unavailable': messages.updateTasksUnavailable,
   }
-  const fallback = failed || update.phase === 'idle' || view.error !== undefined
+  const fallback = failed || update.phase === 'idle' || update.phase === 'unavailable' || view.error !== undefined
   let title = policy.title ?? messages.mandatoryTitle
   let detail = policy.detail ?? messages.mandatoryDetail
   let primary = '', action = '', status = ''
+  if (update.phase === 'unavailable') status = messages.updateDevelopment
   if (downloadable) { primary = failed ? messages.updateRetry : messages.updateDownload; action = 'download' }
   if (ready) { primary = view.deferred ? messages.mandatoryContinue : messages.updateRetry; action = 'install' }
   if (view.deferred) { title = messages.mandatoryReady; detail = messages.mandatoryDeferred }

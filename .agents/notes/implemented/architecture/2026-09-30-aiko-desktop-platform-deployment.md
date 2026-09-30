@@ -26,6 +26,8 @@ The market uses the official PluginManager Remote. Its organization directory is
 
 ## Consequences
 
+Source launches distinguish unavailable application updates from a failed release check. Missing development update metadata cannot be repaired by retrying, so it produces an informational dialog without a sidebar retry badge. Packaged releases retain the missing-source error, preventing deployment configuration failures from being presented as successful checks. Business plugins remain independently managed; this distinction does not provision or qualify a custom installer feed.
+
 The existing platform owns identity and authorizes capability access. Native logout revokes only its Desktop session; credentials never enter a product renderer. Per-process relay files prevent one client from overwriting another's live bridge. Independent data and Electron user-data directories preserve concurrently running browser services, but existing conversations and model settings are not automatically migrated.
 
 This is a source deployment, with no signed custom installer or custom update channel qualification. Windows encrypted credentials depend on the matching Electron user-data key. The linked plugin graph is prepared using pnpm 10.34.5 because pnpm 11.7.0 fails in its peer graph traversal; the official workspace remains on its own version. Native upstream menu artwork and release identity remain part of the official shell.

@@ -47,7 +47,7 @@ describe('desktop release metadata', () => {
 const coordinators: InstanceType<typeof DesktopUpdateCoordinator>[] = []
 afterEach(() => { for (const item of coordinators.splice(0)) item.dispose() })
 
-function fixture() {
+function fixture(enabled = true, packaged = false) {
   const events = new EventEmitter()
   const checkForUpdates = vi.fn(async () => ({
     isUpdateAvailable: true,
@@ -66,13 +66,32 @@ function fixture() {
   const updater = Object.assign(events, { checkForUpdates, downloadUpdate, quitAndInstall }) as unknown as AppUpdater
   const coordinator = new DesktopUpdateCoordinator(
     (state) => { states.push(state); return state },
-    beforeRestart, updater, () => true, () => '1.1.0-alpha.1', downloadResult,
+    beforeRestart, updater, () => enabled, () => '1.1.0-alpha.1', downloadResult, () => packaged,
   )
   coordinators.push(coordinator)
   return { coordinator, updater, events, states, checkForUpdates, downloadUpdate, quitAndInstall, beforeRestart, downloadResult }
 }
 
 describe('desktop update coordinator', () => {
+  it('keeps a missing update source in a packaged release actionable', async () => {
+    const f = fixture(false, true)
+    expect(await f.coordinator.check(true)).toEqual({ phase: 'error', failedOperation: 'check',
+      message: 'desktop update: this application has no packaged update source' })
+    expect(f.states.at(-1)).toMatchObject({ phase: 'error', failedOperation: 'check' })
+    expect(f.checkForUpdates).not.toHaveBeenCalled()
+  })
+
+  it('reports source launches as unavailable without fetching or offering a retry', async () => {
+    const f = fixture(false)
+    expect(await f.coordinator.check()).toEqual({ phase: 'unavailable' })
+    expect(await f.coordinator.check(true)).toEqual({ phase: 'unavailable' })
+    expect(f.coordinator.state).toEqual({ phase: 'unavailable' })
+    expect(f.states).not.toContainEqual(expect.objectContaining({ phase: 'error' }))
+    expect(f.checkForUpdates).not.toHaveBeenCalled()
+    await expect(f.coordinator.download('1.1.0-rc.2')).rejects.toThrow(/no checked update/u)
+    expect(f.downloadUpdate).not.toHaveBeenCalled()
+  })
+
   it('keeps safe preparation diagnostics separate and clears them on an explicit retry', async () => {
     const f = fixture()
     await f.coordinator.check()

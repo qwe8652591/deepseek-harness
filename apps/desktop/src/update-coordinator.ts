@@ -46,6 +46,7 @@ export class DesktopUpdateCoordinator {
    * @param enabled - Whether this process has a packaged update source.
    * @param currentVersion - Actual installed application version.
    * @param downloadResult - Once per completed download attempt, including platform preparation failures.
+   * @param packaged - Whether Electron is running an installed application rather than a source checkout.
    */
   constructor(
     private readonly publish: (state: DesktopUpdateState) => DesktopUpdateState,
@@ -54,6 +55,7 @@ export class DesktopUpdateCoordinator {
     private readonly enabled: () => boolean = () => app.isPackaged && existsSync(join(process.resourcesPath, 'app-update.yml')),
     private readonly currentVersion: () => string = () => app.getVersion(),
     private readonly downloadResult?: (success: boolean, reason?: string) => void,
+    private readonly packaged: () => boolean = () => app.isPackaged,
   ) {
     if (updater === autoUpdater) {
       // electron-updater omits this internal transport property from its public declarations.
@@ -182,7 +184,10 @@ export class DesktopUpdateCoordinator {
   private async doCheck(): Promise<DesktopUpdateState> {
     try {
       this.assertLive()
-      if (!this.enabled()) throw new Error('desktop update: this application has no packaged update source')
+      if (!this.enabled()) {
+        if (!this.packaged()) return this.setState({ phase: 'unavailable' })
+        throw new Error('desktop update: this application has no packaged update source')
+      }
       const result = await this.updater.checkForUpdates()
       if (result === null) throw new Error('desktop update: no check result was returned')
       const version = result.updateInfo.version

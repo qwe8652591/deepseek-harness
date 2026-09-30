@@ -50,6 +50,18 @@ function fixture() {
 
 const available = { phase: 'available', version: '1.0.1' } as const
 
+it('removes the retry indicator when the shell reports a development build', async () => {
+  const f = fixture()
+  try {
+    await f.emit({ phase: 'error', failure: 'check' })
+    expect(screen.getByRole('button', { name: '重试更新' })).toBeTruthy()
+    await f.emit({ phase: 'unavailable' })
+    expect(screen.queryByRole('button')).toBeNull()
+    await act(async () => { f.status.resolve({ phase: 'unavailable' }) })
+    expect(screen.queryByRole('button')).toBeNull()
+  } finally { f.view.unmount(); f.status.resolve({ phase: 'unavailable' }) }
+})
+
 it('renders nothing outside the Desktop carrier', () => {
   const source = new DesktopUpdateSource(undefined)
   const view = render(<DesktopUpdateIndicator wide hidden={false} t={translate(zh)}

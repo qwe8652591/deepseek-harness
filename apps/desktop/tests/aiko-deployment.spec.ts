@@ -49,10 +49,11 @@ it('uses one theme, preserves user plugins and patches, and switches only owned 
   expect(initialized.dsh.profile.bundles).not.toContain('aiko-dsh-plugin-catalog')
   expect(initialized.dependencies['aiko-dsh-plugin-catalog']).toBe('file:aiko-dsh-plugin-catalog.tgz')
   const workspace = load(await readFile(join(profile, 'pnpm-workspace.yaml'), 'utf8'))
+  const linkedSource: unknown = expect.stringMatching(/^link:/)
   expect(workspace).toMatchObject({ overrides: {
     'custom-library': '1.2.3',
-    'aiko-dsh-plugin-catalog': expect.stringMatching(/^link:/),
-    'aiko-dsh-market': expect.stringMatching(/^link:/),
+    'aiko-dsh-plugin-catalog': linkedSource,
+    'aiko-dsh-market': linkedSource,
   } })
   expect(await realpath(join(profile, 'node_modules/yunyao-dsh-theme'))).toBe(await realpath(join(runtime, 'node_modules/yunyao-dsh-theme')))
   await expect(lstat(join(profile, 'node_modules/aiko-dsh-theme'))).rejects.toMatchObject({ code: 'ENOENT' })

@@ -3,18 +3,28 @@
     "title": "Update to continue",
     "detail": "This version is no longer supported. Update to continue. Tasks in progress will keep running until you confirm installation and restart.",
     "version": "New version: 0.1.7-alpha.2",
+    "status": "",
     "update": "Download update"
+  },
+  {
+    "title": "Update to continue",
+    "detail": "This version is no longer supported. Update to continue. Tasks in progress will keep running until you confirm installation and restart.",
+    "version": "",
+    "status": "In-app updates are unavailable in this development build.",
+    "page": "Download from the official website"
   },
   {
     "title": "Update ready",
     "detail": "The app will close during the update and reopen automatically when it is complete.",
     "version": "New version: 0.1.7-alpha.2",
+    "status": "",
     "update": "Install and Restart"
   },
   {
     "title": "Tasks are still in progress",
     "detail": "Updating will stop the tasks in progress and restart the app. Continue?",
     "version": "New version: 0.1.7-alpha.2",
+    "status": "",
     "update": "Stop tasks and update",
     "later": "Update later"
   },
@@ -22,17 +32,20 @@
     "title": "Update ready",
     "detail": "Tasks in progress will keep running. Complete the update before using the app again.",
     "version": "New version: 0.1.7-alpha.2",
+    "status": "",
     "update": "Continue update"
   },
   {
     "title": "Preparing to restart…",
     "detail": "Stopping tasks…",
-    "version": "New version: 0.1.7-alpha.2"
+    "version": "New version: 0.1.7-alpha.2",
+    "status": ""
   },
   {
     "title": "Update to continue",
     "detail": "This version is no longer supported. Update to continue. Tasks in progress will keep running until you confirm installation and restart.",
     "version": "New version: 0.1.7-alpha.2",
+    "status": "",
     "error": "The update has not been installed. Check the tasks again and retry.",
     "update": "Retry update",
     "page": "Download from the official website"
@@ -41,6 +54,7 @@
     "title": "Update to continue",
     "detail": "This version is no longer supported. Update to continue. Tasks in progress will keep running until you confirm installation and restart.",
     "version": "",
+    "status": "",
     "error": "No compatible update was found. Check again or contact support.",
     "page": "Open the official download page again",
     "browser-message": "Could not open the official download page. Copy the link and open it in your browser.",
