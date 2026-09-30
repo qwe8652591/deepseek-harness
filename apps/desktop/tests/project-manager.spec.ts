@@ -43,6 +43,17 @@ afterEach(() => {
 })
 
 describe('desktop external plugin profile', () => {
+  it('keeps deployment composition inside the profile lock and releases it after failure', async () => {
+    const { manager } = setup()
+    await expect(manager.applyRelease(async () => {
+      expect(existsSync(join(manager.paths.profile, 'package.json'))).toBe(true)
+      await expect(manager.disableAllPlugins()).rejects.toThrow('another profile operation is active')
+      throw new Error('invalid deployment')
+    })).rejects.toThrow('invalid deployment')
+    expect(existsSync(join(manager.paths.profile, 'lock'))).toBe(false)
+    await expect(manager.applyRelease()).resolves.toBeUndefined()
+  })
+
   it('preserves installed packages, profile state, and the lockfile when preparing a launch', async () => {
     const { manager } = setup()
     await manager.applyRelease()

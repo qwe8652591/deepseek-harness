@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for 2026-09-30-aiko-desktop-platform-deployment.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-30-aiko-desktop-platform-deployment.md
+/agent-note-aiko-platform-admission-on-official-desktop:
+  en: 487e3bb0a3025a92
+  zh: aaf85b35d16b4e28
+/agent-note-aiko-platform-admission-on-official-desktop/problem:
+  en: fa18a5aac956e166
+  zh: 8e2cc1fef35ab7bf
+/agent-note-aiko-platform-admission-on-official-desktop/decision:
+  en: 4aa06530eece4bf1
+  zh: 122f1d7eb76568a4
+/agent-note-aiko-platform-admission-on-official-desktop/alternatives-considered:
+  en: a9af170c1ad3b63d
+  zh: 0f7275799e49478c
+/agent-note-aiko-platform-admission-on-official-desktop/consequences:
+  en: 9638e40c6910383f
+  zh: 2387d2b90bafd87f
+/agent-note-aiko-platform-admission-on-official-desktop/verification:
+  en: d88ee25655080441
+  zh: 760994a7ac63022a

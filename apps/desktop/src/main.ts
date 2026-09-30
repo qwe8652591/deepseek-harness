@@ -59,6 +59,12 @@ import { DesktopUpdateOverlays } from './update-overlay.ts'
 import { DesktopQuitConfirmation } from './quit-confirmation.ts'
 import { DesktopTray } from './tray.ts'
 import { DesktopBackgroundNotice } from './background-notice.ts'
+import { readAikoDeployment, prepareAikoDesktopProfile, type AikoDeployment } from './aiko-deployment.ts'
+import { signInAikoDesktop, installAikoAccountBridge } from './aiko-account-window.ts'
+import type { DesktopAccount } from './aiko-account.ts'
+
+let aikoDeployment: AikoDeployment | undefined
+let aikoAccount: DesktopAccount | undefined
 
 let focusPrimaryWindow = (): void => {}
 let stopForRecovery = async (): Promise<void> => {}
@@ -233,6 +239,7 @@ function createWindow(preload: string, show = false, primary = false): BrowserWi
       sandbox: true,
       webSecurity: true,
       webviewTag: primary,
+      ...(aikoAccount === undefined ? {} : { additionalArguments: ['--aiko-platform-account'] }),
       devTools: true,
     },
   })
@@ -337,6 +344,7 @@ async function main(): Promise<void> {
   let hostEnvironment: NodeJS.ProcessEnv = process.env
   const prepareHostEnvironment = async (): Promise<void> => { hostEnvironment = await loginShell }
   let quitting = false
+  const aikoAccountPoll: { timer: ReturnType<typeof setInterval> | undefined } = { timer: undefined }
   let startup: Promise<void> | undefined
   let workspaceRecovery: Promise<void> | undefined
   let mainWindow: BrowserWindow | undefined
@@ -456,6 +464,7 @@ async function main(): Promise<void> {
         analyticsEnabled = await welcomeBackend.analyticsEnabled().catch(() => false)
         if (!reportedLaunch) { reportedLaunch = true; void track('desktop_app_launch', {}) }
         stopAccount?.()
+        if (aikoAccount !== undefined) return
         const accountBackend = welcomeBackend.account
         stopAccount = accountBackend.watch((state) => {
           if (quitting) return
@@ -568,7 +577,11 @@ async function main(): Promise<void> {
     startup ??= (async () => {
       await navigateMain(applicationUrl)
       await backend.start(async () => {
-        await Promise.all([manager.applyRelease(), prepareHostEnvironment()])
+        const deployment = aikoDeployment
+        await Promise.all([
+          manager.applyRelease(deployment === undefined ? undefined : () => prepareAikoDesktopProfile(deployment, activeProject)),
+          prepareHostEnvironment(),
+        ])
       })
       if (backend.host !== undefined) await openInitialWindow()
       if (backend.host !== undefined) updateJournal?.action('workspace-ready')
@@ -664,6 +677,7 @@ async function main(): Promise<void> {
     // Shell-owned documents live in the application bundle and never pass through the Host.
     if (url.hostname === 'shell') return serveWebDocument(request, join(app.getAppPath(), 'renderer'))
     if (url.hostname === 'app') {
+      if (url.pathname === '/auth/me' && aikoAccount !== undefined) return Promise.resolve(Response.json(aikoAccount.profile()))
       if (url.pathname === '/' || url.pathname === '/index.html' || url.pathname.startsWith('/assets/')
         || ['/favicon.svg', '/manifest.webmanifest'].includes(url.pathname)) {
         return serveWebDocument(request, join(resources.dsh, 'node_modules', '@deepseek-ai', 'dsh-web-frontend', 'dist'))
@@ -1064,6 +1078,10 @@ async function main(): Promise<void> {
   }
   const createMainWindow = (): BrowserWindow => {
     const window = createWindow(appPreload, false, true)
+    if (aikoAccount !== undefined) {
+      window.setTitle(app.getName())
+      window.on('page-title-updated', (event) => { event.preventDefault(); window.setTitle(app.getName()) })
+    }
     mainWindow = window
     browserGuests.bind(window, (guest, name) => shortcuts.attachGuest(window, guest, name))
     shortcuts.attach(window)
@@ -1201,7 +1219,7 @@ async function main(): Promise<void> {
     locale = resolveDesktopStartupLocale(state.localePreference, systemLanguages)
     windowsLanguage = locale.id
     refreshApplicationMenu()
-    if (!enteredWorkspace && needsWelcome({ loggedIn: state.loggedIn, hasApiKey: state.hasApiKey })) {
+    if (aikoAccount === undefined && !enteredWorkspace && needsWelcome({ loggedIn: state.loggedIn, hasApiKey: state.hasApiKey })) {
       // A later login must retain its own activation policy instead of replaying startup focus.
       raiseAfterUpdate = false
       await showWelcome()
@@ -1251,7 +1269,9 @@ async function main(): Promise<void> {
     updateSchedule.dispose()
     updateDialog.dispose()
     mandatoryUI?.dispose()
-    void Promise.all([Promise.resolve(mandatoryPolicy?.dispose()).then(() => policyAuth?.dispose()), backend.close(),
+    clearInterval(aikoAccountPoll.timer)
+    const hostShutdown = (async () => { try { await backend.close() } finally { await aikoAccount?.dispose() } })()
+    void Promise.all([Promise.resolve(mandatoryPolicy?.dispose()).then(() => policyAuth?.dispose()), hostShutdown,
       // A Platform cleanup failure is logged without cutting the remaining Host shutdown short.
       platformView.dispose().catch((error: unknown) => { console.error(error) })])
       .catch((error: unknown) => { console.error(error) }).finally(() => { app.quit() })
@@ -1322,6 +1342,22 @@ async function main(): Promise<void> {
       if (app.isPackaged && state.error === 'authentication-required' && !isQuitting()) queuePolicyAuthentication()
     }).catch((error: unknown) => { console.error(error) })
   }
+  let checkingAikoAccount = false
+  const restartAiko = async (): Promise<void> => {
+    mainWindow?.hide()
+    await backend.close()
+    skipQuitConfirmation = true
+    app.relaunch()
+    app.quit()
+  }
+  const activeAikoAccount = aikoAccount
+  if (activeAikoAccount !== undefined) installAikoAccountBridge(activeAikoAccount, assertProductSender, restartAiko)
+  aikoAccountPoll.timer = activeAikoAccount === undefined ? undefined : setInterval(() => {
+    if (checkingAikoAccount || quitting) return
+    checkingAikoAccount = true
+    void activeAikoAccount.verify().catch(restartAiko).catch((error: unknown) => { console.error(error) })
+      .finally(() => { checkingAikoAccount = false })
+  }, activeAikoAccount.config.checkIntervalMs)
   automaticCheck()
   await reconcileBackend().catch(() => undefined)
   // Window lifecycle callbacks run while backend startup is pending.
@@ -1335,7 +1371,20 @@ async function main(): Promise<void> {
 
 const ownsDesktopInstance = claimDesktopSingleInstance(app, () => { focusPrimaryWindow() })
 
-if (ownsDesktopInstance) void app.whenReady().then(main).catch(async (error: unknown) => {
+if (ownsDesktopInstance) void app.whenReady().then(async () => {
+  const deploymentFile = process.env.DSH_DESKTOP_DEPLOYMENT
+  if (deploymentFile !== undefined) {
+    aikoDeployment = await readAikoDeployment(deploymentFile)
+    aikoAccount = await signInAikoDesktop(aikoDeployment)
+    process.env.DSH_HOME = aikoAccount.home()
+    const relay = await aikoAccount.startRelay()
+    process.env.AIKO_DESKTOP_ACCOUNT_FILE = relay
+    process.env.AIKO_CAPABILITY_SSO_FILE = relay
+  }
+  await main()
+}).catch(async (error: unknown) => {
+  await aikoAccount?.dispose()
+  if (error instanceof DOMException && error.name === 'AbortError') { app.quit(); return }
   const message = error instanceof Error ? error.message : String(error)
   console.error(error)
   const diagnosticFile = process.env.DSH_DESKTOP_DIAGNOSTIC_FILE

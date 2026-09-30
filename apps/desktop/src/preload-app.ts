@@ -97,7 +97,14 @@ markDocumentPlatform()
 syncWindowFullscreen()
 syncNativeTheme()
 // Main-process IPC also verifies the owning window and top frame.
-contextBridge.exposeInMainWorld('dshDesktop', location.protocol === `${SCHEME}:` && location.hostname === 'app' && process.isMainFrame ? createProductApi() : { protocolVersion: 1 })
+contextBridge.exposeInMainWorld('dshDesktop', location.protocol === `${SCHEME}:` && location.hostname === 'app' && process.isMainFrame ? {
+  ...createProductApi(),
+  ...(process.argv.includes('--aiko-platform-account') ? { account: {
+    profile: () => ipcRenderer.invoke('aiko:account:get'),
+    logout: () => ipcRenderer.invoke('aiko:account:logout'),
+    open: (destination: 'website' | 'capabilities' | 'account') => ipcRenderer.invoke('aiko:account:open', destination),
+  } } : {}),
+} : { protocolVersion: 1 })
 
 if (location.protocol === `${SCHEME}:` && location.hostname === 'app') {
   contextBridge.exposeInMainWorld('__DSH_LOCALE__', {

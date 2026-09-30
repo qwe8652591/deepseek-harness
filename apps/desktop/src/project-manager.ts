@@ -79,14 +79,16 @@ export class DesktopProjectManager {
 
   /**
    * Load application metadata and prepare the external plugin profile without installing packages.
+   * @param prepareDeployment - optional operator composition, executed under the same profile write lock.
    */
-  async applyRelease(): Promise<void> {
-    await this.withLock(() => {
+  async applyRelease(prepareDeployment?: () => Promise<void>): Promise<void> {
+    await this.withLock(async () => {
       // Validation only: an unreadable or mismatched runtime descriptor stops preparation before the Host starts.
       readDesktopRuntime(this.runtime.dsh)
       migrateProfileSettings(this.paths.profile)
       createPluginProfile(this.paths.profile)
       removeLinkProjections(this.paths.profile)
+      await prepareDeployment?.()
     })
   }
 
