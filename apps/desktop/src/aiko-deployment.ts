@@ -2,6 +2,7 @@
 import { createRequire } from 'node:module'
 import { readFile, mkdir, writeFile, realpath, lstat, symlink, unlink } from 'node:fs/promises'
 import { dirname, isAbsolute, join } from 'node:path'
+import { dump, load } from 'js-yaml'
 import { resolveAikoAccountLocale } from './aiko-account-locale.ts'
 
 /** Paths to an operator-prepared plugin installation and identity configuration. */
@@ -12,7 +13,7 @@ export interface AikoDeployment {
   readonly profilePatch?: string
 }
 const themes = { aiko: 'aiko-dsh-theme', yunyao: 'yunyao-dsh-theme' } as const
-const plugins = ['aiko-dsh-workbench-kit', 'aiko-dsh-workbench', 'aiko-dsh-tender', '@aiko-dsh-plugins/dsh-knowledge', 'aiko-dsh-code']
+const plugins = ['aiko-dsh-workbench-kit', 'aiko-dsh-workbench', 'aiko-dsh-tender', '@aiko-dsh-plugins/dsh-knowledge', 'aiko-dsh-code', 'aiko-dsh-market']
 const record = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
 
 /**
@@ -59,11 +60,12 @@ export async function readAikoWelcome(deployment: AikoDeployment, language: stri
  */
 export async function prepareAikoDesktopProfile(deployment: AikoDeployment, profile: string): Promise<void> {
   const selected = [...plugins, themes[deployment.brand]]
+  const installed = [...selected, 'aiko-dsh-plugin-catalog']
   const runtimeFile = join(deployment.pluginRuntime, 'package.json')
   const runtime: unknown = JSON.parse(await readFile(runtimeFile, 'utf8'))
   if (!record(runtime) || !record(runtime.dependencies)) throw new Error('Desktop plugin runtime has no dependency map')
   const dependencies = runtime.dependencies
-  const paths = await Promise.all(selected.map(async (name) => {
+  const paths = await Promise.all(installed.map(async (name) => {
     const spec = dependencies[name]
     if (typeof spec !== 'string' || spec === '') throw new Error('Desktop plugin is missing from deployment: ' + name)
     return { name, spec, target: await realpath(join(deployment.pluginRuntime, 'node_modules', name)) }
@@ -96,6 +98,10 @@ export async function prepareAikoDesktopProfile(deployment: AikoDeployment, prof
       if (await realpath(link) !== target) throw new Error('Desktop profile contains an unmanaged plugin: ' + name)
     } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error }
   }
+  const workspacePath = join(profile, 'pnpm-workspace.yaml')
+  const workspace: unknown = load(await readFile(workspacePath, 'utf8'))
+  if (!record(workspace) || workspace.overrides !== undefined && !record(workspace.overrides))
+    throw new Error('Desktop profile package-manager settings are invalid')
   const other = deployment.brand === 'aiko' ? themes.yunyao : themes.aiko
   const otherPath = join(profile, 'node_modules', other)
   try {
@@ -114,7 +120,11 @@ export async function prepareAikoDesktopProfile(deployment: AikoDeployment, prof
     ...Object.fromEntries(paths.map(({ name, spec }) => [name, spec])) }
   const bundles = manifest.dsh.profile.bundles.map(name => name === other ? themes[deployment.brand] : name)
   manifest.dsh.profile.bundles = [...new Set(previous ? bundles : [...bundles, '@deepseek-ai/dsh-experimental-agent-team-profile', ...selected])]
+  // Package operations retain deployment-owned links and the unpublished passive directory.
+  workspace.overrides = { ...Object.fromEntries(Object.entries(workspace.overrides ?? {}).filter(([name]) => name !== other)),
+    ...Object.fromEntries(paths.map(({ name, target }) => [name, 'link:' + target.replaceAll('\\', '/')])) }
   if (initialPatch !== undefined) await writeFile(join(profile, 'cordis.patch.yml'), initialPatch)
+  await writeFile(workspacePath, dump(workspace))
   await writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n')
   await writeFile(marker, JSON.stringify({ runtime: deployment.pluginRuntime, brand: deployment.brand }) + '\n')
 }

@@ -28,7 +28,7 @@ The verified `issuer` and `subject` select `storageDirectory/accounts/<digest>` 
 ## Development procedure
 
 1. Install the official workspace with `corepack pnpm install --frozen-lockfile`, then run `corepack pnpm run build`.
-2. Prepare the Workbench, Kit, tender, knowledge, Code and both theme archives. A source-runtime `package.json` must list them as absolute `file:...tgz` dependencies. The Workbench account launcher must use a priority distinct from the official account launcher.
+2. Prepare the Workbench, Kit, tender, knowledge, Code, market, plugin catalog and both theme archives from the Workbench monorepo. A source-runtime `package.json` must list them as absolute `file:...tgz` dependencies. The catalog is a passive dependency of the market, not an activated profile bundle. The Workbench account launcher must use a priority distinct from the official account launcher.
 3. Run the preparation command below from the repository root. It links framework dependencies to this exact workspace, preventing duplicate Cordis and React instances. pnpm 10.34.5 is required for this external linked-plugin graph; the official workspace retains its own package manager.
 
 ```powershell
@@ -39,6 +39,8 @@ corepack pnpm run start:desktop
 ```
 
 The preparation command installs plugins before application startup. It is not an application launcher. Fully quit this Desktop before replacing its runtime archives. `start:desktop` verifies the bundled primary runtime and launches the official Electron application. Use `dev:desktop` when rebuilding the whole application is necessary. The first startup activates the Agent Teams profile required by Workbench. Profile composition runs under the official profile write lock.
+
+The deployment pins its plugins and passive catalog to runtime directories through profile package-manager overrides. Installing community plugins retains these links and unrelated overrides. Deployment plugins are updated from the prepared archives; their local catalog entries do not offer public-source replacement.
 
 ## Verification
 

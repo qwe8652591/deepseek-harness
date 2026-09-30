@@ -14,6 +14,8 @@ Status: implemented
 
 由维护者预先准备的平级插件共享当前 workspace 的 DSH、Cordis 和 React 包。启动过程在既有写锁内组合 Desktop profile。首次组合启用工作台的 Agent Teams 依赖；后续组合保留用户移除和原生恢复状态。Profile 只链接所选主题。工作台使用明确的插槽优先级，与官方 DeepSeek 账号设置共存。
 
+市场使用官方 PluginManager Remote。组织目录是同一插件 monorepo 内的静态数据包，不作为 Cordis bundle 激活。Profile overrides 将部署包固定到预先准备的目录，使后续包操作保留共享运行时身份，也不向 npm 查询尚未发布的目录版本。其他 overrides 仍由维护者管理。隔离真实 Host 的安装、卸载验证确认这些链接在包操作后保留。
+
 ## Alternatives considered
 
 **整体移植旧主窗口。** 这会丢弃上游浏览器、目录、快捷键、更新和恢复行为，扩大每次升级的分歧。

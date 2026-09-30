@@ -28,7 +28,7 @@ Electron 验证加密保存的会话，或在系统浏览器中打开平台。�
 ## 开发步骤
 
 1. 运行 `corepack pnpm install --frozen-lockfile` 安装官方 workspace，再运行 `corepack pnpm run build`。
-2. 准备工作台、Kit、标书、知识库、Code 及两个主题的压缩包。输入运行时的 `package.json` 必须以绝对 `file:...tgz` 依赖列出这些包。工作台账号入口的优先级必须与官方账号入口不同。
+2. 从工作台 monorepo 准备工作台、Kit、标书、知识库、Code、插件市场、插件目录及两个主题的压缩包。输入运行时的 `package.json` 必须以绝对 `file:...tgz` 依赖列出这些包。插件目录是市场的静态数据依赖，不作为 profile bundle 激活。工作台账号入口的优先级必须与官方账号入口不同。
 3. 从仓库根目录执行以下准备命令。它将框架依赖链接到当前 workspace，避免重复 Cordis 和 React 实例。此外部链接插件依赖图要求 pnpm 10.34.5；官方 workspace 保留自己的包管理器版本。
 
 ```powershell
@@ -39,6 +39,8 @@ corepack pnpm run start:desktop
 ```
 
 准备命令在应用启动前安装插件，不是应用启动器。更换运行时压缩包前须完全退出此 Desktop。`start:desktop` 检查捆绑主运行时并启动官方 Electron 应用；需要重建整个应用时使用 `dev:desktop`。首次启动启用工作台依赖的 Agent Teams profile。Profile 组合使用官方 profile 写锁。
+
+部署通过 profile 的包管理器 overrides 将自身插件及静态目录固定到运行时目录。安装社区插件时保留这些链接及其他 overrides。部署插件通过准备好的压缩包更新，本地目录条目不提供公开源替换操作。
 
 ## 验证
 

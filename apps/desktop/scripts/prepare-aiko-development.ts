@@ -11,7 +11,7 @@ const { values } = parseArgs({ options: { 'source-runtime': { type: 'string' }, 
 const source = values['source-runtime'], output = values.output
 if (!source || !output || !isAbsolute(source) || !isAbsolute(output) || source === output) throw new Error('Provide distinct absolute --source-runtime and --output directories')
 const existing: { dependencies: Record<string, string> } = JSON.parse(await readFile(join(source, 'package.json'), 'utf8'))
-const packages = ['aiko-dsh-workbench-kit', 'aiko-dsh-workbench', 'aiko-dsh-tender', '@aiko-dsh-plugins/dsh-knowledge', 'aiko-dsh-code', 'aiko-dsh-theme', 'yunyao-dsh-theme']
+const packages = ['aiko-dsh-workbench-kit', 'aiko-dsh-workbench', 'aiko-dsh-tender', '@aiko-dsh-plugins/dsh-knowledge', 'aiko-dsh-code', 'aiko-dsh-theme', 'yunyao-dsh-theme', 'aiko-dsh-market', 'aiko-dsh-plugin-catalog']
 const dependencies: Record<string, string> = {}
 for (const name of packages) {
   const spec = existing.dependencies[name]
@@ -21,6 +21,8 @@ for (const name of packages) {
 }
 const files = execFileSync('git', ['ls-files', 'packages/**/package.json', 'vendor/**/package.json'], { cwd: root, encoding: 'utf8' }).trim().split('\n')
 const overrides: Record<string, string> = {}
+// The market consumes the directory archive prepared by the same deployment.
+overrides['aiko-dsh-plugin-catalog'] = dependencies['aiko-dsh-plugin-catalog']!
 for (const file of files) {
   if (!/^(packages\/[^/]+\/[^/]+|vendor\/[^/]+)\/package.json$/.test(file.trim())) continue
   const path = join(root, file.trim())
@@ -34,7 +36,7 @@ for (const name of ['react', 'react-dom', 'zustand', 'immer']) {
 for (const name of packages) {
   const archive = dependencies[name]
   if (!archive) throw new Error('Missing prepared plugin archive: ' + name)
-  const manifest = JSON.parse(execFileSync('tar', ['-xOf', archive.slice(5), 'package/package.json'], { encoding: 'utf8' })) as {
+  const manifest = JSON.parse(execFileSync('tar', ['-xOf', archive.slice(5), 'package/package.json'], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 })) as {
     peerDependencies?: Record<string, string>
   }
   for (const peer of Object.keys(manifest.peerDependencies ?? {})) {

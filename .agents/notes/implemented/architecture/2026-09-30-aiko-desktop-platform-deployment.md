@@ -14,6 +14,8 @@ The fork keeps the complete official Desktop and adds optional startup deploymen
 
 Operator-prepared peer plugins share this workspace's DSH, Cordis and React packages. Startup composes their Desktop profile under the existing write lock. Initial composition enables Workbench's Agent Teams dependency; later composition retains user removals and native recovery. Only the selected theme is linked into the profile. Workbench uses an explicit slot priority to coexist with the official DeepSeek account settings.
 
+The market uses the official PluginManager Remote. Its organization directory is a passive package in the same plugin monorepo, not a Cordis bundle. Profile overrides pin deployment-owned packages to their prepared directories: subsequent package operations retain shared runtime identity and do not query npm for an unpublished directory version. Unrelated overrides remain operator-owned. An isolated real Host installation/removal verified that these links survive package operations.
+
 ## Alternatives considered
 
 **Port the old main window wholesale.** This discards upstream browser, directory, shortcut, update and recovery behavior, making each upgrade a larger fork.
