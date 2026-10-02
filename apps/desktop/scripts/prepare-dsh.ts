@@ -32,6 +32,8 @@ import {
 import { desktopTargetPlatform, resolveDesktopBuildTarget, resolveDesktopTargetBuildPaths } from './desktop-build-paths.mjs'
 import { desktopRuntimeFileExclusion } from './runtime-file-policy.ts'
 import { selectOfficeEngine } from '../../../scripts/libreoffice-packages.mjs'
+import { readDesktopProduct, parseDesktopProduct } from './desktop-product.mjs'
+import { writeProductPolicy } from '../src/product-deployment.ts'
 
 const APP_ROOT = resolve(import.meta.dirname, '..')
 const BUILD_PATHS = resolveDesktopTargetBuildPaths()
@@ -145,6 +147,11 @@ async function main(): Promise<void> {
       name: '@deepseek-ai/dsh-desktop-runtime', private: true, version: release.version, type: 'module',
       dependencies: Object.fromEntries(packageSet.packages.map(entry => [entry.name, entry.version])),
     }, undefined, 2)}\n`)
+    const product = readDesktopProduct(process.env)
+    if (product !== undefined) {
+      writeFileSync(join(DSH_OUTPUT_ROOT, 'desktop-product.json'), JSON.stringify(parseDesktopProduct(product), null, 2) + '\n')
+      await writeProductPolicy(DSH_OUTPUT_ROOT)
+    }
     for (const file of DESKTOP_HOST_RUNTIME_FILES) {
       if (!existsSync(join(DSH_OUTPUT_ROOT, 'node_modules', DESKTOP_HOST_PACKAGE, file))) {
         throw new Error(`desktop runtime: missing private Host file ${file}`)

@@ -47,6 +47,7 @@ export class DesktopUpdateCoordinator {
    * @param currentVersion - Actual installed application version.
    * @param downloadResult - Once per completed download attempt, including platform preparation failures.
    * @param packaged - Whether Electron is running an installed application rather than a source checkout.
+   * @param channel - Update channel fixed by the installed product, never by a user-supplied platform URL.
    */
   constructor(
     private readonly publish: (state: DesktopUpdateState) => DesktopUpdateState,
@@ -56,6 +57,7 @@ export class DesktopUpdateCoordinator {
     private readonly currentVersion: () => string = () => app.getVersion(),
     private readonly downloadResult?: (success: boolean, reason?: string) => void,
     private readonly packaged: () => boolean = () => app.isPackaged,
+    channel = 'nightly',
   ) {
     if (updater === autoUpdater) {
       // electron-updater omits this internal transport property from its public declarations.
@@ -68,7 +70,7 @@ export class DesktopUpdateCoordinator {
     }
     this.updater.autoDownload = false
     this.updater.autoInstallOnAppQuit = false
-    this.updater.channel = 'nightly'
+    this.updater.channel = channel
     this.updater.allowPrerelease = true
     // Selecting a channel can enable downgrade in electron-updater.
     this.updater.allowDowngrade = false

@@ -31,10 +31,10 @@ export function resolveMacOSAppUpdateFeed(publish) {
     throw new Error('desktop macOS update config: publish must contain exactly one provider')
   }
   const provider = object(publish[0], 'publish provider')
-  if (provider.provider !== 'generic' || provider.channel !== CHANNEL) {
+  if (provider.provider !== 'generic' || typeof provider.channel !== 'string' || !/^[a-z][a-z0-9-]*$/.test(provider.channel)) {
     throw new Error('desktop macOS update config: publish provider must be generic Nightly')
   }
-  return { publicUrl: nonEmptyString(provider.url, 'publish provider URL') }
+  return { publicUrl: nonEmptyString(provider.url, 'publish provider URL'), ...(provider.channel === CHANNEL ? {} : { channel: provider.channel }) }
 }
 
 /**
@@ -47,7 +47,7 @@ export function createMacOSAppUpdateConfig(update, updaterCacheDirName) {
   return {
     provider: 'generic',
     url: nonEmptyString(update.publicUrl, 'public URL'),
-    channel: CHANNEL,
+    channel: update.channel ?? CHANNEL,
     updaterCacheDirName: nonEmptyString(updaterCacheDirName, 'updater cache directory'),
   }
 }
@@ -81,7 +81,7 @@ export async function verifyMacOSAppUpdateConfig(appPath, update, updaterCacheDi
     throw new Error(`desktop macOS update config: cannot read ${path}: ${error instanceof Error ? error.message : String(error)}`)
   }
   const config = object(parsed, CONFIG_FILENAME)
-  if (config.provider !== 'generic' || config.url !== update.publicUrl || config.channel !== CHANNEL) {
+  if (config.provider !== 'generic' || config.url !== update.publicUrl || config.channel !== (update.channel ?? CHANNEL)) {
     throw new Error(`desktop macOS update config: ${path} does not match ${update.publicUrl}`)
   }
   const actualCacheDirName = nonEmptyString(config.updaterCacheDirName, `${CONFIG_FILENAME}.updaterCacheDirName`)

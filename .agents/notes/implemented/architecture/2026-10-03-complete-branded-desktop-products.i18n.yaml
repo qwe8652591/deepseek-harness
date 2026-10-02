@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-10-03-complete-branded-desktop-products.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-10-03-complete-branded-desktop-products.md
+/agent-note-complete-branded-desktop-products:
+  en: fb264f80b2887619
+  zh: 3e9286be0b09af39
+/agent-note-complete-branded-desktop-products/problem:
+  en: d9ddd195f9f9bbe6
+  zh: 2214209c4cdae88e
+/agent-note-complete-branded-desktop-products/decision:
+  en: 4468da5daafc348a
+  zh: 9309801f3abdc613
+/agent-note-complete-branded-desktop-products/alternatives-considered:
+  en: e10e80749166a80a
+  zh: 11bf7834bfa4e1c4
+/agent-note-complete-branded-desktop-products/consequences:
+  en: 5189bdff6125fefc
+  zh: 1224519709ad0400

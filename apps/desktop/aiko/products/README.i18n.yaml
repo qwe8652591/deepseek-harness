@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write apps/desktop/aiko/products/README.md
+/complete-aiko-and-yunyao-distributions:
+  en: bd51e437752bef58
+  zh: 7e362dd2d00fca3e
+/complete-aiko-and-yunyao-distributions/build-inputs:
+  en: 9ed3eba10f976de6
+  zh: 6f49004cd80b0528
+/complete-aiko-and-yunyao-distributions/platform-settings-and-retained-data:
+  en: fd40247cdea33f6e
+  zh: 7f9882b4fd6169c8
+/complete-aiko-and-yunyao-distributions/github-release-publication:
+  en: e7aa5ad10b60dab9
+  zh: e10697108a00986e

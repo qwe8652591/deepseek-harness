@@ -2,6 +2,7 @@
 import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { isAbsolute, join } from 'node:path'
+import { readDesktopProduct } from './desktop-product.mjs'
 
 /**
  * Resolve one installed theme's native artwork; neither option means upstream artwork.
@@ -9,6 +10,9 @@ import { isAbsolute, join } from 'node:path'
  * @returns {{ brand: 'aiko' | 'yunyao', productName: string, image: Buffer } | undefined} Selected artwork.
  */
 export function readDesktopBrand(env) {
+  const product = readDesktopProduct(env)
+  if (product !== undefined) return { brand: product.profile, productName: product.productName,
+    image: Buffer.from(product.artwork.image.split(',')[1], 'base64') }
   const brand = env.DSH_DESKTOP_BRAND
   const runtime = env.DSH_DESKTOP_BRAND_RUNTIME
   if (brand === undefined && runtime === undefined) return undefined

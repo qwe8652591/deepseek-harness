@@ -30,7 +30,7 @@ describe('macOS packaged updater configuration', () => {
     expect(resolveMacOSAppUpdateFeed([{ provider: 'generic', url: update.publicUrl, channel: 'nightly' }]))
       .toEqual(update)
     for (const publish of [undefined, [], [{ provider: 'github', channel: 'nightly', url: update.publicUrl }],
-      [{ provider: 'generic', channel: 'latest', url: update.publicUrl }]]) {
+      [{ provider: 'generic', channel: '../latest', url: update.publicUrl }]]) {
       expect(() => resolveMacOSAppUpdateFeed(publish)).toThrow(/macOS update config/u)
     }
   })

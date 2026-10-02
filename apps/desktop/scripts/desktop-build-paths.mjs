@@ -1,6 +1,7 @@
 /** Resolve build-owned Desktop paths without sharing mutable state across release targets. */
 
 import { join, resolve } from 'node:path'
+import { readDesktopProduct } from './desktop-product.mjs'
 
 const APP_ROOT = resolve(import.meta.dirname, '..')
 const BUILD_ROOT = join(APP_ROOT, '.desktop-build')
@@ -38,11 +39,13 @@ function assertSupportedTarget(target) {
 /**
  * Return the mutable preparation and artifact directories owned by one release target.
  * @param {'mac-arm64' | 'mac-x64' | 'win-x64'} target - Supported Desktop target name.
+ * @param {NodeJS.ProcessEnv} env - Optional product manifest selecting isolated brand directories.
  * @returns {{ root: string, artifacts: string, unsignedArtifacts: string, runtime: string, packageSet: string, dsh: string, dshPnpm: string, electron: string, packedDsh: string, packedVendor: string, packedLandlock: string, downloads: string }} Target paths plus the shared immutable download cache.
  */
-export function desktopTargetBuildPaths(target) {
+export function desktopTargetBuildPaths(target, env = process.env) {
   assertSupportedTarget(target)
-  const root = join(BUILD_ROOT, 'targets', target)
+  const product = readDesktopProduct(env)
+  const root = product === undefined ? join(BUILD_ROOT, 'targets', target) : join(BUILD_ROOT, 'products', product.profile, target)
   const packed = join(root, 'packed')
   return {
     root,
@@ -86,7 +89,7 @@ export function resolveDesktopTargetBuildPaths(
   hostPlatform = process.platform,
   hostArch = process.arch,
 ) {
-  return desktopTargetBuildPaths(resolveDesktopBuildTarget(env, hostPlatform, hostArch))
+  return desktopTargetBuildPaths(resolveDesktopBuildTarget(env, hostPlatform, hostArch), env)
 }
 
 /**

@@ -1,6 +1,7 @@
 /** Resolve the Desktop auto-update channel and its Tencent COS destination. */
 
 import { valid } from 'semver'
+import { readDesktopProduct, desktopProductFeed } from './desktop-product.mjs'
 
 /** Environment variable that selects the Desktop update deployment. */
 export const DESKTOP_AUTO_UPDATE_ENV = 'DSH_DESKTOP_AUTO_UPDATE_ENV'
@@ -68,16 +69,18 @@ export function desktopBuildRecordFilename(target) {
  * Return the electron-builder channel metadata filename for an application version.
  * @param {string} version - Desktop semantic version.
  * @param {NodeJS.Platform} platform - Target platform.
+ * @param {string} channel - Brand and architecture feed name, or the upstream nightly channel.
  * @returns {string} Channel metadata filename emitted for the target.
  */
-export function desktopUpdateMetadataFilename(version, platform) {
+export function desktopUpdateMetadataFilename(version, platform, channel = 'nightly') {
   if (valid(version) === null) {
     throw new Error(`desktop auto-update: invalid Desktop version ${JSON.stringify(version)}`)
   }
   if (platform !== 'darwin' && platform !== 'win32') {
     throw new Error(`desktop auto-update: unsupported metadata platform ${platform}`)
   }
-  return `nightly${platform === 'darwin' ? '-mac' : ''}.yml`
+  if (!/^[a-z][a-z0-9-]*$/.test(channel)) throw new Error('desktop auto-update: invalid channel')
+  return `${channel}${platform === 'darwin' ? '-mac' : ''}.yml`
 }
 
 /**
@@ -128,8 +131,14 @@ function httpsOrigin(value, name) {
  * @throws {Error} When the test deployment lacks a valid HTTPS origin or a 32-character lowercase hexadecimal release ID.
  */
 export function resolveDesktopAutoUpdateConfig(env, platform, arch) {
-  const environment = resolveDesktopAutoUpdateEnvironment(env)
   const target = resolveDesktopAutoUpdateTarget(platform, arch)
+  const product = readDesktopProduct(env)
+  if (product !== undefined) {
+    const feed = desktopProductFeed(product, target)
+    return { environment: 'production', target, origin: 'https://github.com', publicUrl: feed.publicUrl,
+      channel: feed.channel, keyPrefix: '', binaryKeyPrefix: '' }
+  }
+  const environment = resolveDesktopAutoUpdateEnvironment(env)
   const deployment = UPDATE_ENVIRONMENTS[environment]
   let origin = deployment.fixedOrigin
   if (origin === undefined) {
@@ -165,6 +174,7 @@ export function resolveDesktopAutoUpdateConfig(env, platform, arch) {
  * @throws {Error} When the selected deployment lacks a bucket or valid updater configuration.
  */
 export function resolveDesktopUploadConfig(env, platform, arch) {
+  if (readDesktopProduct(env) !== undefined) throw new Error('desktop product: use publish:product for GitHub Releases, not the upstream COS uploader')
   const update = resolveDesktopAutoUpdateConfig(env, platform, arch)
   const deployment = UPDATE_ENVIRONMENTS[update.environment]
   return {

@@ -4,7 +4,7 @@ English | [中文](README.zh.md)
 
 Source launches report application updates as unavailable: the sidebar stays clear and a manual check explains how to update the source or install a deployment release. This is distinct from an up-to-date result. A packaged application without `app-update.yml` still reports a configuration failure. Application releases and independently managed plugin updates have separate ownership.
 
-Private Aiko/Yunyao deployments use the same Desktop Host and launchers. See [Aiko deployment](aiko/README.md) for startup-selected themes, native platform login and local plugin preparation.
+Private Aiko/Yunyao deployments use the same Desktop Host and launchers. See [Aiko deployment](aiko/README.md) for source development, or [complete product distributions](aiko/products/README.md) for bundled plugins, editable platform addresses and brand-specific GitHub updates.
 
 Desktop analytics follows the [product collection policy](../../packages/client/product-analytics/README.md), including its live application setting. Web usage is excluded. Update installation waits for its local analytics intake before locking API admission and stopping the Host. Intake has a one-second deadline; failure does not prevent installation, and collector delivery is not awaited.
 

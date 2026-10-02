@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-本参考说明覆盖基于源码的 Desktop 0.2.0-rc.2 Aiko／云遥部署。应用继续使用官方 profile runner、Web UI、原生适配及 Office 运行时。插件源码仍由独立的 Aiko Workbench monorepo 维护，本分支使用其发布压缩包。签名安装包及自定义更新分发不在本地部署范围内。
+本参考说明覆盖基于源码的 Desktop 0.2.0-rc.2 Aiko／云遥部署。应用继续使用官方 profile runner、Web UI、原生适配及 Office 运行时。插件源码仍由独立的 Aiko Workbench monorepo 维护，本分支使用其发布压缩包。品牌安装包及 GitHub 更新见[完整发行包](products/README.zh.md)。
 
 ## 配置
 

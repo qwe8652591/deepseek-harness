@@ -3,6 +3,7 @@ import { WINDOWS_TITLEBAR_HEIGHT } from './windows-layout.ts'
 /** Electron shell: desktop project ownership, custom protocol, windows, and lifecycle. */
 
 import { readFile, writeFile } from 'node:fs/promises'
+import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
@@ -60,13 +61,27 @@ import { DesktopQuitConfirmation } from './quit-confirmation.ts'
 import { DesktopTray } from './tray.ts'
 import { DesktopBackgroundNotice } from './background-notice.ts'
 import { readAikoDeployment, prepareAikoDesktopProfile, type AikoDeployment } from './aiko-deployment.ts'
-import { signInAikoDesktop, installAikoAccountBridge } from './aiko-account-window.ts'
+import { signInAikoDesktop, installAikoAccountBridge, DesktopPlatformChangeRequested } from './aiko-account-window.ts'
 import type { DesktopAccount } from './aiko-account.ts'
 import { readNativeDesktopBrand, type DesktopBrand } from './desktop-brand.ts'
+import { readPackagedProduct, prepareProductProfile } from './product-deployment.ts'
+import { readProductPlatform, saveProductPlatform, ProductPlatformConfigurationError } from './product-platform.ts'
+import { openProductPlatform } from './product-platform-window.ts'
+import type { DesktopProduct } from '../scripts/desktop-product.mjs'
 
 let aikoDeployment: AikoDeployment | undefined
 let aikoAccount: DesktopAccount | undefined
 let nativeBrand: DesktopBrand | undefined
+let desktopProduct: DesktopProduct | undefined
+// Pin storage before single-instance locking, Chromium initialization or localized display-name changes.
+if (app.isPackaged) {
+  const manifest = JSON.parse(readFileSync(join(app.getAppPath(), 'package.json'), 'utf8')) as { dshDesktopProduct?: unknown }
+  if (manifest.dshDesktopProduct === 'aiko' || manifest.dshDesktopProduct === 'yunyao') {
+    const directory = join(app.getPath('appData'), manifest.dshDesktopProduct + '-dsh-desktop')
+    app.setPath('userData', directory)
+    app.setPath('sessionData', directory)
+  }
+}
 
 let focusPrimaryWindow = (): void => {}
 let stopForRecovery = async (): Promise<void> => {}
@@ -581,8 +596,10 @@ async function main(): Promise<void> {
       await navigateMain(applicationUrl)
       await backend.start(async () => {
         const deployment = aikoDeployment
+        const product = desktopProduct
         await Promise.all([
-          manager.applyRelease(deployment === undefined ? undefined : () => prepareAikoDesktopProfile(deployment, activeProject)),
+          manager.applyRelease(product !== undefined ? () => prepareProductProfile(product, activeProject)
+            : deployment === undefined ? undefined : () => prepareAikoDesktopProfile(deployment, activeProject)),
           prepareHostEnvironment(),
         ])
       })
@@ -650,7 +667,7 @@ async function main(): Promise<void> {
     },
     undefined, undefined, undefined,
     (success, reason) => { void track('desktop_upgrade_download_result', { is_success: success, ...reason === undefined ? {} : { error_reason: reason } }) },
-
+    undefined, desktopProduct === undefined ? 'nightly' : `${desktopProduct.profile}-${desktopProduct.channel}-${process.platform === 'darwin' ? 'mac' : 'win'}-${process.arch}`,
   )
 
   const updateSchedule = new DesktopUpdateSchedule(updates, resolveDesktopUpdateScheduleConfig(process.env))
@@ -1252,10 +1269,11 @@ async function main(): Promise<void> {
     window.focus()
   }
 
-  if (app.isPackaged || process.env.DSH_DESKTOP_DEV_APP === '1') app.setAsDefaultProtocolClient('dsh')
+  const launchProtocol = desktopProduct === undefined ? 'dsh' : desktopProduct.profile + '-dsh'
+  if (app.isPackaged || process.env.DSH_DESKTOP_DEV_APP === '1') app.setAsDefaultProtocolClient(launchProtocol)
   app.on('open-url', (event, url) => {
     event.preventDefault()
-    if (url === 'dsh://open' || url === 'dsh://open/') focusPrimaryWindow()
+    if (url === `${launchProtocol}://open` || url === `${launchProtocol}://open/`) focusPrimaryWindow()
   })
 
   app.on('activate', (_event, hasVisibleWindows) => {
@@ -1382,9 +1400,10 @@ const ownsDesktopInstance = claimDesktopSingleInstance(app, () => { focusPrimary
 
 if (ownsDesktopInstance) void app.whenReady().then(async () => {
   const deploymentFile = process.env.DSH_DESKTOP_DEPLOYMENT
-  if (deploymentFile !== undefined) aikoDeployment = await readAikoDeployment(deploymentFile)
+  if (!app.isPackaged && deploymentFile !== undefined) aikoDeployment = await readAikoDeployment(deploymentFile)
   const packagedManifest = app.isPackaged
     ? JSON.parse(await readFile(join(app.getAppPath(), 'package.json'), 'utf8')) as Record<string, unknown> : undefined
+  desktopProduct = app.isPackaged ? await readPackagedProduct(join(app.getAppPath(), 'dsh'), packagedManifest?.dshDesktopProduct) : undefined
   nativeBrand = readNativeDesktopBrand(app.isPackaged, process.resourcesPath,
     process.env.DSH_DESKTOP_BRAND_RESOURCES, aikoDeployment?.brand, packagedManifest?.dshDesktopBrand)
   if (nativeBrand !== undefined) {
@@ -1392,8 +1411,26 @@ if (ownsDesktopInstance) void app.whenReady().then(async () => {
     app.dock?.setIcon(icon)
     app.on('browser-window-created', (_event, window) => { window.setIcon(icon) })
   }
+  if (desktopProduct !== undefined) {
+    const product = desktopProduct
+    let connection
+    try { connection = await readProductPlatform(app.getPath('userData')) }
+    catch (error) {
+      if (!(error instanceof SyntaxError || error instanceof ProductPlatformConfigurationError)) throw error
+      connection = undefined // The settings window repairs malformed saved endpoints.
+    }
+    let identityConfig = connection === undefined ? await openProductPlatform(product) : await saveProductPlatform(app.getPath('userData'), connection)
+    for (;;) {
+      aikoDeployment = { brand: product.profile, profile: product.profile, pluginRuntime: join(app.getAppPath(), 'dsh'), identityConfig }
+      try { aikoAccount = await signInAikoDesktop(aikoDeployment, true); break }
+      catch (error) {
+        if (!(error instanceof DesktopPlatformChangeRequested)) throw error
+        identityConfig = await openProductPlatform(product)
+      }
+    }
+  }
   if (aikoDeployment !== undefined) {
-    aikoAccount = await signInAikoDesktop(aikoDeployment)
+    aikoAccount ??= await signInAikoDesktop(aikoDeployment)
     process.env.DSH_HOME = aikoAccount.home()
     const relay = await aikoAccount.startRelay()
     process.env.AIKO_DESKTOP_ACCOUNT_FILE = relay

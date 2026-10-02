@@ -4,7 +4,7 @@
 
 源码启动时应用更新不可用：侧栏不显示更新提示，手动检查会说明如何更新源码或安装部署方的发布版本。该状态不同于“已是最新版本”。正式安装包缺少 `app-update.yml` 时仍报告配置错误。应用发布与独立管理的插件更新分别负责。
 
-Aiko／云遥私有部署复用同一 Desktop Host 和启动命令。启动主题、原生平台登录及本地插件准备见 [Aiko 部署](aiko/README.zh.md)。
+Aiko／云遥私有部署复用同一 Desktop Host 和启动命令。源码开发见 [Aiko 部署](aiko/README.zh.md)；内置插件、可修改的平台地址及分品牌 GitHub 更新见[完整产品发行包](aiko/products/README.zh.md)。
 
 桌面埋点遵循[产品采集策略](../../packages/client/product-analytics/README.zh.md)及其动态应用配置，不包含 Web 使用情况。安装更新会等待该操作的本地埋点接收请求结束，再锁定 API 准入并停止 Host。接收请求的时限为一秒，失败不会阻止安装，也不等待收集端完成发送。
 

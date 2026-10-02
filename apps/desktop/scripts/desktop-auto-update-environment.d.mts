@@ -15,6 +15,7 @@ export interface DesktopAutoUpdateConfig {
   readonly publicUrl: string
   readonly keyPrefix: string
   readonly binaryKeyPrefix: string
+  readonly channel?: string
 }
 
 /** Public updater URL and private COS destination for one upload target. */
@@ -55,11 +56,13 @@ export function desktopBuildRecordFilename(target: DesktopAutoUpdateTarget): str
  * Return the electron-builder channel metadata filename for an application version.
  * @param version - Desktop semantic version.
  * @param platform - Target platform.
+ * @param channel - Brand and architecture feed name, or the upstream nightly channel.
  * @returns Channel metadata filename emitted for the target.
  */
 export function desktopUpdateMetadataFilename(
   version: string,
   platform: NodeJS.Platform,
+  channel?: string,
 ): string
 
 /**

@@ -2,6 +2,7 @@
 
 import { delimiter, join } from 'node:path'
 import { inspect } from 'node:util'
+import { existsSync } from 'node:fs'
 import { loadLayeredEnv, loadProfileDirectory, reportSkippedBundles } from '@deepseek-ai/dsh-app-boot'
 import { runProfile } from '@deepseek-ai/dsh/profile-boot'
 import type {} from '@deepseek-ai/dsh-client-connection'
@@ -26,7 +27,7 @@ async function main(): Promise<void> {
     environment: loadLayeredEnv('dsh'),
     profile: 'desktop',
     resolvedProfile: { profile, installAnchor },
-    patchFiles: [],
+    patchFiles: existsSync(join(runtimeDir, 'desktop-product.json')) ? [join(runtimeDir, 'desktop-product.patch.yml')] : [],
     args: ['--no-open', '--port', '19387'],
     ...(process.argv[5] === undefined ? {} : {
       packageManager: {

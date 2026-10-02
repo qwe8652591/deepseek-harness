@@ -16,6 +16,8 @@ function origin(value, name) {
  * @returns {{ origin: string, allowedPageOrigins: string[], authentication: 'anonymous' | 'feishu-test', [key: string]: unknown }} Selected policy.
  */
 export function resolveDesktopPolicyEnvironment(environment) {
+  // Branded products use their own optional policy service; GitHub updates need no upstream account.
+  if (environment.DSH_DESKTOP_PRODUCT !== undefined) return undefined
   const deployment = resolveDesktopAutoUpdateEnvironment(environment)
   const name = deployment === 'test' ? 'DSH_DESKTOP_MANDATORY_UPDATE_TEST_ORIGIN' : 'DSH_DESKTOP_MANDATORY_UPDATE_PROD_ORIGIN'
   const selected = origin(environment[name], name)

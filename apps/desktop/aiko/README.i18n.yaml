@@ -3,8 +3,8 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write apps/desktop/aiko/README.md
 /aiko-desktop-deployment:
-  en: de1564d0aa166847
-  zh: 160e807e2d36ca6f
+  en: c7ca3f4c20fb9c6d
+  zh: be97501c076736b9
 /aiko-desktop-deployment/configuration:
   en: b4b3fc761bdbcc71
   zh: 266b1c5dcd6f2a93

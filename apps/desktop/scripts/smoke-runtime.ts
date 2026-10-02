@@ -10,6 +10,8 @@ import { readPrimaryRuntime, workspaceDependencyPaths } from '../../../packages/
 import { DesktopHostProcess } from '../src/host-process.ts'
 import { createPluginProfile } from '../src/project-manager.ts'
 import type { DesktopRuntimeDescriptor } from '../src/runtime-tree.ts'
+import { prepareProductProfile } from '../src/product-deployment.ts'
+import { readDesktopProduct } from './desktop-product.mjs'
 
 /**
  * Check Host startup, its matching frontend, external plugins and real Office-to-PDF conversion.
@@ -31,6 +33,8 @@ export async function smokeDesktopRuntime(
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
     createPluginProfile(profile)
+    const product = readDesktopProduct(environment)
+    if (product !== undefined) await prepareProductProfile(product, profile)
     const pluginName = 'desktop-runtime-smoke-plugin'
     const plugin = join(profile, 'node_modules', pluginName)
     mkdirSync(plugin, { recursive: true })

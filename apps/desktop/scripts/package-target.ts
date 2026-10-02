@@ -19,11 +19,12 @@ import { macOSDownloadEnvironment, resolveMacOSPackageSettings } from './macos-p
 import { packagingErrorDetails, packagingStep } from './packaging-step.mjs'
 import { notarizeMacOS } from './notarize-macos.mjs'
 import { resolveMacOSNotarizationEnvironment } from './desktop-release-environment.mjs'
-import { DESKTOP_BUILD_VERSION_ENV, resolveDesktopBuildVersion, validateDesktopBuildVersion } from './desktop-build-version.mjs'
+import { DESKTOP_BUILD_VERSION_ENV, resolveDesktopBuildVersion } from './desktop-build-version.mjs'
 import { suggestDesktopBuildVersion } from './desktop-build-version-discovery.ts'
 import { desktopBuildCommitEnvironment, readDesktopBuildCommit, resolveDesktopBuildCommit } from './desktop-build-commit.mjs'
 import { requireDesktopToolchain } from './desktop-toolchain-preflight.ts'
 import { withMacOSNotarizationProxy } from './macos-notarization-proxy.ts'
+import { readDesktopProduct, parseDesktopProduct } from './desktop-product.mjs'
 
 const APP_ROOT = resolve(import.meta.dirname, '..')
 const REPOSITORY_ROOT = resolve(APP_ROOT, '..', '..')
@@ -146,6 +147,7 @@ function writeReleaseRecord(
   const buildVersion = resolveDesktopBuildVersion(environment, dshVersion)
   const packaged = resolveDesktopBuildCommit(environment)
   const update = resolveDesktopAutoUpdateConfig(environment, target.platform, target.arch)
+  const product = readDesktopProduct(environment)
   const recordPath = join(artifactsRoot, desktopBuildRecordFilename(target.name))
   const temporaryPath = `${recordPath}.tmp`
   writeFileSync(temporaryPath, `${JSON.stringify({
@@ -154,6 +156,7 @@ function writeReleaseRecord(
     version: buildVersion,
     environment: update.environment,
     publicUrl: update.publicUrl,
+    ...product === undefined ? {} : { product: parseDesktopProduct(product), channel: update.channel, signed: true },
     // Upload reads this to tag the commit a production release was packaged from.
     ...packaged === undefined ? {} : { commit: packaged.commit, dirty: packaged.dirty },
   }, null, 2)}\n`)
@@ -199,6 +202,7 @@ interface DesktopPackageInvocation {
   readonly check: boolean
   /** Build identifier to publish under, when this build does not publish the product version. */
   readonly requestedBuildVersion: string | undefined
+  readonly product?: string
 }
 
 function hostTargetName(platform: NodeJS.Platform, arch: string): DesktopPackageTargetName {
@@ -230,6 +234,7 @@ export function parseDesktopPackageInvocation(
       unsigned: { type: 'boolean', default: false },
       check: { type: 'boolean', default: false },
       'build-version': { type: 'string' },
+      product: { type: 'string' },
     },
   })
   if (positionals.length > 1) throw new Error('desktop package: expected at most one target')
@@ -247,6 +252,7 @@ export function parseDesktopPackageInvocation(
     unsigned: values.unsigned,
     check: values.check,
     requestedBuildVersion,
+    ...(values.product === undefined ? {} : { product: resolve(values.product) }),
   }
 }
 
@@ -320,8 +326,11 @@ async function resolveRequestedBuildVersion(
 ): Promise<string> {
   const requested = invocation.requestedBuildVersion
   if (requested === undefined) return productVersion
-  if (requested !== AUTOMATIC_BUILD_VERSION) return validateDesktopBuildVersion(requested, productVersion)
-  const paths = desktopTargetBuildPaths(invocation.target.name)
+  if (requested !== AUTOMATIC_BUILD_VERSION) {
+    return resolveDesktopBuildVersion({ ...environment, [DESKTOP_BUILD_VERSION_ENV]: requested }, productVersion)
+  }
+  if (environment.DSH_DESKTOP_PRODUCT !== undefined) throw new Error('desktop product: provide an explicit --build-version; automatic COS numbering is unavailable')
+  const paths = desktopTargetBuildPaths(invocation.target.name, environment)
   return suggestDesktopBuildVersion({
     productVersion, target: invocation.target.name, environment,
     // Unsigned builds land beside the signed output, so numbering has to read the directory this run writes.
@@ -333,6 +342,10 @@ async function main(): Promise<void> {
   const invocation = parseDesktopPackageInvocation(process.argv.slice(2))
   const { target } = invocation
   const environment = loadDesktopPackageEnvironment(target.platform)
+  if (invocation.product !== undefined) {
+    environment.DSH_DESKTOP_PRODUCT = invocation.product
+    readDesktopProduct(environment, true)
+  }
   const productVersion = packageVersion(join(APP_ROOT, 'package.json'), 'desktop package')
   // Release settings come from the target dotenv file alone, so the version this run publishes is an
   // argument; the environment variable below only carries it to the child processes that build.
@@ -401,7 +414,7 @@ export async function packageTarget(
   const proxyEvent = (status: string) => { if (journal) recordPackagingEvent(journal, { type: 'notarization-proxy', status }) }
   const mac = target.platform === 'darwin' ? resolveMacOSPackageSettings(environment) : undefined
   const packArguments = mac === undefined ? [] : ['--concurrency', String(mac.packConcurrency)]
-  const buildPaths = desktopTargetBuildPaths(target.name)
+  const buildPaths = desktopTargetBuildPaths(target.name, environment)
   const releaseRecordPath = join(buildPaths.artifacts, desktopBuildRecordFilename(target.name))
   if (!invocation.prepareOnly && !invocation.unsigned) {
     rmSync(releaseRecordPath, { force: true })
@@ -489,7 +502,7 @@ export async function packageTarget(
   } else if (target.platform === 'darwin') {
     await execute([...desktopElectronBuilderArguments(target, true), '--config.mac.notarize=false'], electronBuilderEnv)
     await execute(['exec', 'tsx', 'scripts/smoke-packaged-runtime.ts'], targetEnv)
-    const appPath = join(buildPaths.artifacts, target.arch === 'arm64' ? 'mac-arm64' : 'mac', 'DeepSeek Harness.app')
+    const appPath = join(buildPaths.artifacts, target.arch === 'arm64' ? 'mac-arm64' : 'mac', (readDesktopProduct(environment)?.productName ?? 'DeepSeek Harness') + '.app')
     await withMacOSNotarizationProxy(mac?.notarizationProxy,
       () => notarizeMacOS({ appPath, ...resolveMacOSNotarizationEnvironment(environment) }), undefined, undefined, proxyEvent)
   } else {

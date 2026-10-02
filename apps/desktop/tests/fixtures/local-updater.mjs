@@ -18,6 +18,7 @@ import { DesktopMandatoryUpdateWindow } from '../../lib/types/mandatory-update-w
 import { DesktopUpdatePreparationError } from '../../lib/types/update-error.js'
 import { DesktopUpdateHttpExecutor } from '../../lib/types/update-http-executor.js'
 import { qualifyUpdateDialogs } from './update-dialogs.mjs'
+import { qualifyProductPlatform } from './product-platform.mjs'
 
 const root = process.env.DSH_LOCAL_UPDATE_TEST_ROOT
 assert.ok(root, 'The launcher must allocate a private test root')
@@ -37,7 +38,7 @@ async function main() {
   const server = await createUpdateServer()
   let serial = 0
   const fixtures = []
-  async function fixture(mode = 'healthy', timeoutMs = 60_000) {
+  async function fixture(mode = 'healthy', timeoutMs = 60_000, channel = 'nightly') {
     server.select(mode)
     const directory = join(root, String(++serial))
     await mkdir(directory, { recursive: true })
@@ -54,19 +55,38 @@ async function main() {
     updater.httpExecutor = new DesktopUpdateHttpExecutor(timeoutMs)
     updater.disableDifferentialDownload = true
     updater.disableWebInstaller = true
-    updater.setFeedURL({ provider: 'generic', url: server.url, channel: 'nightly' })
+    updater.setFeedURL({ provider: 'generic', url: server.url, channel })
     const installations = []
     const states = []
     let restart = async () => true
     updater.quitAndInstall = (...args) => { installations.push(args) }
     const coordinator = new DesktopUpdateCoordinator(state => { states.push(state); return state },
-      () => restart(), updater, () => true, () => '1.0.0')
+      () => restart(), updater, () => true, () => '1.0.0', undefined, undefined, channel)
     const result = { updater, coordinator, installations, states, directory, restart: handler => { restart = handler } }
     fixtures.push(result)
     return result
   }
   async function scenario(name, run) { await run(); cases.push(name); console.log(`local updater: ${name}`) }
   try {
+    dialogScreenshots.push(...await qualifyProductPlatform(root))
+    cases.push('product-platform-save-change-reopen')
+    for (const brand of ['aiko', 'yunyao']) {
+      await scenario(`${brand}-isolated-channel-download`, async () => {
+        const channel = `${brand}-beta-win-x64`
+        const f = await fixture('healthy', 60000, channel)
+        const before = server.requests.length
+        const available = await f.coordinator.check(true)
+        assert.equal(available.phase, 'available')
+        assert.deepEqual(server.requests.slice(before), [`/${channel}.yml`])
+        await f.coordinator.download(available.version)
+        assert.equal(f.coordinator.state.phase, 'ready')
+        assert.equal(f.installations.length, 0)
+      })
+    }
+    if (process.env.DSH_LOCAL_UPDATE_PRODUCTS_ONLY === '1') {
+      await writeFile(join(root, 'result.json'), JSON.stringify({ cases, installerExecuted: false, screenshot, dialogScreenshots, requests: server.requests }, null, 2) + '\n')
+      return
+    }
     await scenario('same-version-no-update', async () => {
       const f = await fixture()
       server.select('healthy', '1.0.0')
@@ -224,7 +244,7 @@ async function main() {
       assert.equal(f.states.length, 0)
     })
     await scenario('ordinary-real-dialog-cancel-and-explicit-install', async () => {
-      dialogScreenshots = await qualifyUpdateDialogs(root, fixture)
+      dialogScreenshots.push(...await qualifyUpdateDialogs(root, fixture))
     })
     await scenario('mandatory-real-window-policy-download-retry-and-clear', async () => {
       protocol.handle('dsh-app', async request => {

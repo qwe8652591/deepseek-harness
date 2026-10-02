@@ -1,6 +1,7 @@
 /** Select and copy the local npm tarball closures that supply Desktop dsh and its private Host. */
 
 import { createHash } from 'node:crypto'
+import { execFileSync } from 'node:child_process'
 import {
   constants,
   copyFileSync,
@@ -23,9 +24,9 @@ import {
   parseDesktopCorePackageSet,
   type DesktopCorePackageRecord,
 } from '../src/core-package-set.ts'
-import { capture } from '../../../scripts/release/process.ts'
 import { tarballFiles } from '../../../scripts/release/tarball.ts'
 import { resolveDesktopTargetBuildPaths } from './desktop-build-paths.mjs'
+import { readDesktopProduct, type DesktopProductBuild } from './desktop-product.mjs'
 
 const DSH_PACKAGE = '@deepseek-ai/dsh'
 const ROOT_PACKAGES = [DSH_PACKAGE, DESKTOP_HOST_PACKAGE] as const
@@ -58,6 +59,7 @@ function dependencyNames(manifest: Readonly<Record<string, unknown>>, section: s
  */
 export function selectDesktopPackageClosure(
   available: ReadonlyMap<string, PackedDesktopPackage>,
+  productRoots: readonly string[] = [],
 ): PackedDesktopPackage[] {
   const workspace = yaml.load(readFileSync(join(REPOSITORY_ROOT, 'pnpm-workspace.yaml'), 'utf8')) as { packages: string[] }
   const workspaceNames = new Set(globSync(workspace.packages.map(pattern => `${pattern}/package.json`), { cwd: REPOSITORY_ROOT })
@@ -80,7 +82,7 @@ export function selectDesktopPackageClosure(
       if (available.has(dependency)) visit(dependency)
     }
   }
-  for (const name of ROOT_PACKAGES) {
+  for (const name of [...ROOT_PACKAGES, ...productRoots]) {
     if (!available.has(name)) throw new Error(`desktop package set: packed inputs omit ${name}`)
     visit(name)
   }
@@ -88,7 +90,8 @@ export function selectDesktopPackageClosure(
 }
 
 function packedManifest(tarball: string): Record<string, unknown> {
-  const value: unknown = JSON.parse(capture('tar', ['-xOzf', tarball, 'package/package.json']))
+  // Third-party manifests may contain inline market artwork larger than Node's 1 MiB capture default.
+  const value: unknown = JSON.parse(execFileSync('tar', ['-xOzf', tarball, 'package/package.json'], { encoding: 'utf8', maxBuffer: 8 * 1024 * 1024, windowsHide: true }))
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {
     throw new Error(`desktop package set: ${tarball} has no package manifest`)
   }
@@ -128,8 +131,17 @@ export function assertDesktopHostPackageFiles(files: readonly string[]): void {
 }
 
 /** Prepare a package set from release tarball directories. */
-export function prepareDesktopPackageSet(inputs: readonly string[], output: string): void {
-  const selected = selectDesktopPackageClosure(packedPackages(inputs))
+export function prepareDesktopPackageSet(inputs: readonly string[], output: string, product?: DesktopProductBuild): void {
+  const available = packedPackages(inputs)
+  for (const archive of product?.archives ?? []) {
+    const manifest = packedManifest(archive.path)
+    if (manifest.name !== archive.name || manifest.version !== archive.version || available.has(archive.name)) throw new Error('desktop product: archive identity mismatch or duplicate ' + archive.name)
+    const integrity = 'sha512-' + createHash('sha512').update(readFileSync(archive.path)).digest('base64')
+    if (integrity !== archive.integrity) throw new Error('desktop product: archive integrity failed for ' + archive.name)
+    available.set(archive.name, { tarball: archive.path, manifest })
+  }
+  const roots = product === undefined ? [] : [...product.bundles, ...product.plugins.map(plugin => plugin.name)]
+  const selected = selectDesktopPackageClosure(available, roots)
   const host = selected.find(packed => packed.manifest.name === DESKTOP_HOST_PACKAGE)
   if (host === undefined) throw new Error(`desktop package set: selected closure omits ${DESKTOP_HOST_PACKAGE}`)
   assertDesktopHostPackageFiles(tarballFiles(host.tarball))
@@ -171,7 +183,7 @@ function main(): void {
   })
   const inputs = (values.from ?? defaultInputs).map(path => resolve(REPOSITORY_ROOT, path))
   const output = values.out === undefined ? buildPaths.packageSet : resolve(REPOSITORY_ROOT, values.out)
-  prepareDesktopPackageSet(inputs, output)
+  prepareDesktopPackageSet(inputs, output, readDesktopProduct(process.env, true))
   console.log(`desktop package set: prepared ${output}`)
 }
 

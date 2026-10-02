@@ -2,7 +2,7 @@
 
 English | [中文](README.zh.md)
 
-This reference covers source-based Aiko/Yunyao deployments of Desktop 0.2.0-rc.2. The official profile runner, Web UI, native adapters and Office runtime remain the application. Plugin source remains in the separate Aiko Workbench monorepo; this fork consumes its published archives. Signed installers and custom update distribution are outside this local deployment.
+This reference covers source-based Aiko/Yunyao deployments of Desktop 0.2.0-rc.2. The official profile runner, Web UI, native adapters and Office runtime remain the application. Plugin source remains in the separate Aiko Workbench monorepo; this fork consumes its published archives. See [complete distributions](products/README.md) for branded installers and GitHub updates.
 
 ## Configuration
 

@@ -4,19 +4,12 @@ import type { AfterPackContext, BeforePackContext } from 'app-builder-lib'
 export interface DesktopElectronBuilderConfig {
   readonly appId: string
   readonly artifactName: string
-  readonly protocols: readonly [{ readonly name: 'DeepSeek Harness'; readonly schemes: readonly ['dsh'] }]
+  readonly protocols: readonly [{ readonly name: string; readonly schemes: readonly [string] }]
   readonly directories: {
     readonly output: string
   }
-  readonly files: readonly [
-    string,
-    string,
-    string,
-    string,
-    { readonly from: string, readonly to: 'dsh', readonly filter: readonly ['**/*'] },
-    { readonly from: string, readonly to: 'dsh/node_modules', readonly filter: readonly ['**/*'] },
-  ]
-  readonly extraMetadata: { readonly dshDesktopAppId: string, readonly dshDesktopBrand?: 'aiko' | 'yunyao' }
+  readonly files: readonly (string | { readonly from: string, readonly to: string, readonly filter: readonly string[] })[]
+  readonly extraMetadata: { readonly dshDesktopAppId: string, readonly dshDesktopBrand?: 'aiko' | 'yunyao', readonly dshDesktopProduct?: 'aiko' | 'yunyao', readonly name?: string }
   readonly asarUnpack: readonly string[]
   readonly extraResources: readonly { readonly from: string, readonly to: 'runtime' | 'icon.png' | 'tray.ico' | 'branding' }[]
   readonly mac: {
@@ -46,7 +39,7 @@ export interface DesktopElectronBuilderConfig {
     readonly installerIcon?: string
     readonly uninstallerIcon?: string
     readonly installerHeaderIcon?: string
-    readonly include: string
+    readonly include?: string
     readonly oneClick: false
     readonly perMachine: false
     readonly allowElevation: false
@@ -58,7 +51,7 @@ export interface DesktopElectronBuilderConfig {
   readonly afterPack: (context: AfterPackContext) => Promise<void>
   readonly afterSign: (context: AfterPackContext) => Promise<void>
   readonly artifactBuildCompleted: (artifact: { readonly file: string }) => Promise<void> | undefined
-  readonly publish: readonly [{ readonly provider: 'generic', readonly url: string }] | null
+  readonly publish: readonly [{ readonly provider: 'generic', readonly url: string, readonly channel: string }] | null
 }
 
 /**

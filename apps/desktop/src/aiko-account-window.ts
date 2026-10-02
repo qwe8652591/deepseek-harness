@@ -6,12 +6,16 @@ import { pathToFileURL } from 'node:url'
 import { DesktopAccount, readAccountConfig } from './aiko-account.ts'
 import { readAikoWelcome, type AikoDeployment } from './aiko-deployment.ts'
 
+/** Sign-in was closed explicitly so the user can select another platform. */
+export class DesktopPlatformChangeRequested extends Error {}
+
 /**
  * Restore or obtain a verified platform session, with passive assets from one theme plugin.
  * @param deployment - startup-selected identity and theme installation.
+ * @param configurePlatform - Whether the packaged product offers editable platform addresses before login.
  * @returns a verified native account owned by the caller until shutdown.
  */
-export async function signInAikoDesktop(deployment: AikoDeployment): Promise<DesktopAccount> {
+export async function signInAikoDesktop(deployment: AikoDeployment, configurePlatform = false): Promise<DesktopAccount> {
   const account = new DesktopAccount(await readAccountConfig(deployment.identityConfig))
   const welcome = await readAikoWelcome(deployment, app.getLocale())
   const directory = join(app.getPath('userData'), 'aiko-welcome', deployment.brand)
@@ -32,7 +36,13 @@ export async function signInAikoDesktop(deployment: AikoDeployment): Promise<Des
       || new URL(event.senderFrame.url).pathname !== new URL(pathToFileURL(join(directory, 'login.html')).href).pathname)
       throw new Error('Account IPC rejected an unowned welcome frame')
   }
-  ipcMain.handle('aiko:account:locale', (event) => { assertWelcome(event); return welcome.locale })
+  ipcMain.handle('aiko:account:locale', (event) => { assertWelcome(event); return { ...welcome.locale, configurePlatform } })
+  ipcMain.handle('aiko:account:platform', (event) => {
+    assertWelcome(event)
+    if (!configurePlatform) throw new Error('Platform selection belongs to packaged products')
+    account.cancel()
+    rejectAdmission(new DesktopPlatformChangeRequested())
+  })
   ipcMain.handle('aiko:account:login', async (event) => {
     assertWelcome(event)
     const user = await account.login()
@@ -59,7 +69,10 @@ export async function signInAikoDesktop(deployment: AikoDeployment): Promise<Des
     app.setName(welcome.locale.messages.accountBrand)
     return account
   } catch (error) { await account.dispose(); throw error }
-  finally { for (const method of ['locale', 'login', 'cancel']) ipcMain.removeHandler('aiko:account:' + method) }
+  finally {
+    if (window !== undefined && !window.isDestroyed()) window.destroy()
+    for (const method of ['locale', 'login', 'cancel', 'platform']) ipcMain.removeHandler('aiko:account:' + method)
+  }
 }
 
 /**

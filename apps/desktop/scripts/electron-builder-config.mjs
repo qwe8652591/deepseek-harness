@@ -29,6 +29,7 @@ import { preserveWindowsRuntimeSignature, signWindowsCode } from './windows-runt
 import { prepareWindowsAsarUnpack, verifyWindowsAsarUnpack } from './windows-asar-unpack.mjs'
 import { recordPackagingEvent } from './packaging-run.mjs'
 import { desktopBrandDirectory, readDesktopBrand } from './desktop-brand.mjs'
+import { readDesktopProduct } from './desktop-product.mjs'
 import {
   resolveMacOSAppUpdateFeed,
   verifyMacOSAppUpdateConfig,
@@ -52,6 +53,7 @@ export function createElectronBuilderConfig(
   preparedRuntimeVersion = undefined,
 ) {
   const appId = resolveDesktopAppId(env)
+  const product = readDesktopProduct(env)
   const policy = resolveDesktopPolicyEnvironment(env)
   const targetPlatform = env.DSH_DESKTOP_TARGET_PLATFORM
   const resolvedPlatform = targetPlatform ?? hostPlatform
@@ -63,10 +65,10 @@ export function createElectronBuilderConfig(
   if (unsigned && resolvedPlatform !== 'win32') throw new Error('desktop package: unsigned builds require Windows')
   const packagesMacOS = targetPlatform === 'darwin' || (targetPlatform === undefined && hostPlatform === 'darwin')
   const packagesWindows = resolvedPlatform === 'win32'
-  if (resolvedPlatform === 'win32') installWindowsDirectoryInstaller()
+  if (resolvedPlatform === 'win32' && product === undefined) installWindowsDirectoryInstaller()
   const macOSSigning = packagesMacOS ? resolveMacOSSigningEnvironment(env) : undefined
   if (packagesMacOS) resolveMacOSNotarizationEnvironment(env)
-  const buildPaths = desktopTargetBuildPaths(resolveDesktopBuildTarget(env, hostPlatform, hostArch))
+  const buildPaths = desktopTargetBuildPaths(resolveDesktopBuildTarget(env, hostPlatform, hostArch), env)
   const brand = readDesktopBrand(env)
   const brandDirectory = brand === undefined ? undefined : desktopBrandDirectory(buildPaths.root, brand.brand)
   let primaryRuntimeDestination
@@ -102,17 +104,18 @@ export function createElectronBuilderConfig(
   const packaged = resolveDesktopBuildCommit(env)
   return {
     appId,
-    protocols: [{ name: 'DeepSeek Harness', schemes: ['dsh'] }],
+    protocols: [{ name: product?.productName ?? 'DeepSeek Harness', schemes: [product === undefined ? 'dsh' : product.profile + '-dsh'] }],
     extraMetadata: {
       dshDesktopAppId: appId,
+      ...product === undefined ? {} : { name: product.profile + '-dsh-desktop', dshDesktopProduct: product.profile },
       ...brand === undefined ? {} : { dshDesktopBrand: brand.brand },
       dshMandatoryUpdatePolicy: policy,
       ...buildVersion === productVersion ? {} : { version: buildVersion },
       ...packaged === undefined ? {} : { dshBuildCommit: packaged.commit, dshBuildDirty: packaged.dirty },
     },
-    productName: 'DeepSeek Harness',
+    productName: product?.productName ?? 'DeepSeek Harness',
     // Unsigned builds carry their own suffix so a shared file can never pass for a release artifact.
-    artifactName: `deepseek-harness-\${version}-\${os}-\${arch}${unsigned ? '-unsigned' : ''}.\${ext}`,
+    artifactName: `${product === undefined ? 'deepseek-harness' : product.profile + '-dsh'}-\${version}-\${os}-\${arch}${unsigned ? '-unsigned' : ''}.\${ext}`,
     directories: { output: unsigned ? buildPaths.unsignedArtifacts : buildPaths.artifacts },
     asar: true,
     electronDist: buildPaths.electron,
@@ -126,7 +129,7 @@ export function createElectronBuilderConfig(
           windowsHide: true,
         })
       }
-      if (resolvedPlatform !== 'win32') return true
+      if (resolvedPlatform !== 'win32' || product !== undefined) return true
       await promisify(execFile)('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File',
         fileURLToPath(new URL('./prepare-windows-installer.ps1', import.meta.url)),
         '-OutputDirectory', join(buildPaths.root, 'installer-ui')], {
@@ -143,6 +146,7 @@ export function createElectronBuilderConfig(
       'lib/welcome/**/*',
       'lib/preload-app.cjs',
       'lib/preload-aiko-account.cjs',
+      'lib/preload-product-platform.cjs',
       'lib/preload-mandatory.cjs',
       'lib/preload-platform-account.cjs',
       'lib/preload-update-dialog.cjs',
@@ -254,9 +258,12 @@ export function createElectronBuilderConfig(
         uninstallerIcon: join(brandDirectory, 'icon.ico'),
         installerHeaderIcon: join(brandDirectory, 'icon.ico'),
       }),
-      installerSidebar: join(buildPaths.root, 'installer-ui', 'uninstaller-sidebar.bmp'),
-      uninstallerSidebar: join(buildPaths.root, 'installer-ui', 'uninstaller-sidebar.bmp'),
-      include: fileURLToPath(new URL('./installer.nsh', import.meta.url)),
+      // The upstream custom pages contain fixed DeepSeek artwork.
+      ...(product === undefined ? {
+        installerSidebar: join(buildPaths.root, 'installer-ui', 'uninstaller-sidebar.bmp'),
+        uninstallerSidebar: join(buildPaths.root, 'installer-ui', 'uninstaller-sidebar.bmp'),
+        include: fileURLToPath(new URL('./installer.nsh', import.meta.url)),
+      } : {}),
       oneClick: false,
       perMachine: false,
       allowElevation: false,
@@ -265,6 +272,6 @@ export function createElectronBuilderConfig(
       differentialPackage: true,
     },
     detectUpdateChannel: false,
-    publish: update === undefined ? null : [{ provider: 'generic', url: update.publicUrl, channel: 'nightly' }],
+    publish: update === undefined ? null : [{ provider: 'generic', url: update.publicUrl, channel: update.channel ?? 'nightly' }],
   }
 }

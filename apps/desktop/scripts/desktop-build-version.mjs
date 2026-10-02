@@ -85,6 +85,8 @@ export function validateDesktopBuildVersion(buildVersion, productVersion) {
 export function resolveDesktopBuildVersion(env, productVersion) {
   const buildVersion = env[DESKTOP_BUILD_VERSION_ENV]?.trim()
   if (buildVersion === undefined || buildVersion === '') return productVersion
+  // Whole-product releases version the application independently of its pinned upstream runtime.
+  if (env.DSH_DESKTOP_PRODUCT !== undefined) return parseVersion(buildVersion, 'product release version').version
   return validateDesktopBuildVersion(buildVersion, productVersion)
 }
 
