@@ -14,7 +14,7 @@ export interface AikoDeployment {
   readonly profilePatch?: string
 }
 const themes = { aiko: 'aiko-dsh-theme', yunyao: 'yunyao-dsh-theme' } as const
-const plugins = ['aiko-dsh-workbench-kit', 'aiko-dsh-workbench', 'aiko-dsh-tender', '@aiko-dsh-plugins/dsh-knowledge', 'aiko-dsh-code', 'aiko-dsh-market']
+const plugins = ['aiko-dsh-workbench', 'aiko-dsh-tender', '@aiko-dsh-plugins/dsh-knowledge', 'aiko-dsh-code', 'aiko-dsh-market']
 const record = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
 
 /**
@@ -80,7 +80,7 @@ export async function prepareAikoDesktopProfile(deployment: AikoDeployment, prof
     // The signed Desktop runtime supplies its own base and Web bundles.
     official = bundles.filter(name => name.startsWith('@deepseek-ai/') && name !== '@deepseek-ai/dsh-base' && name !== '@deepseek-ai/dsh-web-app')
   }
-  const installed = [...new Set([...selected, 'aiko-dsh-workbench-kit', 'aiko-dsh-plugin-catalog'])]
+  const installed = [...new Set([...selected, 'aiko-dsh-plugin-catalog'])]
   const runtimeFile = join(deployment.pluginRuntime, 'package.json')
   const runtime: unknown = JSON.parse(await readFile(runtimeFile, 'utf8'))
   if (!record(runtime) || !record(runtime.dependencies)) throw new Error('Desktop plugin runtime has no dependency map')

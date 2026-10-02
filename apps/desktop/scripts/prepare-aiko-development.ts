@@ -11,7 +11,9 @@ const { values } = parseArgs({ options: { 'source-runtime': { type: 'string' }, 
 const source = values['source-runtime'], output = values.output
 if (!source || !output || !isAbsolute(source) || !isAbsolute(output) || source === output) throw new Error('Provide distinct absolute --source-runtime and --output directories')
 const existing: { dependencies: Record<string, string> } = JSON.parse(await readFile(join(source, 'package.json'), 'utf8'))
-const packages = ['aiko-dsh-workbench-kit', 'aiko-dsh-workbench', 'aiko-dsh-tender', '@aiko-dsh-plugins/dsh-knowledge', 'aiko-dsh-code', 'aiko-dsh-theme', 'yunyao-dsh-theme', 'aiko-dsh-market', 'aiko-dsh-plugin-catalog']
+const packages = ['aiko-dsh-workbench', 'aiko-dsh-tender', '@aiko-dsh-plugins/dsh-knowledge', 'aiko-dsh-code', 'aiko-dsh-theme', 'yunyao-dsh-theme', 'aiko-dsh-market', 'aiko-dsh-plugin-catalog']
+// Retain an explicitly supplied legacy resource package without requiring it for platform services.
+if (existing.dependencies['aiko-dsh-workbench-kit']) packages.push('aiko-dsh-workbench-kit')
 const dependencies: Record<string, string> = {}
 for (const name of packages) {
   const spec = existing.dependencies[name]

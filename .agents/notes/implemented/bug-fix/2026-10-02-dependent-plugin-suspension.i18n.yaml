@@ -3,8 +3,8 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-10-02-dependent-plugin-suspension.md
 /agent-note-report-dependent-suspension-after-disabling-a-provider:
-  en: 174dfd874ee5bc05
-  zh: 37907b7fef209d03
+  en: 4cf46945ab272754
+  zh: e753e50db515ddcd
 /agent-note-report-dependent-suspension-after-disabling-a-provider/problem:
   en: 25276d4d634a651d
   zh: f91bb8f27dfd86dd

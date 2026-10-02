@@ -12,7 +12,7 @@ async function fixture() {
   const root = await mkdtemp(join(tmpdir(), 'aiko-desktop-'))
   directories.push(root)
   const runtime = join(root, 'runtime'), profile = join(root, 'home/profiles/desktop')
-  const names = ['aiko-dsh-workbench-kit', 'aiko-dsh-workbench', 'aiko-dsh-tender', '@aiko-dsh-plugins/dsh-knowledge', 'aiko-dsh-code', 'aiko-dsh-theme', 'yunyao-dsh-theme', 'aiko-dsh-market', 'aiko-dsh-plugin-catalog']
+  const names = ['aiko-dsh-workbench', 'aiko-dsh-tender', '@aiko-dsh-plugins/dsh-knowledge', 'aiko-dsh-code', 'aiko-dsh-theme', 'yunyao-dsh-theme', 'aiko-dsh-market', 'aiko-dsh-plugin-catalog']
   for (const name of names) {
     const directory = join(runtime, 'node_modules', name)
     await mkdir(directory, { recursive: true })
@@ -149,7 +149,7 @@ it.each(['aiko', 'yunyao'] as const)('composes the %s product profile without ac
     'aiko-dsh-workbench', 'aiko-dsh-tender', '@aiko-dsh-plugins/dsh-knowledge', 'aiko-dsh-code', 'aiko-dsh-market',
     brand === 'aiko' ? 'aiko-dsh-theme' : 'yunyao-dsh-theme',
   ])
-  expect(manifest.dependencies['aiko-dsh-workbench-kit']).toBeDefined()
+  expect(manifest.dependencies['aiko-dsh-workbench-kit']).toBeUndefined()
   const other = brand === 'aiko' ? 'yunyao-dsh-theme' : 'aiko-dsh-theme'
   await expect(lstat(join(profile, 'node_modules', other))).rejects.toMatchObject({ code: 'ENOENT' })
 })

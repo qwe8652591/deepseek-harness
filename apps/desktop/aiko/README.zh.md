@@ -17,7 +17,7 @@
 }
 ```
 
-`profile` 可选 `aiko` 或 `yunyao`，从已安装工作台包的 `./profiles/aiko` 或 `./profiles/yunyao` JSON 导出读取配置。两者启用相同的业务 bundle，且只链接一个品牌主题，由其提供欢迎页资源。Kit 保留为已安装的适配器依赖，资源 bundle 初始不激活。桌面保留官方固定的 `profiles/desktop` 目录和内置基础 bundle。旧的纯 `brand` 配置继续兼容；同时提供两个字段时必须一致。`identityConfig` 和 `pluginRuntime` 必须是绝对路径。可选的 `profilePatch` 仅在首次启动时写入空 profile；已有非空 patch 必须由维护者明确合并。后续启动保留插件移除、恢复状态和用户 patch。更换插件运行时需使用独立部署 profile；启动时拒绝替换非本部署管理的安装。
+`profile` 可选 `aiko` 或 `yunyao`，从已安装工作台包的 `./profiles/aiko` 或 `./profiles/yunyao` JSON 导出读取配置。两者启用相同的业务 bundle，且只链接一个品牌主题，由其提供欢迎页资源。平台适配由工作台的平台组件提供。Kit 为可选资源包；仅当输入部署显式包含其压缩包时，运行时准备过程才保留它。桌面保留官方固定的 `profiles/desktop` 目录和内置基础 bundle。旧的纯 `brand` 配置继续兼容；同时提供两个字段时必须一致。`identityConfig` 和 `pluginRuntime` 必须是绝对路径。可选的 `profilePatch` 仅在首次启动时写入空 profile；已有非空 patch 必须由维护者明确合并。后续启动保留插件移除、恢复状态和用户 patch。更换插件运行时需使用独立部署 profile；启动时拒绝替换非本部署管理的安装。
 
 已安装工作台包含 `workdsh-plugin-platform` 时，profile 准备器将旧 `workdsh` 条目的 `name: aiko-dsh-workbench` 断言迁移到该组件，保留配置和禁用状态。其他条目断言及旧安装保持原样。
 
@@ -30,7 +30,7 @@ Electron 验证加密保存的会话，或在系统浏览器中打开平台。�
 ## 开发步骤
 
 1. 运行 `corepack pnpm install --frozen-lockfile` 安装官方 workspace，再运行 `corepack pnpm run build`。
-2. 从工作台 monorepo 准备工作台、Kit、标书、知识库、Code、插件市场、插件目录及两个主题的压缩包。输入运行时的 `package.json` 必须以绝对 `file:...tgz` 依赖列出这些包。插件目录是市场的静态数据依赖，不作为 profile bundle 激活。工作台账号入口的优先级必须与官方账号入口不同。
+2. 从工作台 monorepo 准备工作台、标书、知识库、Code、插件市场、插件目录及两个主题的压缩包；仅在需要共享资源时加入 Kit。输入运行时的 `package.json` 必须以绝对 `file:...tgz` 依赖列出所选压缩包。插件目录是市场的静态数据依赖，不作为 profile bundle 激活。工作台账号入口的优先级必须与官方账号入口不同。
 3. 从仓库根目录执行以下准备命令。它将框架依赖链接到当前 workspace，避免重复 Cordis 和 React 实例。此外部链接插件依赖图要求 pnpm 10.34.5；官方 workspace 保留自己的包管理器版本。
 
 ```powershell

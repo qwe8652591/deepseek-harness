@@ -1,8 +1,8 @@
 # Agent Note: 停用提供者后报告依赖组件暂停
 
-[English](2026-10-02-dependent-plugin-suspension.md) | 中文
-
 Status: implemented
+
+[English](2026-10-02-dependent-plugin-suspension.md) | 中文
 
 ## Problem
 

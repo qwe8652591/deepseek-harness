@@ -18,7 +18,7 @@ The market uses the official PluginManager Remote. Its organization directory is
 
 ## Alternatives considered
 
-Named Aiko and Yunyao product profiles come from the installed Workbench package's JSON exports rather than another application launcher. Desktop retains its reserved physical profile and signed base composition. Brand-only configurations remain compatible; conflicting profile and brand selections fail before login. The first named-profile migration removes Kit resource activation while retaining its adapter package, user business-plugin choices and recovery state.
+Named Aiko and Yunyao product profiles come from the installed Workbench package's JSON exports rather than another application launcher. Desktop retains its reserved physical profile and signed base composition. Brand-only configurations remain compatible; conflicting profile and brand selections fail before login. The first named-profile migration removes Kit resource activation while retaining user business-plugin choices and recovery state. Platform adapters now ship in the Workbench platform component, so new deployments do not require Kit. Runtime preparation retains an explicitly supplied Kit archive for optional shared resources and legacy preset paths; it never deletes existing user data.
 
 **Port the old main window wholesale.** This discards upstream browser, directory, shortcut, update and recovery behavior, making each upgrade a larger fork.
 

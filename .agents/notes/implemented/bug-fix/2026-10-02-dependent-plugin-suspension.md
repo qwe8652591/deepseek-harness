@@ -1,8 +1,8 @@
 # Agent Note: Report dependent suspension after disabling a provider
 
-English | [中文](2026-10-02-dependent-plugin-suspension.zh.md)
-
 Status: implemented
+
+English | [中文](2026-10-02-dependent-plugin-suspension.zh.md)
 
 ## Problem
 
