@@ -83,6 +83,25 @@ it('rejects unmanaged plugins without deleting their files', async () => {
   expect(await readFile(join(unknown, 'keep.txt'), 'utf8')).toBe('user installation')
 })
 
+it('migrates the legacy workbench name assertion only after the split package is installed', async () => {
+  const { runtime, profile, config } = await fixture()
+  await prepareAikoDesktopProfile(config, profile)
+  const file = join(profile, 'cordis.patch.yml')
+  const rows = [{ id: 'workdsh', name: 'aiko-dsh-workbench', disabled: true, config: { accountFile: config.identityConfig, capabilities: { baseUrl: 'https://platform.example.test' } } },
+    { id: 'custom', name: 'aiko-dsh-workbench', disabled: false }]
+  await writeFile(file, JSON.stringify(rows))
+  await prepareAikoDesktopProfile(config, profile)
+  expect(load(await readFile(file, 'utf8'))).toEqual(rows)
+  const platform = join(runtime, 'node_modules/aiko-dsh-workbench/node_modules/workdsh-plugin-platform')
+  await mkdir(platform, { recursive: true })
+  await writeFile(join(platform, 'package.json'), '{"name":"workdsh-plugin-platform"}')
+  const expected = [{ ...rows[0], name: 'workdsh-plugin-platform' }, rows[1]]
+  await prepareAikoDesktopProfile(config, profile)
+  expect(load(await readFile(file, 'utf8'))).toEqual(expected)
+  await prepareAikoDesktopProfile(config, profile)
+  expect(load(await readFile(file, 'utf8'))).toEqual(expected)
+})
+
 it('preserves plugin removal and the official recovery profile on restart', async () => {
   const { profile, config } = await fixture()
   await prepareAikoDesktopProfile(config, profile)

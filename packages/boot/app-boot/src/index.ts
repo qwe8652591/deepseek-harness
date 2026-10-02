@@ -268,7 +268,8 @@ const userPatchesSchema = entryListSchema
  * @param patches Complete ordered patch list.
  * @param binName Diagnostic prefix.
  * @param requiredIds Explicit enablement targets whose existing failures also reject reconciliation.
- * @returns Diagnostics for unchanged pre-existing inactive entries; new or changed failures reject.
+ * @returns Diagnostics for unchanged inactive entries and active dependents suspended by disabling or removing entries.
+ * New activation failures and explicit enablement failures reject.
  */
 export async function reconcileProfilePatches(
   ctx: Context, patches: PatchOptions[], binName: string, requiredIds: readonly string[] = [],
@@ -278,6 +279,9 @@ export async function reconcileProfilePatches(
   const previousFailures = (await inactiveEntries(ctx)).map(failure => ({
     ...failure, diagnostic: inactiveDiagnostic(failure), fiber: failure.entry.fiber, options: JSON.stringify(failure.entry.options),
   }))
+  const previousActive = new Map([...ctx.loader.entries()]
+    .filter(row => row.fiber?.state === FIBER_ACTIVE)
+    .map(row => [row, { fiber: row.fiber, options: JSON.stringify(row.options) }]))
   // Removed entries leave the Loader store before their async disposers finish.
   const previousFibers = [...ctx.loader.entries()].flatMap(row => row.fiber === undefined ? [] : [{
     fiber: row.fiber, failed: row.fiber.state === FIBER_FAILED || row.fiber.state === FIBER_DISPOSED,
@@ -290,9 +294,16 @@ export async function reconcileProfilePatches(
   const results = await Promise.allSettled(previousFibers.map(({ fiber }) => fiber.await()))
   await ctx.loader.await()
   const failures = await inactiveEntries(ctx)
-  const introduced = failures.filter(failure => requiredIds.includes(failure.entry.options.id) || !previousFailures.some(previous =>
-    previous.entry === failure.entry && previous.fiber === failure.entry.fiber
-    && previous.options === JSON.stringify(failure.entry.options) && previous.diagnostic === inactiveDiagnostic(failure)))
+  const currentEntries = new Set(ctx.loader.entries())
+  const removedProvider = [...previousActive.keys()].some(row => !currentEntries.has(row) || row.disabled)
+  const introduced = failures.filter((failure) => {
+    if (requiredIds.includes(failure.entry.options.id)) return true
+    const previous = previousActive.get(failure.entry)
+    if (removedProvider && failure.outcome.kind === 'pending' && previous !== undefined
+      && previous.fiber === failure.entry.fiber && previous.options === JSON.stringify(failure.entry.options)) return false
+    return !previousFailures.some(previous => previous.entry === failure.entry && previous.fiber === failure.entry.fiber
+      && previous.options === JSON.stringify(failure.entry.options) && previous.diagnostic === inactiveDiagnostic(failure))
+  })
   if (introduced.length > 0) throw new Error(activationDiagnostic(binName, introduced).trimEnd())
   for (const [index, result] of results.entries()) {
     if (result.status === 'rejected' && !previousFibers[index]?.failed) throw result.reason

@@ -19,6 +19,8 @@
 
 `profile` 可选 `aiko` 或 `yunyao`，从已安装工作台包的 `./profiles/aiko` 或 `./profiles/yunyao` JSON 导出读取配置。两者启用相同的业务 bundle，且只链接一个品牌主题，由其提供欢迎页资源。Kit 保留为已安装的适配器依赖，资源 bundle 初始不激活。桌面保留官方固定的 `profiles/desktop` 目录和内置基础 bundle。旧的纯 `brand` 配置继续兼容；同时提供两个字段时必须一致。`identityConfig` 和 `pluginRuntime` 必须是绝对路径。可选的 `profilePatch` 仅在首次启动时写入空 profile；已有非空 patch 必须由维护者明确合并。后续启动保留插件移除、恢复状态和用户 patch。更换插件运行时需使用独立部署 profile；启动时拒绝替换非本部署管理的安装。
 
+已安装工作台包含 `workdsh-plugin-platform` 时，profile 准备器将旧 `workdsh` 条目的 `name: aiko-dsh-workbench` 断言迁移到该组件，保留配置和禁用状态。其他条目断言及旧安装保持原样。
+
 身份文件包含 `gatewayOrigin`、`websiteOrigin`、绝对路径 `storageDirectory`，以及取值在 1,000 至 300,000 之间的整数 `loginTimeoutMs` 和 `checkIntervalMs`。Origin 必须使用 HTTPS，本地开发允许 `http://127.0.0.1`。网关提供既有平台 Desktop PKCE 接口和能力 API。两个配置文件均不保存密码或 bearer 凭据。
 
 Electron 验证加密保存的会话，或在系统浏览器中打开平台。凭据只留在 Electron 主进程，通过系统存储加密。绑定 state 的本机回调兑换 PKCE code。每个进程为 Host 插件创建受 bearer 保护的能力转接服务。渲染进程只接收公开账号字段和固定账号动作。凭据失效会停止 Host 并返回登录流程；临时验证失败也会停止准入。原生退出只撤销此 Desktop 会话，不退出其他浏览器会话。

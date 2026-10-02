@@ -777,6 +777,40 @@ it('keeps a valid installed bundle when its subsequent activation fails', async 
   expect((await manager.listBundles()).find(row => row.name === 'broken')).toMatchObject({ enabled: true, removable: true })
 })
 
+it.each(['plugin', 'bundle'] as const)('suspends unchanged dependents when a provider %s is disabled and restores them on enable', async (target) => {
+  const { manager, dir, bundle, ctx } = await fixture()
+  bundle('consumer', [{ id: 'dependent', name: './dependent.mjs' }])
+  writeFileSync(join(dir, 'node_modules/consumer/dependent.mjs'), 'export const inject = ["managedProbe"]; export function apply(ctx) { ctx.provide("dependentProbe", true) }')
+  expect(await manager.setBundleEnabled('consumer', true)).toMatchObject({ application: 'applied' })
+  expect(ctx.get('dependentProbe')).toBe(true)
+  const rows = await manager.listPlugins()
+  const provider = rows.find(row => row.patchId === 'managed')!.entryId
+  const dependent = rows.find(row => row.patchId === 'dependent')!.entryId
+  const toggle = (enabled: boolean) => target === 'plugin'
+    ? manager.setPluginEnabled(provider, enabled)
+    : manager.setBundleEnabled('extra', enabled)
+  expect(await toggle(false)).toMatchObject({ application: 'applied', warnings: [expect.stringContaining('waiting for service: managedProbe')] })
+  expect(ctx.get('dependentProbe')).toBeUndefined()
+  expect((await manager.listPlugins()).find(row => row.entryId === dependent)).toMatchObject({ enabled: true, fiberPhase: 'pending' })
+  expect(await manager.setPluginEnabled(dependent, true)).toMatchObject({ application: 'failed' })
+  expect(await toggle(true)).toMatchObject({ application: 'applied', warnings: [] })
+  expect(ctx.get('dependentProbe')).toBe(true)
+})
+
+it('still rejects a newly introduced pending entry while disabling another plugin', async () => {
+  const { manager, dir, bundle, profile } = await fixture()
+  bundle('unavailable', [{ id: 'unavailable', name: './pending.mjs' }])
+  writeFileSync(join(dir, 'node_modules/unavailable/pending.mjs'), 'export const inject = ["unknownService"]; export function apply() {}')
+  const manifest = readProfileManifest('test', dir)
+  manifest.dsh!.profile!.bundles!.push('unavailable')
+  writeFileSync(join(dir, 'package.json'), JSON.stringify(manifest))
+  const provider = (await manager.listPlugins()).find(row => row.patchId === 'managed')!.entryId
+  const result = await manager.setPluginEnabled(provider, false)
+  const diagnostic: unknown = expect.stringContaining('unknownService')
+  expect(result).toMatchObject({ application: 'failed', error: { diagnostic } })
+  expect(readFileSync(profile.patchPath, 'utf8')).toContain('disabled: true')
+})
+
 it('returns unchanged failures as warnings while toggling and removing another bundle', async () => {
   const { manager, dir, bundle, ctx } = await fixture()
   bundle('broken', [

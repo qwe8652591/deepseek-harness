@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-10-02-dependent-plugin-suspension.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-10-02-dependent-plugin-suspension.md
+/agent-note-report-dependent-suspension-after-disabling-a-provider:
+  en: 174dfd874ee5bc05
+  zh: 37907b7fef209d03
+/agent-note-report-dependent-suspension-after-disabling-a-provider/problem:
+  en: 25276d4d634a651d
+  zh: f91bb8f27dfd86dd
+/agent-note-report-dependent-suspension-after-disabling-a-provider/decision:
+  en: 21a6ad2659aa8add
+  zh: e6010b5d000a75a4
+/agent-note-report-dependent-suspension-after-disabling-a-provider/alternatives-considered:
+  en: 8193aedb0a1ecfe5
+  zh: fd81739b53addcca
+/agent-note-report-dependent-suspension-after-disabling-a-provider/consequences:
+  en: 97ba8bdbb8ed603b
+  zh: 3967904216d983bd

@@ -1,6 +1,6 @@
 /** Startup-selected private deployment; the platform credential stays in Electron main. */
 import { createRequire } from 'node:module'
-import { readFile, mkdir, writeFile, realpath, lstat, symlink, unlink } from 'node:fs/promises'
+import { access, readFile, mkdir, writeFile, realpath, lstat, symlink, unlink } from 'node:fs/promises'
 import { dirname, isAbsolute, join } from 'node:path'
 import { dump, load } from 'js-yaml'
 import { resolveAikoAccountLocale } from './aiko-account-locale.ts'
@@ -129,10 +129,20 @@ export async function prepareAikoDesktopProfile(deployment: AikoDeployment, prof
   const patch: unknown = load(patchText) ?? []
   if (!Array.isArray(patch)) throw new Error('Desktop profile patches must be a YAML sequence')
   const brandIds = { 'aiko-theme': themes.aiko, 'yunyao-theme': themes.yunyao }
+  let splitWorkbench = true
+  try { await access(join(deployment.pluginRuntime, 'node_modules/aiko-dsh-workbench/node_modules/workdsh-plugin-platform/package.json')) }
+  catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+    splitWorkbench = false
+  }
   let patchChanged = false
   const nextPatch: unknown[] = []
   for (const entry of patch) {
     if (!record(entry)) { nextPatch.push(entry); continue }
+    if (splitWorkbench && entry.id === 'workdsh' && entry.name === 'aiko-dsh-workbench') {
+      entry.name = 'workdsh-plugin-platform'
+      patchChanged = true
+    }
     const theme = typeof entry.id === 'string' ? brandIds[entry.id as keyof typeof brandIds] : undefined
     if (theme === other || entry.name === other || migrateKit && (entry.id === 'aiko-workbench-kit' || entry.name === 'aiko-dsh-workbench-kit')) {
       patchChanged = true
