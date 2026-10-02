@@ -8,6 +8,7 @@ import { resolveAikoAccountLocale } from './aiko-account-locale.ts'
 /** Paths to an operator-prepared plugin installation and identity configuration. */
 export interface AikoDeployment {
   readonly brand: 'aiko' | 'yunyao'
+  readonly profile?: 'aiko' | 'yunyao'
   readonly identityConfig: string
   readonly pluginRuntime: string
   readonly profilePatch?: string
@@ -23,11 +24,15 @@ const record = (value: unknown): value is Record<string, unknown> => typeof valu
  */
 export async function readAikoDeployment(path: string): Promise<AikoDeployment> {
   const value: unknown = JSON.parse(await readFile(path, 'utf8'))
-  if (!record(value) || (value.brand !== 'aiko' && value.brand !== 'yunyao')) throw new Error('Desktop deployment brand must be aiko or yunyao')
+  if (!record(value)) throw new Error('Desktop deployment must be an object')
+  const brand = value.profile === undefined ? value.brand : value.profile
+  if (brand !== 'aiko' && brand !== 'yunyao') throw new Error('Desktop deployment profile must be aiko or yunyao')
+  if (value.brand !== undefined && value.brand !== brand) throw new Error('Desktop deployment profile and brand must match')
   if (typeof value.identityConfig !== 'string' || !isAbsolute(value.identityConfig)
     || typeof value.pluginRuntime !== 'string' || !isAbsolute(value.pluginRuntime)) throw new Error('Desktop deployment paths must be absolute')
   if (value.profilePatch !== undefined && (typeof value.profilePatch !== 'string' || !isAbsolute(value.profilePatch))) throw new Error('Desktop profilePatch must be absolute')
-  return { brand: value.brand, identityConfig: value.identityConfig, pluginRuntime: value.pluginRuntime,
+  return { brand, ...(value.profile !== undefined ? { profile: brand } : {}),
+    identityConfig: value.identityConfig, pluginRuntime: value.pluginRuntime,
     ...(typeof value.profilePatch === 'string' ? { profilePatch: value.profilePatch } : {}) }
 }
 
@@ -59,8 +64,23 @@ export async function readAikoWelcome(deployment: AikoDeployment, language: stri
  * @param profile - initialized profile; the caller holds its official write lock and has stopped the Host.
  */
 export async function prepareAikoDesktopProfile(deployment: AikoDeployment, profile: string): Promise<void> {
-  const selected = [...plugins, themes[deployment.brand]]
-  const installed = [...selected, 'aiko-dsh-plugin-catalog']
+  let selected = [...plugins, themes[deployment.brand]]
+  let official = ['@deepseek-ai/dsh-experimental-agent-team-profile']
+  if (deployment.profile !== undefined) {
+    const require = createRequire(join(deployment.pluginRuntime, 'package.json'))
+    const file = require.resolve('aiko-dsh-workbench/profiles/' + deployment.profile)
+    const template: unknown = JSON.parse(await readFile(file, 'utf8'))
+    if (!record(template) || !record(template.dsh) || !record(template.dsh.profile)
+      || !Array.isArray(template.dsh.profile.bundles) || !template.dsh.profile.bundles.every((name): name is string => typeof name === 'string'))
+      throw new Error('Invalid product profile template')
+    const bundles = template.dsh.profile.bundles
+    if (bundles.filter(name => name === themes.aiko || name === themes.yunyao).join() !== themes[deployment.brand])
+      throw new Error('Product profile must contain only its selected theme')
+    selected = bundles.filter(name => !name.startsWith('@deepseek-ai/'))
+    // The signed Desktop runtime supplies its own base and Web bundles.
+    official = bundles.filter(name => name.startsWith('@deepseek-ai/') && name !== '@deepseek-ai/dsh-base' && name !== '@deepseek-ai/dsh-web-app')
+  }
+  const installed = [...new Set([...selected, 'aiko-dsh-workbench-kit', 'aiko-dsh-plugin-catalog'])]
   const runtimeFile = join(deployment.pluginRuntime, 'package.json')
   const runtime: unknown = JSON.parse(await readFile(runtimeFile, 'utf8'))
   if (!record(runtime) || !record(runtime.dependencies)) throw new Error('Desktop plugin runtime has no dependency map')
@@ -78,11 +98,11 @@ export async function prepareAikoDesktopProfile(deployment: AikoDeployment, prof
       || !Object.values(manifest.dependencies).every(spec => typeof spec === 'string')))
     throw new Error('Desktop profile manifest has invalid dependencies or bundles')
   const marker = join(profile, '.aiko-desktop.json')
-  let previous: { runtime: string } | undefined
+  let previous: { runtime: string; profile?: unknown } | undefined
   try {
     const saved: unknown = JSON.parse(await readFile(marker, 'utf8'))
     if (!record(saved) || typeof saved.runtime !== 'string') throw new Error('Invalid Desktop deployment marker')
-    previous = { runtime: saved.runtime }
+    previous = { runtime: saved.runtime, profile: saved.profile }
   }
   catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error }
   if (previous && previous.runtime !== deployment.pluginRuntime) throw new Error('Desktop plugin runtime changed; prepare a new deployment profile first')
@@ -103,6 +123,27 @@ export async function prepareAikoDesktopProfile(deployment: AikoDeployment, prof
   if (!record(workspace) || workspace.overrides !== undefined && !record(workspace.overrides))
     throw new Error('Desktop profile package-manager settings are invalid')
   const other = deployment.brand === 'aiko' ? themes.yunyao : themes.aiko
+  const migrateKit = deployment.profile !== undefined && previous?.profile === undefined
+  const patchPath = join(profile, 'cordis.patch.yml')
+  const patchText = initialPatch ?? await readFile(patchPath, 'utf8')
+  const patch: unknown = load(patchText) ?? []
+  if (!Array.isArray(patch)) throw new Error('Desktop profile patches must be a YAML sequence')
+  const brandIds = { 'aiko-theme': themes.aiko, 'yunyao-theme': themes.yunyao }
+  let patchChanged = false
+  const nextPatch: unknown[] = []
+  for (const entry of patch) {
+    if (!record(entry)) { nextPatch.push(entry); continue }
+    const theme = typeof entry.id === 'string' ? brandIds[entry.id as keyof typeof brandIds] : undefined
+    if (theme === other || entry.name === other || migrateKit && (entry.id === 'aiko-workbench-kit' || entry.name === 'aiko-dsh-workbench-kit')) {
+      patchChanged = true
+      continue
+    }
+    if ((theme === themes[deployment.brand] || entry.name === themes[deployment.brand]) && 'disabled' in entry) {
+      delete entry.disabled
+      patchChanged = true
+    }
+    nextPatch.push(entry)
+  }
   const otherPath = join(profile, 'node_modules', other)
   try {
     const stat = await lstat(otherPath)
@@ -118,13 +159,16 @@ export async function prepareAikoDesktopProfile(deployment: AikoDeployment, prof
   }
   manifest.dependencies = { ...Object.fromEntries(Object.entries(manifest.dependencies ?? {}).filter(([name]) => name !== other)),
     ...Object.fromEntries(paths.map(({ name, spec }) => [name, spec])) }
-  const bundles = manifest.dsh.profile.bundles.map(name => name === other ? themes[deployment.brand] : name)
-  manifest.dsh.profile.bundles = [...new Set(previous ? bundles : [...bundles, '@deepseek-ai/dsh-experimental-agent-team-profile', ...selected])]
+  const bundles = manifest.dsh.profile.bundles
+    .filter(name => !migrateKit || name !== 'aiko-dsh-workbench-kit')
+    .map(name => name === other ? themes[deployment.brand] : name)
+  manifest.dsh.profile.bundles = [...new Set(previous ? bundles : [...bundles, ...official, ...selected])]
   // Package operations retain deployment-owned links and the unpublished passive directory.
   workspace.overrides = { ...Object.fromEntries(Object.entries(workspace.overrides ?? {}).filter(([name]) => name !== other)),
     ...Object.fromEntries(paths.map(({ name, target }) => [name, 'link:' + target.replaceAll('\\', '/')])) }
-  if (initialPatch !== undefined) await writeFile(join(profile, 'cordis.patch.yml'), initialPatch)
+  if (patchChanged) await writeFile(patchPath, dump(nextPatch))
+  else if (initialPatch !== undefined) await writeFile(patchPath, initialPatch)
   await writeFile(workspacePath, dump(workspace))
   await writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n')
-  await writeFile(marker, JSON.stringify({ runtime: deployment.pluginRuntime, brand: deployment.brand }) + '\n')
+  await writeFile(marker, JSON.stringify({ runtime: deployment.pluginRuntime, brand: deployment.brand, profile: deployment.profile }) + '\n')
 }

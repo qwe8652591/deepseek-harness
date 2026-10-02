@@ -18,6 +18,8 @@ The market uses the official PluginManager Remote. Its organization directory is
 
 ## Alternatives considered
 
+Named Aiko and Yunyao product profiles come from the installed Workbench package's JSON exports rather than another application launcher. Desktop retains its reserved physical profile and signed base composition. Brand-only configurations remain compatible; conflicting profile and brand selections fail before login. The first named-profile migration removes Kit resource activation while retaining its adapter package, user business-plugin choices and recovery state.
+
 **Port the old main window wholesale.** This discards upstream browser, directory, shortcut, update and recovery behavior, making each upgrade a larger fork.
 
 **Run the existing browser service inside Electron.** This preserves an additional application wrapper and bypasses the official Desktop profile and native adapters. It also risks concurrent writes to a browser workspace.

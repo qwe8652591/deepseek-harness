@@ -10,14 +10,14 @@ Set `DSH_DESKTOP_DEPLOYMENT` to an absolute JSON path before launching. Omit it 
 
 ```json
 {
-  "brand": "yunyao",
+  "profile": "yunyao",
   "identityConfig": "D:/private/desktop/identity.json",
   "pluginRuntime": "D:/runtime/desktop-plugins",
   "profilePatch": "D:/private/desktop/profile.patch.yml"
 }
 ```
 
-`brand` is required and accepts `aiko` or `yunyao`. Only that theme is linked into the Desktop profile and supplies welcome assets. `identityConfig` and `pluginRuntime` are absolute paths. The optional `profilePatch` seeds an empty profile once; existing nonempty patches require an explicit operator merge. Subsequent starts preserve plugin removals, recovery state and user patches. A different plugin runtime requires a separate deployment profile; startup refuses to replace an unmanaged installation.
+`profile` selects `aiko` or `yunyao` from the installed Workbench package's `./profiles/aiko` or `./profiles/yunyao` JSON export. Both enable the same business bundles and exactly one theme, which supplies welcome assets. Kit remains an installed adapter dependency but its resource bundle is initially inactive. Desktop retains its reserved `profiles/desktop` directory and built-in base bundles. Legacy `brand`-only deployments remain supported; when both fields are present they must match. `identityConfig` and `pluginRuntime` are absolute paths. The optional `profilePatch` seeds an empty profile once; existing nonempty patches require an explicit operator merge. Subsequent starts preserve plugin removals, recovery state and user patches. A different plugin runtime requires a separate deployment profile; startup refuses to replace an unmanaged installation.
 
 The identity file contains `gatewayOrigin`, `websiteOrigin`, an absolute `storageDirectory`, and integer `loginTimeoutMs` and `checkIntervalMs` between 1,000 and 300,000. Origins must be HTTPS, except `http://127.0.0.1` for local development. The gateway implements the existing platform Desktop PKCE endpoints and capability API. Do not put passwords or bearer credentials in either configuration file.
 

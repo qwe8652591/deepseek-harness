@@ -18,6 +18,8 @@ Status: implemented
 
 ## Alternatives considered
 
+Aiko 与云遥的命名产品 Profile 来自已安装工作台包的 JSON 导出，不引入另一个应用启动器。桌面保留固定的物理 Profile 和签名基础组合。纯品牌配置保持兼容；Profile 与品牌冲突时在登录前报错。首次迁移到命名 Profile 时移除 Kit 资源激活，保留适配器包、用户业务插件选择及恢复状态。
+
 **整体移植旧主窗口。** 这会丢弃上游浏览器、目录、快捷键、更新和恢复行为，扩大每次升级的分歧。
 
 **在 Electron 内运行现有浏览器服务。** 这会保留额外的应用包装层，绕过官方 Desktop profile 和原生适配，并可能并发写入浏览器工作区。

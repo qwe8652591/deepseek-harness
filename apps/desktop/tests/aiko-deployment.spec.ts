@@ -16,10 +16,16 @@ async function fixture() {
   for (const name of names) {
     const directory = join(runtime, 'node_modules', name)
     await mkdir(directory, { recursive: true })
-    await writeFile(join(directory, 'package.json'), JSON.stringify({ name, exports: { './welcome': './welcome.json' } }))
+    await writeFile(join(directory, 'package.json'), JSON.stringify({ name, exports: { './welcome': './welcome.json', './profiles/aiko': './aiko.json', './profiles/yunyao': './yunyao.json' } }))
     if (name.endsWith('dsh-theme')) {
       await writeFile(join(directory, 'welcome.json'), JSON.stringify({ version: 1, theme: name, messages: { 'zh-CN': { accountBrand: name } } }))
     }
+  }
+  for (const [brand, theme] of [['aiko', 'aiko-dsh-theme'], ['yunyao', 'yunyao-dsh-theme']] as const) {
+    await writeFile(join(runtime, 'node_modules/aiko-dsh-workbench', brand + '.json'), JSON.stringify({ dsh: { profile: { bundles: [
+      '@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', '@deepseek-ai/dsh-experimental-agent-team-profile',
+      'aiko-dsh-workbench', 'aiko-dsh-tender', '@aiko-dsh-plugins/dsh-knowledge', 'aiko-dsh-code', 'aiko-dsh-market', theme,
+    ] } } }))
   }
   await writeFile(join(runtime, 'package.json'), JSON.stringify({ dependencies: Object.fromEntries(names.map(name => [name, 'file:' + name + '.tgz'])) }))
   await mkdir(profile, { recursive: true })
@@ -100,4 +106,55 @@ it('loads welcome text from the selected package without requiring the other the
       "login": "使用平台账号登录",
     }
   `)
+})
+
+it('resolves an explicit product profile and rejects conflicting startup brands', async () => {
+  const { root, config } = await fixture()
+  const file = join(root, 'deployment.json')
+  for (const profile of ['aiko', 'yunyao']) {
+    await writeFile(file, JSON.stringify({ ...config, brand: undefined, profile }))
+    expect(await readAikoDeployment(file)).toEqual({ ...config, profile, brand: profile })
+  }
+  for (const invalid of [{ profile: 'unknown' }, { profile: null }, { profile: '../aiko' }, { profile: 'aiko', brand: 'yunyao' }]) {
+    await writeFile(file, JSON.stringify({ ...config, ...invalid }))
+    await expect(readAikoDeployment(file)).rejects.toThrow()
+  }
+})
+
+it.each(['aiko', 'yunyao'] as const)('composes the %s product profile without activating Kit or replacing Desktop base bundles', async (brand) => {
+  const { profile, config } = await fixture()
+  await prepareAikoDesktopProfile({ ...config, brand, profile: brand }, profile)
+  const manifest = JSON.parse(await readFile(join(profile, 'package.json'), 'utf8')) as ProfileManifest
+  expect(manifest.dsh.profile.bundles).toEqual([
+    '@deepseek-ai/dsh-base', 'custom-plugin', '@deepseek-ai/dsh-experimental-agent-team-profile',
+    'aiko-dsh-workbench', 'aiko-dsh-tender', '@aiko-dsh-plugins/dsh-knowledge', 'aiko-dsh-code', 'aiko-dsh-market',
+    brand === 'aiko' ? 'aiko-dsh-theme' : 'yunyao-dsh-theme',
+  ])
+  expect(manifest.dependencies['aiko-dsh-workbench-kit']).toBeDefined()
+  const other = brand === 'aiko' ? 'yunyao-dsh-theme' : 'aiko-dsh-theme'
+  await expect(lstat(join(profile, 'node_modules', other))).rejects.toMatchObject({ code: 'ENOENT' })
+})
+
+it('migrates a brand-only deployment once while retaining later user choices and recovery state', async () => {
+  const { profile, config } = await fixture()
+  await prepareAikoDesktopProfile(config, profile)
+  await writeFile(join(profile, 'cordis.patch.yml'), '- id: custom-plugin\n  disabled: true\n- id: aiko-workbench-kit\n  disabled: true\n- id: aiko-theme\n  disabled: true\n')
+  const named = { ...config, profile: config.brand }
+  await prepareAikoDesktopProfile(named, profile)
+  const path = join(profile, 'package.json')
+  const manifest = JSON.parse(await readFile(path, 'utf8')) as ProfileManifest
+  expect(manifest.dsh.profile.bundles).not.toContain('aiko-dsh-workbench-kit')
+  expect(await readFile(join(profile, 'cordis.patch.yml'), 'utf8')).toBe('- id: custom-plugin\n  disabled: true\n')
+  manifest.dsh.profile.bundles = ['@deepseek-ai/dsh-base']
+  await writeFile(path, JSON.stringify(manifest))
+  await prepareAikoDesktopProfile(named, profile)
+  expect((JSON.parse(await readFile(path, 'utf8')) as ProfileManifest).dsh.profile.bundles).toEqual(['@deepseek-ai/dsh-base'])
+})
+
+it('refuses a product template containing the opposite theme before editing the profile', async () => {
+  const { runtime, profile, config } = await fixture()
+  const before = await readFile(join(profile, 'package.json'), 'utf8')
+  await writeFile(join(runtime, 'node_modules/aiko-dsh-workbench/yunyao.json'), JSON.stringify({ dsh: { profile: { bundles: ['aiko-dsh-theme', 'yunyao-dsh-theme'] } } }))
+  await expect(prepareAikoDesktopProfile({ ...config, profile: config.brand }, profile)).rejects.toThrow('only its selected theme')
+  expect(await readFile(join(profile, 'package.json'), 'utf8')).toBe(before)
 })
