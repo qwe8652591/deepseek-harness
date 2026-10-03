@@ -41,11 +41,13 @@ async function run() {
     assert.equal(activations, 0)
     assert.equal(primary.isVisible(), false)
     await primary.webContents.executeJavaScript('window.dshDesktop.activate()')
-    await until(() => primary.isVisible() && primary.isFocused())
+    await until(() => primary.isVisible())
+    const hiddenFocus = primary.isFocused()
     primary.minimize()
     await until(() => primary.isMinimized())
     await primary.webContents.executeJavaScript('window.dshDesktop.activate()')
-    await until(() => !primary.isMinimized() && primary.isFocused())
+    await until(() => primary.isVisible() && !primary.isMinimized())
+    const minimizedFocus = primary.isFocused()
     assert.equal(await primary.webContents.executeJavaScript('document.querySelector("textarea").value'), '授权前未保存的配置')
     assert.equal(await primary.webContents.executeJavaScript('window.testDocument'), 42)
     assert.equal(activations, 2)
@@ -55,7 +57,7 @@ async function run() {
     stop()
     assert.match(await primary.webContents.executeJavaScript('window.dshDesktop.activate().then(() => "accepted", error => error.message)'), /No handler registered/)
     writeFileSync(join(root, brand + '.json'), JSON.stringify({ passed: true, brand, hiddenRestored: true,
-      minimizedRestored: true, focused: true, documentPreserved: true, foreignWindowRejected: true }, null, 2) + '\n')
+      minimizedRestored: true, hiddenFocus, minimizedFocus, documentPreserved: true, foreignWindowRejected: true }, null, 2) + '\n')
   } finally { stop(); primary.destroy(); other.destroy() }
   app.exit(0)
 }

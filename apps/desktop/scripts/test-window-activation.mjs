@@ -35,7 +35,8 @@ try {
     assert.equal(timedOut, false, brand + ' activation timed out')
     assert.equal(result.signal, null)
     assert.equal(result.code, 0, brand + ' activation failed; inspect ' + root)
-    assert.equal(JSON.parse(await readFile(join(root, brand + '.json'), 'utf8')).passed, true)
-    console.log(brand + ': hidden/minimized window restored and focused; document preserved; foreign sender rejected')
+    const report = JSON.parse(await readFile(join(root, brand + '.json'), 'utf8'))
+    assert.equal(report.passed, true)
+    console.log(brand + ': hidden/minimized window restored; document preserved; foreign sender rejected; native focus ' + JSON.stringify({ hidden: report.hiddenFocus, minimized: report.minimizedFocus }))
   }
 } finally { console.log('Activation evidence: ' + root) }
