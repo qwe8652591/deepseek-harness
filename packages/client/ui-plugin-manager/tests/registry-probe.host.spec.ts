@@ -2,8 +2,25 @@ import { Context } from '@deepseek-ai/cordis'
 import { afterEach, expect, it, onTestFinished, vi } from 'vitest'
 import { NPMMIRROR_REGISTRY, OFFICIAL_NPM_REGISTRY } from '@deepseek-ai/dsh-plugin-manager/registry'
 import PluginRegistryProbe, { type Config } from '../src/index.ts'
+import type { IndexInjection } from '@deepseek-ai/dsh-host-webserver'
 
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers() })
+
+it('injects the managed page policy and removes it when the plugin unloads', async () => {
+  const ctx = new Context()
+  onTestFinished(() => ctx.fiber.dispose())
+  const fiber = ctx.plugin(PluginRegistryProbe, { packageChanges: false, bundledPackages: ['dsh-example'] })
+  await fiber
+  const table: IndexInjection[] = []
+  await ctx.parallel('webserver/index-inject', table)
+  expect(table).toEqual([{ kind: 'global', name: '__DSH_PLUGIN_MANAGER_CONFIG__', value: {
+    packageChanges: false, bundledPackages: ['dsh-example'],
+  } }])
+  await fiber.dispose()
+  const disposed: IndexInjection[] = []
+  await ctx.parallel('webserver/index-inject', disposed)
+  expect(disposed).toEqual([])
+})
 
 async function mount(config: Partial<Config> = {}) {
   const ctx = new Context()

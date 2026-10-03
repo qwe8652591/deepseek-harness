@@ -38,6 +38,8 @@ export { InvalidInstallSpecError, parseInstallSpec, type ParsedInstallSpec } fro
 
 /** The pnpm executable, registries, and limits for diagnostics, lookups and connection checks. */
 export interface Config {
+  /** Whether this deployment permits installing or removing individual packages. Bundle activation remains available. */
+  packageChanges?: boolean
   /** The pnpm executable name or path; resolved through `PATH` like the `dsh plugin` command. */
   pnpmCommand?: string
   /** Maximum retained package-operation diagnostic bytes. */
@@ -176,6 +178,7 @@ declare module '@deepseek-ai/cordis' {
 export class PluginManager extends TypertRemoteService {
   static inject = ['loader', 'profileContext']
   static Config: z<Config> = z.object({
+    packageChanges: z.boolean().default(true),
     pnpmCommand: z.string().default('pnpm'),
     outputBytes: z.number().step(1).min(1).default(16384),
     lockWaitMs: z.number().step(1).min(0).default(120000),
@@ -189,6 +192,7 @@ export class PluginManager extends TypertRemoteService {
   private readonly managementBundles = new Set<string>()
   private readonly ownerEntryId: string | undefined
   private readonly packageOperations = new Set<Promise<unknown>>()
+  private readonly packageChanges: boolean
   private readonly profile: ProfileContext
   private readonly outputBytes: number
   private readonly lockWaitMs: number
@@ -204,6 +208,7 @@ export class PluginManager extends TypertRemoteService {
 
   constructor(ctx: Context, config: Config) {
     super(ctx, 'pluginManager')
+    this.packageChanges = (config as Required<Config>).packageChanges
     this.ownerEntryId = ctx.fiber.entry?.id
     this.ownerContext = ctx
     this.profile = ctx.profileContext
@@ -468,6 +473,7 @@ export class PluginManager extends TypertRemoteService {
       if (requestId !== undefined) this.ownerContext.emit('plugin-manager/install-state', { requestId, phase, ...attempt === undefined ? {} : { attempt } })
     }
     const result = this.change(async (result) => {
+      if (!this.packageChanges) throw new ManagementFailure('managed-installation')
       if (spec.trim() === '' || spec.startsWith('-')) throw new ManagementFailure('invalid-spec')
       if (stopped()) throw new InstallCancelledError()
       if (options?.approvedBuilds !== undefined) {
@@ -600,6 +606,7 @@ export class PluginManager extends TypertRemoteService {
   @Remote
   removeBundle(name: string): Promise<ChangeResult> {
     return this.change(async (result) => {
+      if (!this.packageChanges) throw new ManagementFailure('managed-installation')
       await this.configure(async () => {
         const bundle = (await this.listBundles()).find(item => item.name === name)
         if (bundle === undefined || !bundle.removable) throw new ManagementFailure('not-removable')

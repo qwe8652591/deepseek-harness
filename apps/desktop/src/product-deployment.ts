@@ -85,12 +85,17 @@ export async function prepareProductProfile(product: DesktopProduct, profile: st
 /**
  * Write the final product policy consumed by the ordinary profile launcher.
  * @param runtime Prepared product runtime before integrity inventory.
+ * @param product Verified application bundles displayed in the plugin menu.
  * @returns Resolves after the managed-install overlay is saved.
  */
-export async function writeProductPolicy(runtime: string): Promise<void> {
-  const rows = ['plugin-manager', 'tool-plugin-manager', 'ui-plugin-manager', 'ui-settings-plugin-inventory', 'dsh-market']
+export async function writeProductPolicy(runtime: string, product: DesktopProduct): Promise<void> {
+  const rows = ['tool-plugin-manager', 'dsh-market']
     .map(id => ({ id, disabled: true }))
   await writeFile(join(runtime, 'desktop-product.patch.yml'), JSON.stringify([...rows,
+    { id: 'plugin-manager', disabled: false, config: { packageChanges: false } },
+    { id: 'ui-plugin-manager', disabled: false, config: { packageChanges: false, registryProbeEnabled: false,
+      bundledPackages: product.bundles.filter(name => name !== 'aiko-dsh-market') } },
+    { id: 'ui-settings-plugin-inventory', disabled: false },
     { id: 'llm-claude', config: { pluginUpdates: false } },
   ], null, 2) + '\n')
 }

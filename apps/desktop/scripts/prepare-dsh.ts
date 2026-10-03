@@ -150,7 +150,7 @@ async function main(): Promise<void> {
     const product = readDesktopProduct(process.env)
     if (product !== undefined) {
       writeFileSync(join(DSH_OUTPUT_ROOT, 'desktop-product.json'), JSON.stringify(parseDesktopProduct(product), null, 2) + '\n')
-      await writeProductPolicy(DSH_OUTPUT_ROOT)
+      await writeProductPolicy(DSH_OUTPUT_ROOT, product)
     }
     for (const file of DESKTOP_HOST_RUNTIME_FILES) {
       if (!existsSync(join(DSH_OUTPUT_ROOT, 'node_modules', DESKTOP_HOST_PACKAGE, file))) {

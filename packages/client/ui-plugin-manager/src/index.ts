@@ -1,6 +1,8 @@
 /** Host registry-response probing for the plugin installation dialog. */
 
 import type { Context } from '@deepseek-ai/cordis'
+import type {} from '@deepseek-ai/dsh-host-webserver'
+import { Deployment } from './deployment.ts'
 import z from '@deepseek-ai/schemastery'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
@@ -12,7 +14,7 @@ declare module '@deepseek-ai/cordis' {
 }
 
 /** Registry-probe deadline and process-local cache policy. */
-export interface Config {
+export interface Config extends Deployment {
   /** Whether the dialog can compare the public npm registries. */
   registryProbeEnabled: boolean
   /** Deadline for the parallel HTTPS probes, including response cleanup. */
@@ -24,6 +26,8 @@ export interface Config {
 /** Compares public registry responses on the Host; the Client owns the initial selection. */
 export default class PluginRegistryProbe extends TypertRemoteService {
   static Config: z<Partial<Config>, Config> = z.object({
+    packageChanges: z.boolean().default(true),
+    bundledPackages: z.array(z.string()).default([]),
     registryProbeEnabled: z.boolean().default(true),
     registryProbeTimeoutMs: z.natural().min(1).max(MAX_TIMER_DELAY_MS).default(1500),
     registryProbeCacheTtlMs: z.natural().default(300000),
@@ -35,6 +39,11 @@ export default class PluginRegistryProbe extends TypertRemoteService {
 
   constructor(ctx: Context, private readonly config: Config) {
     super(ctx, 'pluginRegistryProbe')
+    ctx.on('webserver/index-inject', (table) => {
+      table.push({ kind: 'global', name: '__DSH_PLUGIN_MANAGER_CONFIG__', value: Deployment({
+        packageChanges: config.packageChanges, bundledPackages: config.bundledPackages,
+      }) })
+    })
     ctx.effect(() => async () => {
       this.lifetime.abort()
       await this.pending

@@ -83,6 +83,22 @@ async function fixture(reload: 'live' | 'startup' = 'live', overlay = false, pre
   return { ctx, dir, manager: ctx.pluginManager, bundle, profile, stopHmr, overlays, connection }
 }
 
+it('keeps managed bundle controls while refusing package installs and removals before side effects', async () => {
+  const { manager, dir, connection } = await fixture('live', false, undefined, { packageChanges: false })
+  const before = readFileSync(join(dir, 'package.json'), 'utf8')
+  const pnpm = vi.spyOn(operations, 'runProfilePnpm')
+  onTestFinished(() => { pnpm.mockRestore() })
+  expect(await manager.listBundles()).toEqual(expect.arrayContaining([expect.objectContaining({ name: 'extra', enabled: true })]))
+  for (const result of [await manager.installBundle('untrusted-package'), await manager.removeBundle('extra')]) {
+    expect(result).toMatchObject({ application: 'failed', changed: false, error: { code: 'managed-installation' } })
+  }
+  expect(pnpm).not.toHaveBeenCalled()
+  expect(connection).not.toHaveBeenCalled()
+  expect(readFileSync(join(dir, 'package.json'), 'utf8')).toBe(before)
+  expect(await manager.setBundleEnabled('extra', false)).toMatchObject({ application: 'applied' })
+  expect(await manager.setBundleEnabled('extra', true)).toMatchObject({ application: 'applied' })
+})
+
 it.each(['network', 'timeout'] as const)('stops a GitHub %s before pnpm and attributes it to the repository', async (kind) => {
   const { manager, dir, connection } = await fixture()
   const before = readFileSync(join(dir, 'package.json'), 'utf8')

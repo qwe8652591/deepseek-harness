@@ -22,6 +22,8 @@ The product runtime manifest is the Host's installation anchor. The CLI package'
 
 ## Alternatives considered
 
+Whole-application updates restrict package mutations, not inspection or activation. Disabling Plugin Manager removes the Remote endpoints consumed by Workbench settings and the sidebar entry. The managed overlay keeps those services active, advertises application-supplied bundles on the plugin page, and rejects installation and removal before package operations. Packaged qualification exercises the inventory RPC and, with `--ui`, menu navigation, component details, knowledge configuration and module disable/enable in an isolated renderer.
+
 Individual plugin upgrades preserve independent delivery but invalidate whole-application qualification. GitHub's repository-wide latest release cannot distinguish two brands and three architectures. External development junctions do not work inside packaged ASAR resources.
 
 ## Consequences

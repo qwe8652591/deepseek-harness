@@ -53,6 +53,7 @@
     }
   ],
   "include": [
+    "src/deployment.ts",
     "src/client",
     "src/css-modules.d.ts"
   ]

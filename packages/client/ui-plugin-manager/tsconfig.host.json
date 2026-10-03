@@ -6,9 +6,11 @@
     "tsBuildInfoFile": "lib/tsconfig.host.tsbuildinfo"
   },
   "files": [
+    "src/deployment.ts",
     "src/index.ts"
   ],
   "references": [
+    { "path": "../../host/webserver" },
     {
       "path": "../../../vendor/cordis"
     },

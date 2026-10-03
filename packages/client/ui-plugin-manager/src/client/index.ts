@@ -28,6 +28,7 @@ import { PluginManagerController } from './manager-store.ts'
 import { en, zh, type PluginManagerLocaleKey } from './locales.ts'
 import { createNavigationStore } from './navigation-store.ts'
 import type {} from './slot-contract.ts'
+import { Deployment } from '../deployment.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -73,6 +74,7 @@ export const inject = ['slots', 'locale', 'remote', 'remote.pluginManager', 'rem
  * @param ctx - the browser plugin context.
  */
 export function apply(ctx: ClientContext): void {
+  const deployment = Deployment((globalThis as { __DSH_PLUGIN_MANAGER_CONFIG__?: unknown }).__DSH_PLUGIN_MANAGER_CONFIG__ ?? {})
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-plugin-manager: dictionaries')
   const t = ctx.locale.bind(NS)
   const controller = new PluginManagerController(ctx)
@@ -114,7 +116,7 @@ export function apply(ctx: ClientContext): void {
       key: PANEL_ID,
       locale: NS,
       store,
-      inject: () => face,
+      inject: () => ({ ...face, deployment }),
       children: {
         'plugins.item': { kind: 'list', scope: 'root' },
         'plugins.bundle.activation': { kind: 'keyed', scope: 'root' },

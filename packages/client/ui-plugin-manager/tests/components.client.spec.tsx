@@ -93,6 +93,7 @@ const NO_CONFIG: ConfigLedger = { items: [], bundles: new Set(), rows: new Set()
 function renderTab(
   state: Partial<PluginManagerState> = {}, config: Partial<ConfigLedger> = {},
   bodies: SlotBodies = {}, forms: Record<string, ConfigPageForm> = {},
+  deployment = { packageChanges: true, bundledPackages: [] as string[] },
 ) {
   const ctx = new Context()
   onTestFinished(async () => { await ctx.fiber.dispose() })
@@ -136,6 +137,7 @@ function renderTab(
   }
   const navigation = createNavigationStore().create()
   const props: PluginManagerPageProps = {
+    deployment,
     useStore: bindSnapshotSelector(navigation), actions: navigation.actions,
     ...standard,
     t,
@@ -191,6 +193,20 @@ function renderTab(
 }
 
 describe('PluginManagerPage', () => {
+  it('shows application-supplied bundles and their components without individual package controls', () => {
+    const name = 'dsh-better-sidebar'
+    const test = renderTab({ packages: [pkg({ installed: false, rows: [row()] })] }, {}, {}, {}, {
+      packageChanges: false, bundledPackages: [name],
+    })
+    expect(screen.queryByText(en.addPlugin)).toBeNull()
+    expect(screen.getByText(en.managedIntro)).toBeTruthy()
+    expect(document.querySelector(`[data-plugin-package="${name}"]`)).not.toBeNull()
+    act(() => { test.navigation.actions.setView({ kind: 'package', name }) })
+    expect(document.querySelector(`[data-plugin-detail="${name}"]`)).not.toBeNull()
+    expect(screen.queryByText(en.uninstall)).toBeNull()
+    expect(screen.getByText(en.partsLabel)).toBeTruthy()
+  })
+
   it('opens the requested bundle after its inventory arrives and falls back when it is absent', () => {
     const b = renderTab({ status: 'loading' })
     act(() => { b.navigation.actions.setView({ kind: 'package', name: 'dsh-better-sidebar' }) })

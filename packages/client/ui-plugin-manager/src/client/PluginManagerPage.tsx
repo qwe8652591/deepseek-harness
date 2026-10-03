@@ -34,6 +34,7 @@ import { managementText, noticeText, packageText, registryText, rowText, type Tr
 import type { PluginPackageRef, PluginRowRef, PluginsSubject } from './slot-contract.ts'
 import type { ConfigPageForm } from './slot-contract.ts'
 import css from './PluginManagerPage.module.css'
+import type { Deployment } from '../deployment.ts'
 
 /** Full component props assembled by the main slot renderer. */
 export type PluginManagerPageProps =
@@ -44,6 +45,7 @@ export type PluginManagerPageProps =
     | 'plugins.detail.actions' | 'plugins.detail.badge' | 'plugins.detail.section'
   >
   & InjectFace<PluginManagerFace>
+  & InjectFace<{ deployment: Deployment }>
   & PropsStore<ReturnType<typeof createNavigationStore>>
 
 /** The page's slot renderer, narrowed to the configuration slots. */
@@ -542,7 +544,7 @@ function RowDetail({ pkg, row, t, resolveText, onBack, renderSlot, form }: {
  */
 function PackageDetail({
   pkg, t, resolveText, busy, rowBusy, configured, configure, renderSlot,
-  onBack, onSetEnabled, onUninstall, onSetRowEnabled,
+  onBack, onSetEnabled, onUninstall, onSetRowEnabled, packageChanges,
 }: {
   readonly pkg: PackageView
   readonly t: Translate
@@ -558,6 +560,7 @@ function PackageDetail({
   readonly onSetEnabled: (enabled: boolean) => void
   readonly onUninstall: () => void
   readonly onSetRowEnabled: (row: PackageRow, enabled: boolean) => void
+  readonly packageChanges: boolean
 }): ReactNode {
   const { title, description, beta } = packageText(pkg, resolveText)
   const status = packageStatus(pkg)
@@ -572,7 +575,7 @@ function PackageDetail({
         actions={(
           <div className={css.detailActions}>
             {renderSlot('plugins.detail.actions', { subject })}
-            {pkg.installed
+            {packageChanges && pkg.installed
               ? (
                 <Button
                   variant="outline"
@@ -1278,7 +1281,7 @@ export function PluginManagerPage(props: PluginManagerPageProps): ReactNode {
   // selected name the Host cannot read; the installation's other bundles are inspected in the Settings
   // Plugins section's Plugin list tab.
   const listed = state.packages.filter(pkg => !BUILTIN_PROFILE_BUNDLES.has(pkg.name)
-    && (pkg.installed || pkg.optional || pkg.error !== undefined))
+    && (pkg.installed || pkg.optional || pkg.error !== undefined || props.deployment.bundledPackages.includes(pkg.name)))
   const mine = listed.filter(pkg => pkg.installed || !pkg.optional)
   const official = listed.filter(pkg => pkg.optional && !pkg.installed)
   const loaded = state.status === 'ready' || state.status === 'error'
@@ -1336,8 +1339,8 @@ export function PluginManagerPage(props: PluginManagerPageProps): ReactNode {
             <div>
               <h1 className={css.pageTitle}>{t('title')}</h1>
               <div className={css.pageIntro}>
-                <span>{t('intro')}</span>
-                <Tooltip label={t('infoDescription')} side="bottom" delayMs={300} maxWidth={300} portal openOnClick>
+                <span>{t(props.deployment.packageChanges ? 'intro' : 'managedIntro')}</span>
+                <Tooltip label={t(props.deployment.packageChanges ? 'infoDescription' : 'managedIntro')} side="bottom" delayMs={300} maxWidth={300} portal openOnClick>
                   <Button variant="ghost" size="sm" className={css.infoButton} aria-label={t('infoLabel')}>
                     <IconInfoOutlineRegular size={11} aria-hidden="true" />
                   </Button>
@@ -1352,9 +1355,9 @@ export function PluginManagerPage(props: PluginManagerPageProps): ReactNode {
                   </span>
                 </button>
               </Tooltip>
-              <Button variant="primary" size="sm" className={css.addButton} icon={<IconPlusOutlineRegular size={13} />} disabled={!loaded} onClick={props.openInstall}>
+              {props.deployment.packageChanges && <Button variant="primary" size="sm" className={css.addButton} icon={<IconPlusOutlineRegular size={13} />} disabled={!loaded} onClick={props.openInstall}>
                 {t(state.install.requestId === undefined ? 'addPlugin' : 'installViewTask')}
-              </Button>
+              </Button>}
             </div>
           </header>
         )
@@ -1402,6 +1405,7 @@ export function PluginManagerPage(props: PluginManagerPageProps): ReactNode {
       {loaded && openPkg !== undefined && openRow === undefined
         ? (
           <PackageDetail
+            packageChanges={props.deployment.packageChanges}
             pkg={openPkg}
             t={t}
             resolveText={resolveText}

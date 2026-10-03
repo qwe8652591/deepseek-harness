@@ -1,15 +1,18 @@
 /** Qualify packaged product plugins, concurrent account Hosts and restart without user credentials. */
 import assert from 'node:assert/strict'
 import { spawn, type ChildProcess } from 'node:child_process'
+import { createHash, randomBytes } from 'node:crypto'
+import { createServer } from 'node:http'
 import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { parseArgs } from 'node:util'
 import { readAsar } from 'app-builder-lib/out/asar/asar.js'
+import electron from 'electron'
 import { createPluginProfile } from '../src/project-manager.ts'
 import { prepareProductProfile } from '../src/product-deployment.ts'
 import { parseDesktopProduct } from './desktop-product.mjs'
 
-const { values } = parseArgs({ options: { installed: { type: 'string' }, runtime: { type: 'string' } } })
+const { values } = parseArgs({ options: { installed: { type: 'string' }, runtime: { type: 'string' }, ui: { type: 'boolean' } } })
 assert.ok(values.installed, 'Use --installed <application-directory> [--runtime <prepared-dsh-directory>]')
 const installed = resolve(values.installed)
 const resources = join(installed, 'resources')
@@ -21,6 +24,9 @@ const product = parseDesktopProduct(JSON.parse(await metadata('desktop-product.j
 const manifest: unknown = JSON.parse(await metadata('package.json'))
 assert.ok(isRecord(manifest) && typeof manifest.version === 'string')
 const version = manifest.version
+assert.equal(typeof electron, 'string')
+// Outside Electron this package exports its executable path, despite its main-process types.
+const rendererExecutable = electron as unknown as string
 const executable = join(installed, product.productName + (process.platform === 'win32' ? '.exe' : ''))
 const evidenceRoot = resolve(import.meta.dirname, '../.desktop-build/qualification')
 await mkdir(evidenceRoot, { recursive: true })
@@ -36,6 +42,18 @@ const children: {
   timedOut: boolean
 }[] = []
 const reports: { profile: string; origin: string; clients: string[] }[] = []
+const account = { issuer: 'https://product-test.example', subject: 'fixture', name: 'Product qualification',
+  organization: 'Qualification', capabilities: true, expiresAt: Date.now() + 600000 }
+const accountKey = createHash('sha256').update(JSON.stringify([account.issuer, account.subject])).digest('hex')
+const relayToken = randomBytes(32).toString('base64url')
+const relay = createServer((request, response) => {
+  if (request.headers.authorization !== 'Bearer ' + relayToken) { response.writeHead(401); response.end(); return }
+  const value = request.url === '/auth/me' ? account : request.url === '/api/me'
+    ? { user: { id: account.subject, username: account.name } }
+    : ['/api/skills', '/api/experts', '/api/connectors'].includes(request.url ?? '') ? [] : undefined
+  response.writeHead(value === undefined ? 404 : 200, { 'content-type': 'application/json' })
+  response.end(JSON.stringify(value ?? { error: 'Unknown fixture route' }))
+})
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -46,7 +64,8 @@ async function start(profile: string): Promise<(typeof children)[number]> {
     join(runtime, 'node_modules/@deepseek-ai/dsh-desktop-host/lib/index.js'), runtime, profile,
     join(resources, 'runtime/primary-runtime'), join(resources, 'runtime/pnpm/bin/pnpm.cjs'), join(resources, 'runtime/bin'),
   ], { cwd: profile, windowsHide: true, env: { ...environment, ELECTRON_RUN_AS_NODE: '1',
-    DSH_HOME: resolve(profile, '../..'), DSH_CLIENT_VERSION: version }, stdio: ['ignore', 'pipe', 'pipe', 'ipc'] })
+    DSH_HOME: resolve(profile, '../..'), DSH_CLIENT_VERSION: version,
+    AIKO_DESKTOP_ACCOUNT_FILE: resolve(profile, '../../credentials/product-test.json') }, stdio: ['ignore', 'pipe', 'pipe', 'ipc'] })
   let diagnostic = ''
   const capture = (chunk: Buffer): void => {
     diagnostic = (diagnostic + chunk.toString().replace(/(token|code|state)=([^&\s]+)/giu, '$1=[REDACTED]')).slice(-65536)
@@ -81,6 +100,34 @@ async function start(profile: string): Promise<(typeof children)[number]> {
     const page = await fetch(new URL('/', ready.url), { headers: { cookie }, signal: AbortSignal.timeout(10000) })
     assert.equal(page.status, 200)
     assert.match(await page.text(), /<html/u)
+    const bundles = await fetch(new URL('/api/pluginManager/listBundles', ready.url), {
+      method: 'POST', headers: { cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ type: 'client-request', rpcId: 'inventory', method: 'pluginManager/listBundles', payload: { args: {} } }), signal: AbortSignal.timeout(10000),
+    })
+    assert.equal(bundles.status, 200, 'Product module settings require the plugin inventory RPC')
+    const envelope: unknown = await bundles.json()
+    assert.ok(isRecord(envelope))
+    const inventory = envelope.result
+    assert.ok(isRecord(inventory) && inventory.ok === true && Array.isArray(inventory.value))
+    for (const name of requiredClients) assert.ok(inventory.value.some(row => isRecord(row) && row.name === name && row.error === undefined), `Unavailable bundled module: ${name}`)
+    assert.ok(clients.includes('@deepseek-ai/dsh-client-ui-plugin-manager'), 'Plugin sidebar must be loaded')
+    const policy = ready.injections.find(row => isRecord(row) && row.kind === 'global' && row.name === '__DSH_PLUGIN_MANAGER_CONFIG__')
+    assert.ok(isRecord(policy) && isRecord(policy.value) && policy.value.packageChanges === false)
+    const profileBefore = await readFile(join(profile, 'package.json'), 'utf8')
+    for (const [method, args] of [['installBundle', { spec: 'dsh-product-policy-test' }], ['removeBundle', { name: 'aiko-dsh-workbench' }]] as const) {
+      const response = await fetch(new URL('/api/pluginManager/' + method, ready.url), {
+        method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({
+          type: 'client-request', rpcId: method, method: 'pluginManager/' + method, payload: { args },
+        }),
+        signal: AbortSignal.timeout(10000),
+      })
+      const reply: unknown = await response.json()
+      assert.ok(isRecord(reply))
+      const result = reply.result
+      assert.ok(isRecord(result) && result.ok === true && isRecord(result.value) && result.value.application === 'failed'
+        && isRecord(result.value.error) && result.value.error.code === 'managed-installation', 'Whole-product package policy must be enforced on the Host')
+    }
+    assert.equal(await readFile(join(profile, 'package.json'), 'utf8'), profileBefore)
     for (const entry of entries.filter(row => requiredClients.includes(String(row.id)))) {
       assert.equal(typeof entry.url, 'string')
       const script = await fetch(new URL(String(entry.url), ready.url), { headers: { cookie }, signal: AbortSignal.timeout(10000) })
@@ -89,6 +136,25 @@ async function start(profile: string): Promise<(typeof children)[number]> {
     }
     assert.doesNotMatch(diagnostic, /failed to import|StartupError/u)
     reports.push({ profile, origin: new URL(ready.url).origin, clients: requiredClients })
+    if (values.ui && reports.length === 2) {
+      const renderer = spawn(rendererExecutable, [resolve(import.meta.dirname, '../tests/fixtures/product-plugin-menu.mjs')], {
+        windowsHide: true, env: { ...environment, DSH_MENU_TEST_ROOT: join(evidence, 'ui'), DSH_MENU_TEST_URL: ready.url }, stdio: ['ignore', 'pipe', 'pipe'],
+      })
+      let rendererLog = ''
+      const captureRenderer = (chunk: Buffer): void => { rendererLog = (rendererLog + chunk.toString()).slice(-16000) }
+      renderer.stdout.on('data', captureRenderer)
+      renderer.stderr.on('data', captureRenderer)
+      let timedOut = false
+      const deadline = setTimeout(() => { timedOut = true; renderer.kill() }, 90000)
+      const result = await new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve, reject) => {
+        renderer.once('error', reject)
+        renderer.once('close', (code, signal) => { resolve({ code, signal }) })
+      }).finally(() => { clearTimeout(deadline) })
+      await writeFile(join(evidence, 'renderer.log'), rendererLog.replace(/(token|code|state)=([^&\s]+)/giu, '$1=[REDACTED]'))
+      assert.equal(timedOut, false, 'Plugin menu UI timed out')
+      assert.equal(result.signal, null)
+      assert.equal(result.code, 0, 'Plugin menu UI failed; see ui/failure.txt')
+    }
     return state
   } catch (error) {
     await writeFile(join(evidence, `failure-${children.length}.log`), diagnostic)
@@ -106,8 +172,18 @@ async function stop(state: (typeof children)[number]): Promise<void> {
 }
 
 try {
-  const profiles = [join(evidence, 'first/profiles/desktop'), join(evidence, 'second/profiles/desktop')]
-  for (const profile of profiles) { createPluginProfile(profile); await prepareProductProfile(product, profile) }
+  await new Promise<void>((resolve, reject) => { relay.once('error', reject); relay.listen(0, '127.0.0.1', resolve) })
+  const address = relay.address()
+  assert.ok(address && typeof address !== 'string')
+  const relayOrigin = `http://127.0.0.1:${address.port}`
+  const profiles = ['first', 'second'].map(name => join(evidence, name, accountKey, 'profiles/desktop'))
+  for (const profile of profiles) {
+    createPluginProfile(profile); await prepareProductProfile(product, profile)
+    const credentials = resolve(profile, '../../credentials')
+    await mkdir(credentials, { recursive: true })
+    await writeFile(join(credentials, 'product-test.json'), JSON.stringify({ authMode: 'aiko',
+      baseUrl: relayOrigin, platformOrigin: relayOrigin, token: relayToken }), { mode: 0o600 })
+  }
   const started = await Promise.allSettled(profiles.map(start))
   for (const result of started) if (result.status === 'rejected') throw result.reason
   assert.notEqual(reports[0]?.origin, reports[1]?.origin, 'Concurrent product Hosts must own different ports')
@@ -121,5 +197,7 @@ try {
     await state.exit
     clearTimeout(state.deadline)
   }))
+  relay.closeAllConnections()
+  await new Promise<void>((resolve, reject) => { relay.close(error => error ? reject(error) : resolve()) })
   console.log('Product Host evidence: ' + evidence)
 }

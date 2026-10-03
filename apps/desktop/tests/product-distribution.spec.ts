@@ -81,8 +81,13 @@ it('refuses unowned installed packages and a runtime with different plugin bytes
   expect(await readPackagedProduct(root, 'aiko')).toEqual(product())
   await writeFile(join(root, 'node_modules/aiko-dsh-workbench/package.json'), JSON.stringify({ name: 'aiko-dsh-workbench', version: '2.0.0' }))
   await expect(readPackagedProduct(root, 'aiko')).rejects.toThrow(/version mismatch/)
-  await writeProductPolicy(root)
-  expect(JSON.parse(await readFile(join(root, 'desktop-product.patch.yml'), 'utf8'))).toContainEqual({ id: 'llm-claude', config: { pluginUpdates: false } })
+  await writeProductPolicy(root, product())
+  const policy: unknown = JSON.parse(await readFile(join(root, 'desktop-product.patch.yml'), 'utf8'))
+  expect(policy).toContainEqual({ id: 'llm-claude', config: { pluginUpdates: false } })
+  expect(policy).toContainEqual({ id: 'plugin-manager', disabled: false, config: { packageChanges: false } })
+  expect(policy).toContainEqual({ id: 'ui-plugin-manager', disabled: false, config: {
+    packageChanges: false, registryProbeEnabled: false, bundledPackages: product().bundles.filter(name => name !== 'aiko-dsh-market'),
+  } })
 })
 
 it('changes public platform addresses without sharing or deleting previous credentials', async () => {
