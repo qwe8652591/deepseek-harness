@@ -20,6 +20,7 @@ const metadata = async (name: string): Promise<string> => archive === undefined
 const product = parseDesktopProduct(JSON.parse(await metadata('desktop-product.json')))
 const manifest: unknown = JSON.parse(await metadata('package.json'))
 assert.ok(isRecord(manifest) && typeof manifest.version === 'string')
+const version = manifest.version
 const executable = join(installed, product.productName + (process.platform === 'win32' ? '.exe' : ''))
 const evidenceRoot = resolve(import.meta.dirname, '../.desktop-build/qualification')
 await mkdir(evidenceRoot, { recursive: true })
@@ -45,7 +46,7 @@ async function start(profile: string): Promise<(typeof children)[number]> {
     join(runtime, 'node_modules/@deepseek-ai/dsh-desktop-host/lib/index.js'), runtime, profile,
     join(resources, 'runtime/primary-runtime'), join(resources, 'runtime/pnpm/bin/pnpm.cjs'), join(resources, 'runtime/bin'),
   ], { cwd: profile, windowsHide: true, env: { ...environment, ELECTRON_RUN_AS_NODE: '1',
-    DSH_HOME: resolve(profile, '../..'), DSH_CLIENT_VERSION: String(manifest.version) }, stdio: ['ignore', 'pipe', 'pipe', 'ipc'] })
+    DSH_HOME: resolve(profile, '../..'), DSH_CLIENT_VERSION: version }, stdio: ['ignore', 'pipe', 'pipe', 'ipc'] })
   let diagnostic = ''
   const capture = (chunk: Buffer): void => {
     diagnostic = (diagnostic + chunk.toString().replace(/(token|code|state)=([^&\s]+)/giu, '$1=[REDACTED]')).slice(-65536)
