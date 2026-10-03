@@ -33,6 +33,8 @@ Windows 签名构建使用 `package:win:x64`；macOS 在配置好签名和公证
 
 退出登录后，登录页的“平台设置”可修改地址。服务源地址的哈希选择独立的加密账号存储；已验证的发行者和用户标识选择其工作目录。切回原平台会保留数据。应用升级保留所属品牌的 Electron 用户数据、平台选择、账号目录、对话和用户覆盖配置。通过故障恢复禁用的 bundle 保持禁用。Aiko 和云遥使用独立用户数据目录，可同时存在。
 
+知识库授权沿用 Host 的轮询和凭据交换。连接配置保存成功后，可信产品主框架可调用 `dshDesktop.activate()`，还原并聚焦当前应用窗口，不执行页面导航。其他窗口、子框架和外部页面不能调用此操作。Aiko 和云遥各自唤起自己的客户端；原生桥接不接收回调地址或凭据。构建 Desktop 后执行 `node apps/desktop/scripts/test-window-activation.mjs`，可在隔离的原生窗口中验证隐藏和最小化还原、聚焦、页面状态保留以及调用方拒绝。
+
 构建 Desktop 后，分别为每个品牌执行 `node apps/desktop/scripts/test-product-admission.mjs --resources <packaged-application>/resources`。它使用独立应用数据，在 Electron 中执行真实启动入口，覆盖首次配置、从登录页修改平台、重新打开已保存配置和主动取消。添加 `--main <packaged-application>/resources/app.asar/lib/main.js` 可验证打包入口，而不是本地构建。测试将证据保留在 `.desktop-build/qualification`，不会登录远程账号。
 
 为每个已安装产品执行 `corepack pnpm exec tsx apps/desktop/scripts/test-product-host.ts --installed <application-directory>`。这项独立验证通过打包 Host 同时启动两个账号配置，检查每个已启用内置应用的客户端和所提供的脚本，并在正常关闭后重启其中一个配置。它从安装目录读取产品元数据，将证据保留在 `.desktop-build/qualification`，无需平台凭据。添加 `--ui` 可在隔离的 Electron 渲染器中验证插件菜单、组件详情、模块配置和知识库模块开关。测试提供本地账号中继夹具，并验证单个包的安装和卸载请求被拒绝。登录窗口验证与 Host 验证覆盖不同启动阶段，两者都必须通过。

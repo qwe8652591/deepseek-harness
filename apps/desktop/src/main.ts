@@ -1,6 +1,7 @@
 import type { ProductEventMap, ProductEvent } from '@deepseek-ai/dsh-client-product-analytics/types'
 import { WINDOWS_TITLEBAR_HEIGHT } from './windows-layout.ts'
 /** Electron shell: desktop project ownership, custom protocol, windows, and lifecycle. */
+import { installDesktopActivation, revealDesktopWindow } from './window-activation.ts'
 
 import { readFile, writeFile } from 'node:fs/promises'
 import { readFileSync } from 'node:fs'
@@ -711,6 +712,8 @@ async function main(): Promise<void> {
   })
 
   installDesktopDirectoryPicker(() => mainWindow)
+  const stopActivation = installDesktopActivation(() => mainWindow, () => { focusPrimaryWindow() })
+  app.once('will-quit', stopActivation)
   installMicrophonePermissions(session.defaultSession, () => mainWindow?.webContents)
   const shortcuts = installDesktopShortcuts(() => mainWindow, app.getPath('userData'),
     process.platform === 'darwin' ? 'macos' : process.platform === 'win32' ? 'windows' : 'linux', () => { refreshApplicationMenu() }, window => updateOverlays.input(window))
@@ -1264,9 +1267,7 @@ async function main(): Promise<void> {
     }
     // Startup and sign-out select the visible window before activation may reveal the workspace.
     if (window === mainWindow && !enteredWorkspace) return
-    if (window.isMinimized()) window.restore()
-    window.show()
-    window.focus()
+    revealDesktopWindow(window)
   }
 
   const launchProtocol = desktopProduct === undefined ? 'dsh' : desktopProduct.profile + '-dsh'

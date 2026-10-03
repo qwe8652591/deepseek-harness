@@ -28,6 +28,14 @@ it('reads only native login API-key presence through the onboarding bridge', asy
   expect(electron.ipcRenderer.invoke).toHaveBeenCalledWith(DESKTOP_IPC.onboardingApiKey)
 })
 
+it('requests activation from its own native shell without a callback URL', async () => {
+  vi.stubGlobal('location', new URL('dsh-app://app/'))
+  await import('../src/preload-app.ts')
+  const api = electron.contextBridge.exposeInMainWorld.mock.calls.find(([name]) => name === 'dshDesktop')?.[1] as DshDesktopProductApi
+  await api.activate()
+  expect(electron.ipcRenderer.invoke).toHaveBeenCalledExactlyOnceWith(DESKTOP_IPC.activate)
+})
+
 it('exposes onboarding size activation to the application document', async () => {
   vi.stubGlobal('location', new URL('dsh-app://app/'))
   await import('../src/preload-app.ts')

@@ -13,6 +13,7 @@ export const DESKTOP_IPC = {
   shortcutsChanged: 'dsh-desktop:shortcuts-changed',
   shortcutsRecording: 'dsh-desktop:shortcuts-recording',
   boot: 'dsh-desktop:boot',
+  activate: 'dsh-desktop:activate',
   enterWorkspace: 'dsh-desktop:enter-workspace',
   onboardingActive: 'dsh-desktop:onboarding-active',
   onboardingApiKey: 'dsh-desktop:onboarding-api-key',
@@ -71,6 +72,11 @@ export interface DesktopUpdatePresentation {
 /** Product documents cannot supply update versions, package URLs, or installation authorization. */
 export interface DshDesktopProductApi {
   readonly protocolVersion: 1
+  /**
+   * Restore and focus this application's existing primary window without navigation.
+   * @returns Resolves after the native activation request; OS focus policy still applies.
+   */
+  activate(): Promise<void>
   readonly browser: DesktopBrowserBridge
   readonly keyboard: DesktopKeyboardApi
   readonly shortcuts: DesktopShortcutsApi
