@@ -1398,6 +1398,10 @@ async function main(): Promise<void> {
 
 const ownsDesktopInstance = claimDesktopSingleInstance(app, () => { focusPrimaryWindow() })
 
+// Admission switches windows across asynchronous work. Explicit cancellation still calls app.quit().
+const keepAdmissionAlive = (): void => {}
+if (ownsDesktopInstance) app.on('window-all-closed', keepAdmissionAlive)
+
 if (ownsDesktopInstance) void app.whenReady().then(async () => {
   const deploymentFile = process.env.DSH_DESKTOP_DEPLOYMENT
   if (!app.isPackaged && deploymentFile !== undefined) aikoDeployment = await readAikoDeployment(deploymentFile)
@@ -1437,6 +1441,8 @@ if (ownsDesktopInstance) void app.whenReady().then(async () => {
     process.env.AIKO_CAPABILITY_SSO_FILE = relay
   }
   await main()
+}).finally(() => {
+  app.off('window-all-closed', keepAdmissionAlive)
 }).catch(async (error: unknown) => {
   await aikoAccount?.dispose()
   if (error instanceof DOMException && error.name === 'AbortError') { app.quit(); return }

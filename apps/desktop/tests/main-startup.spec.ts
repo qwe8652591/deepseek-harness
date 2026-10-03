@@ -312,6 +312,17 @@ vi.mock('node:fs/promises', async (importOriginal) => {
     return encoding === undefined ? original.readFile(path) : original.readFile(path, encoding)
   }) }
 })
+vi.mock('node:fs', async (importOriginal) => {
+  const original = await importOriginal<typeof import('node:fs')>()
+  return { ...original, readFileSync: vi.fn((
+    path: Parameters<typeof original.readFileSync>[0], options?: Parameters<typeof original.readFileSync>[1],
+  ) => {
+    if (path === join('desktop-test-app', 'package.json')) {
+      return JSON.stringify({ dshDesktopAppId: 'com.deepseek.dsh', dshMandatoryUpdatePolicy: harness.embeddedPolicy })
+    }
+    return original.readFileSync(path, options)
+  }) }
+})
 vi.mock('../src/login-shell-environment.ts', async importOriginal => ({
   ...await importOriginal<typeof import('../src/login-shell-environment.ts')>(),
   readDesktopLoginShellEnvironment: harness.loginShell,

@@ -16,6 +16,8 @@ Version releases contain immutable binaries. Separate brand/channel releases con
 
 Windows products share the Host's long-path extraction and staged directory replacement adapter while supplying their own NSIS presentation. Full plugin dependencies exceed the legacy Windows copy-path limit. The stock copy step can misreport those failures as an application shutdown failure or omit files during silent installation. Native installation qualification covers long dependency paths, replacement and uninstall for both brands.
 
+Desktop admission keeps Electron alive across the asynchronous transitions between platform settings and sign-in until the main shell owns window closure. Explicit cancellation still exits. Qualification uses the real startup entry without a fixture-owned last-window listener, which would conceal premature exit between admission windows.
+
 ## Alternatives considered
 
 Individual plugin upgrades preserve independent delivery but invalidate whole-application qualification. GitHub's repository-wide latest release cannot distinguish two brands and three architectures. External development junctions do not work inside packaged ASAR resources.
