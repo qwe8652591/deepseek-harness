@@ -19,6 +19,8 @@ Windows 签名构建使用 `package:win:x64`；macOS 在配置好签名和公证
 
 输出分别位于 `apps/desktop/.desktop-build/products/<brand>/<target>/artifacts` 或 `unsigned-artifacts`。原生图标、应用 ID、协议、应用名、更新缓存和用户数据目录按品牌区分。内置插件从不可变的应用运行时解析，启动时不安装到用户目录。部署最后一层覆盖配置禁用插件管理和市场启用入口。Code 的独立包更新也被禁用。开发发行环境保留模块控制。
 
+产品 Host 从声明所有内置插件的运行时清单解析模块，并使用操作系统分配的回环端口。不同品牌应用和开发版 Host 可以同时运行，无需共用固定监听端口。
+
 ## Windows 安装验证
 
 品牌 Windows 安装包保留共用的长路径解压与目录替换机制。安装器先在目标目录旁准备完整应用，再替换目录；替换失败时恢复原目录。品牌页面和图标不改变这一机制。卸载删除应用目录并保留用户数据。
@@ -32,6 +34,8 @@ Windows 签名构建使用 `package:win:x64`；macOS 在配置好签名和公证
 退出登录后，登录页的“平台设置”可修改地址。服务源地址的哈希选择独立的加密账号存储；已验证的发行者和用户标识选择其工作目录。切回原平台会保留数据。应用升级保留所属品牌的 Electron 用户数据、平台选择、账号目录、对话和用户覆盖配置。通过故障恢复禁用的 bundle 保持禁用。Aiko 和云遥使用独立用户数据目录，可同时存在。
 
 构建 Desktop 后，分别为每个品牌执行 `node apps/desktop/scripts/test-product-admission.mjs --resources <packaged-application>/resources`。它使用独立应用数据，在 Electron 中执行真实启动入口，覆盖首次配置、从登录页修改平台、重新打开已保存配置和主动取消。添加 `--main <packaged-application>/resources/app.asar/lib/main.js` 可验证打包入口，而不是本地构建。测试将证据保留在 `.desktop-build/qualification`，不会登录远程账号。
+
+为每个已安装产品执行 `corepack pnpm exec tsx apps/desktop/scripts/test-product-host.ts --installed <application-directory>`。这项独立验证通过打包 Host 同时启动两个账号配置，检查每个已启用内置应用的客户端和所提供的脚本，并在正常关闭后重启其中一个配置。它从安装目录读取产品元数据，将证据保留在 `.desktop-build/qualification`，无需平台凭据。登录窗口验证与 Host 验证覆盖不同启动阶段，两者都必须通过。
 
 ## GitHub Release 发布
 

@@ -20,15 +20,18 @@ async function main(): Promise<void> {
   const runtimeDir = process.argv[2] as string
   const projectDir = process.argv[3] as string
   installOfficeEngineResolution(runtimeDir)
-  const installAnchor = join(runtimeDir, 'node_modules', '@deepseek-ai', 'dsh', 'package.json')
+  const product = existsSync(join(runtimeDir, 'desktop-product.json'))
+  // The product manifest declares every immutable bundled plugin, including its top-level entry.
+  const installAnchor = product ? join(runtimeDir, 'package.json')
+    : join(runtimeDir, 'node_modules', '@deepseek-ai', 'dsh', 'package.json')
   const profile = loadProfileDirectory('dsh', projectDir, installAnchor)
   reportSkippedBundles('dsh', profile)
   const application = runProfile({
     environment: loadLayeredEnv('dsh'),
     profile: 'desktop',
     resolvedProfile: { profile, installAnchor },
-    patchFiles: existsSync(join(runtimeDir, 'desktop-product.json')) ? [join(runtimeDir, 'desktop-product.patch.yml')] : [],
-    args: ['--no-open', '--port', '19387'],
+    patchFiles: product ? [join(runtimeDir, 'desktop-product.patch.yml')] : [],
+    args: ['--no-open', '--port', product ? '0' : '19387'],
     ...(process.argv[5] === undefined ? {} : {
       packageManager: {
         command: process.execPath,

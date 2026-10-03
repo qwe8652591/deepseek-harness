@@ -18,6 +18,8 @@ Windows products share the Host's long-path extraction and staged directory repl
 
 Desktop admission keeps Electron alive across the asynchronous transitions between platform settings and sign-in until the main shell owns window closure. Explicit cancellation still exits. Qualification uses the real startup entry without a fixture-owned last-window listener, which would conceal premature exit between admission windows.
 
+The product runtime manifest is the Host's installation anchor. The CLI package's dependency graph omits product bundle entry packages, even when their files and transitive plugins are present beside it; using that anchor causes partial plugin activation. Product Hosts request an OS-assigned loopback port so separate brand and development instances do not contend for one listener. Packaged Host qualification activates the installation's product metadata, checks client assets, and covers concurrent profiles and restart independently of admission-window tests.
+
 ## Alternatives considered
 
 Individual plugin upgrades preserve independent delivery but invalidate whole-application qualification. GitHub's repository-wide latest release cannot distinguish two brands and three architectures. External development junctions do not work inside packaged ASAR resources.

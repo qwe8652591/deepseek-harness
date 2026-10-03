@@ -19,6 +19,8 @@ Signed Windows builds use `package:win:x64`; macOS uses `package:mac:arm64` or `
 
 Outputs are isolated under `apps/desktop/.desktop-build/products/<brand>/<target>/artifacts` or `unsigned-artifacts`. The native icon, application ID, protocol, application name, updater cache and user-data directory differ by brand. Bundled plugins resolve from the immutable application runtime; startup does not install them into user homes. Plugin management and marketplace activation are disabled by the final deployment overlay. Code's independent package updater is also disabled. Developer distributions retain their module controls.
 
+The product Host resolves modules from the runtime manifest, which declares all bundled plugins, and requests an OS-assigned loopback port. Separate branded applications and development Hosts can run concurrently without sharing a fixed listener.
+
 ## Windows installation qualification
 
 Branded Windows installers retain the shared long-path extraction and directory replacement mechanism. They stage the complete application beside the destination before replacing it; a failed replacement restores the previous directory. Brand-specific pages and icons do not change this mechanism. Uninstall removes the application directory and retains user data.
@@ -32,6 +34,8 @@ First launch asks for the platform origin. Saving opens the selected brand's sig
 After logout, **Platform settings** on the login page changes the addresses. A service-origin hash selects an independent encrypted account store; the verified issuer and subject select its work directory. Returning to a previous platform preserves its data. Application upgrades retain the brand's Electron user data, saved platform selection, account homes, conversations and user patches. Recovery-disabled bundles remain disabled. Aiko and Yunyao use separate user-data directories and can coexist.
 
 After building Desktop, run `node apps/desktop/scripts/test-product-admission.mjs --resources <packaged-application>/resources` for each brand. It exercises the real startup entry in Electron with private application data, including first setup, changing platforms from sign-in, reopening saved settings and explicit cancellation. Use `--main <packaged-application>/resources/app.asar/lib/main.js` to qualify the packaged entry instead of the local build. The fixture retains evidence under `.desktop-build/qualification` and does not log in to a remote account.
+
+Run `corepack pnpm exec tsx apps/desktop/scripts/test-product-host.ts --installed <application-directory>` for each installed product. This separate qualification starts two account profiles concurrently through the packaged Host, verifies every enabled bundled application client and its served script, and restarts a profile after graceful shutdown. It reads product metadata from the installation, retains evidence under `.desktop-build/qualification`, and needs no platform credentials. Admission and Host qualification cover different startup stages; both must pass.
 
 ## GitHub release publication
 
