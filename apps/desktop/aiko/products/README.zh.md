@@ -19,6 +19,12 @@ Windows 签名构建使用 `package:win:x64`；macOS 在配置好签名和公证
 
 输出分别位于 `apps/desktop/.desktop-build/products/<brand>/<target>/artifacts` 或 `unsigned-artifacts`。原生图标、应用 ID、协议、应用名、更新缓存和用户数据目录按品牌区分。内置插件从不可变的应用运行时解析，启动时不安装到用户目录。部署最后一层覆盖配置禁用插件管理和市场启用入口。Code 的独立包更新也被禁用。开发发行环境保留模块控制。
 
+## Windows 安装验证
+
+品牌 Windows 安装包保留共用的长路径解压与目录替换机制。安装器先在目标目录旁准备完整应用，再替换目录；替换失败时恢复原目录。品牌页面和图标不改变这一机制。卸载删除应用目录并保留用户数据。
+
+在 Windows x64 上，分别为每个品牌执行 `node apps/desktop/scripts/test-product-installer.mjs --product <product.json> --output <evidence-directory>`。命令构建独立的原生测试安装器，使用超过 260 字符的依赖路径验证首次安装、覆盖安装和卸载。它保留构建证据，使用唯一的应用注册信息且不创建快捷方式。还应安装完整发行文件并核验其中的文件；小型测试包不能代替完整负载或生产签名验证。
+
 ## 平台设置与数据保留
 
 首次启动填写平台源地址。可选认证源地址默认沿用平台地址。远程地址要求 HTTPS；开发可使用 `http://127.0.0.1`。这些值是公开连接设置，不是凭据。对接平台需要实现 Desktop PKCE 登录和能力 API。

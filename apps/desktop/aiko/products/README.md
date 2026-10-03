@@ -19,6 +19,12 @@ Signed Windows builds use `package:win:x64`; macOS uses `package:mac:arm64` or `
 
 Outputs are isolated under `apps/desktop/.desktop-build/products/<brand>/<target>/artifacts` or `unsigned-artifacts`. The native icon, application ID, protocol, application name, updater cache and user-data directory differ by brand. Bundled plugins resolve from the immutable application runtime; startup does not install them into user homes. Plugin management and marketplace activation are disabled by the final deployment overlay. Code's independent package updater is also disabled. Developer distributions retain their module controls.
 
+## Windows installation qualification
+
+Branded Windows installers retain the shared long-path extraction and directory replacement mechanism. They stage the complete application beside the destination before replacing it; a failed replacement restores the previous directory. Brand-specific pages and icons do not change this mechanism. Uninstall removes the application directory and retains user data.
+
+On Windows x64, run `node apps/desktop/scripts/test-product-installer.mjs --product <product.json> --output <evidence-directory>` for each brand. The command builds an isolated native installer and checks fresh installation, replacement and uninstall with a dependency path longer than 260 characters. It retains build evidence and uses a unique application registration without shortcuts. Also install the full release artifact and verify its packaged files; the small fixture does not qualify the complete payload or production signing.
+
 ## Platform settings and retained data
 
 First launch asks for the platform origin. The optional authentication origin defaults to it. Remote origins require HTTPS; `http://127.0.0.1` is available for development. These values are public connection settings, not credentials. The existing platform must implement Desktop PKCE login and the capability API.

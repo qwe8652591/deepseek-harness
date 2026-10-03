@@ -14,6 +14,8 @@ The product build manifest binds one brand profile to hashed plugin archives, na
 
 Version releases contain immutable binaries. Separate brand/channel releases contain per-target metadata pointing at those binaries. Publication validates the signed completion record and checksums before uploading binaries, then advances metadata. A clean checkout is required for publication. [Product distribution](../../../../apps/desktop/aiko/products/README.md) owns the operator procedure.
 
+Windows products share the Host's long-path extraction and staged directory replacement adapter while supplying their own NSIS presentation. Full plugin dependencies exceed the legacy Windows copy-path limit. The stock copy step can misreport those failures as an application shutdown failure or omit files during silent installation. Native installation qualification covers long dependency paths, replacement and uninstall for both brands.
+
 ## Alternatives considered
 
 Individual plugin upgrades preserve independent delivery but invalidate whole-application qualification. GitHub's repository-wide latest release cannot distinguish two brands and three architectures. External development junctions do not work inside packaged ASAR resources.

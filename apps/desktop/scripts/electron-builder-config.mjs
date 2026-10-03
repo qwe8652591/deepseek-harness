@@ -65,7 +65,7 @@ export function createElectronBuilderConfig(
   if (unsigned && resolvedPlatform !== 'win32') throw new Error('desktop package: unsigned builds require Windows')
   const packagesMacOS = targetPlatform === 'darwin' || (targetPlatform === undefined && hostPlatform === 'darwin')
   const packagesWindows = resolvedPlatform === 'win32'
-  if (resolvedPlatform === 'win32' && product === undefined) installWindowsDirectoryInstaller()
+  if (resolvedPlatform === 'win32') installWindowsDirectoryInstaller()
   const macOSSigning = packagesMacOS ? resolveMacOSSigningEnvironment(env) : undefined
   if (packagesMacOS) resolveMacOSNotarizationEnvironment(env)
   const buildPaths = desktopTargetBuildPaths(resolveDesktopBuildTarget(env, hostPlatform, hostArch), env)
@@ -263,7 +263,7 @@ export function createElectronBuilderConfig(
         installerSidebar: join(buildPaths.root, 'installer-ui', 'uninstaller-sidebar.bmp'),
         uninstallerSidebar: join(buildPaths.root, 'installer-ui', 'uninstaller-sidebar.bmp'),
         include: fileURLToPath(new URL('./installer.nsh', import.meta.url)),
-      } : {}),
+      } : { include: fileURLToPath(new URL('./product-installer.nsh', import.meta.url)) }),
       oneClick: false,
       perMachine: false,
       allowElevation: false,
