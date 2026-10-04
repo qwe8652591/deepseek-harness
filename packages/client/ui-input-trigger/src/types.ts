@@ -51,8 +51,10 @@ export interface InputTriggerCandidate {
   readonly hint?: string
   /** Optional visual heading shared by adjacent candidates; sectioned groups omit their source-title row. */
   readonly section?: string
-  /** Opaque source-owned pick payload. */
+  /** Opaque source-owned pick payload; keep unique within the source for stable selection across updates. */
   readonly value?: string
+  /** Status-only row: visible but excluded from pointer and keyboard selection. */
+  readonly disabled?: boolean
   /**
    * The row offers a drill action beside the settling pick: Tab or the row's
    * chevron refines the query in place (directory descent) instead of
@@ -108,6 +110,14 @@ export interface CandidateRequest {
   /** Whether this menu was opened or last re-scoped by a drill pick; see {@link HeaderRequest.drilled}. */
   readonly drilled: boolean
   readonly signal: AbortSignal
+  /**
+   * Replace this source's visible candidates before its promise settles. Rows
+   * are immediately selectable; ordinary empty-menu auto-close still applies.
+   * Calls after cancellation or settlement are ignored. Callers without this
+   * hook receive only the final array returned by `candidates`.
+   * @param items - Complete current list, including source-owned loading rows.
+   */
+  readonly publish?: (items: readonly InputTriggerCandidate[]) => void
 }
 
 /** Everything a source receives on pick: candidate + session projection + the span snapshot for CAS. */

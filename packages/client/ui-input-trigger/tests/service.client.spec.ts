@@ -14,7 +14,7 @@ import type { LocaleSnapshot } from '@deepseek-ai/dsh-client-locale/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { InputTriggerController, InputTriggerService } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
 import type {
-  BeginCommandRequest, ClientSessionContext, CommandClaim, InsertReferenceRequest, PickOutcome,
+  BeginCommandRequest, CandidateRequest, ClientSessionContext, CommandClaim, InsertReferenceRequest, PickOutcome,
   ReferenceInsert, InputTriggerCandidate, InputTriggerPick, InputTriggerSource, SourceRoster, TriggerChar,
 } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
 
@@ -26,6 +26,7 @@ interface PendingFetch {
   query: string
   signal: AbortSignal
   session: ClientSessionContext
+  publish: NonNullable<CandidateRequest['publish']>
 }
 
 /** Deferred-candidates source: settle each fetch by hand; warm is a spy. */
@@ -36,7 +37,7 @@ function deferredSource(trigger: TriggerChar, name: string, over: Partial<InputT
     trigger,
     name,
     candidates: (session, req) => new Promise<readonly InputTriggerCandidate[]>((resolve, reject) => {
-      pending.push({ resolve, reject, query: req.query, signal: req.signal, session })
+      pending.push({ resolve, reject, query: req.query, signal: req.signal, session, publish: req.publish! })
     }),
     onPick: () => undefined,
     warm,
@@ -77,7 +78,7 @@ function controllerBench(sources: InputTriggerSource[] = [], key = 'a') {
     all: () => sources,
   }
   const controller = new InputTriggerController({ actx: scope.ctx, sessionId: sid(key), roster })
-  return { root, actx: scope.ctx, controller, sources }
+  return { root, actx: scope.ctx, controller, sources, fiber: scope.fiber }
 }
 
 /** Real-service bench: a sessions face resolving scope tags to session ids. */
@@ -94,6 +95,67 @@ async function serviceBench() {
   }
   return { root, inputTriggers, mint }
 }
+
+describe('progressive candidates', () => {
+  it('selects a ready resource while another provider is pending and ignores updates after the pick', async () => {
+    const onPick = vi.fn<(pick: InputTriggerPick) => PickOutcome>(() => 'handled')
+    const source = deferredSource('@', 'resources', { onPick })
+    const { controller, fiber } = controllerBench([source.source])
+    try {
+      controller.track('@', 1, { tier: 'plain' }, 1)
+      const request = source.pending[0]!
+      request.publish([{ name: 'Loading', disabled: true }, { name: 'README.md', value: 'file:readme' }])
+      expect(controller.menu.getSnapshot().highlight).toEqual({ source: 'resources', index: 1 })
+      controller.pick('resources', 0)
+      expect(onPick).not.toHaveBeenCalled()
+      expect(controller.menu.getSnapshot().open).toBe(true)
+      expect(controller.arbitrate('enter', false)).toBe('pick-highlighted')
+      expect(onPick.mock.calls[0]?.[0].candidate.name).toBe('README.md')
+      expect(request.signal.aborted).toBe(true)
+      request.publish([{ name: 'Late Studio result' }])
+      request.resolve([{ name: 'Late Studio result' }])
+      await tick()
+      expect(controller.menu.getSnapshot().open).toBe(false)
+    } finally {
+      controller.dispose()
+      await fiber.dispose()
+    }
+  })
+
+  it('fences publications at query replacement, final settlement and disposal', async () => {
+    const source = deferredSource('@', 'resources')
+    const { controller, fiber } = controllerBench([source.source])
+    try {
+      controller.track('@old', 4, { tier: 'plain' }, 1)
+      const old = source.pending[0]!
+      old.publish([{ name: 'old' }])
+      controller.track('@new', 4, { tier: 'plain' }, 2)
+      const fresh = source.pending[1]!
+      fresh.publish([{ name: 'new' }])
+      const current = controller.menu.getSnapshot()
+      old.publish([{ name: 'stale' }])
+      old.resolve([{ name: 'stale' }])
+      await tick()
+      expect(controller.menu.getSnapshot()).toBe(current)
+      fresh.resolve([{ name: 'final' }])
+      await tick()
+      const final = controller.menu.getSnapshot()
+      fresh.publish([{ name: 'after settlement' }])
+      expect(controller.menu.getSnapshot()).toBe(final)
+      controller.track('@later', 6, { tier: 'plain' }, 3)
+      const later = source.pending[2]!
+      controller.dispose()
+      later.publish([{ name: 'after disposal' }])
+      later.resolve([])
+      await tick()
+      expect(later.signal.aborted).toBe(true)
+      expect(controller.menu.getSnapshot().open).toBe(false)
+    } finally {
+      controller.dispose()
+      await fiber.dispose()
+    }
+  })
+})
 
 describe('registerSource', () => {
   it('throws on a duplicate (trigger, name); same name across triggers is fine', async () => {

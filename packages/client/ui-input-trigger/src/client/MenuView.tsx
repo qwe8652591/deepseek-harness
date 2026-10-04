@@ -135,18 +135,20 @@ export function MenuView({ menu, headers, onPick, onCrumb, onHover, onDismiss, t
                         type="button"
                         role="option"
                         aria-selected={active}
+                        aria-disabled={item.disabled === true || undefined}
+                        tabIndex={item.disabled === true ? -1 : undefined}
                         className={clsx(css.item, active && css.active)}
                         // mousedown, not click: the textarea keeps focus (combobox
                         // pattern) — preventing default stops the focus steal, and the
                         // pick runs before any blur-driven teardown.
                         onMouseDown={(ev) => {
                           ev.preventDefault()
-                          onPick(group.source, index)
+                          if (item.disabled !== true) onPick(group.source, index)
                         }}
                         // mousemove, not mouseenter: real pointer motion moves the
                         // shared highlight; keyboard scrolling rows under a resting
                         // pointer must not steal it back.
-                        onMouseMove={active ? undefined : () => { onHover(group.source, index) }}
+                        onMouseMove={active || item.disabled === true ? undefined : () => { onHover(group.source, index) }}
                       >
                         {item.icon !== undefined && (
                           <span className={css.itemIcon} aria-hidden>
@@ -155,7 +157,7 @@ export function MenuView({ menu, headers, onPick, onCrumb, onHover, onDismiss, t
                         )}
                         <span className={css.itemName}>{item.name}</span>
                         {item.description !== undefined && <span className={css.itemDescription}>{item.description}</span>}
-                        {item.drill === true && (
+                        {item.drill === true && item.disabled !== true && (
                           <span className={css.trailing}>
                             {/* Visual hint only: Tab drills the highlighted row (the
                                 keyboard twin of the chevron, which owns the aria label). */}

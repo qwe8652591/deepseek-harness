@@ -69,6 +69,35 @@ describe('menuReduce hit', () => {
 })
 
 describe('menuReduce source-settled', () => {
+  it('keeps the selected resource when a progressive update inserts rows before it', () => {
+    let s = open(['resources'])
+    s = menuReduce(s, { type: 'source-settled', generation: 1, source: 'resources', items: [
+      { name: 'Loading', disabled: true }, { name: 'Same title', value: 'session:a' },
+    ] })
+    expect(s.highlight).toEqual({ source: 'resources', index: 1 })
+    s = menuReduce(s, { type: 'source-settled', generation: 1, source: 'resources', items: [
+      { name: 'Same title', value: 'studio:b' }, { name: 'Another document' }, { name: 'Same title', value: 'session:a' },
+    ] })
+    expect(s.highlight).toEqual({ source: 'resources', index: 2 })
+    s = menuReduce(s, { type: 'source-settled', generation: 1, source: 'resources', items: [{ name: 'Only resource' }] })
+    expect(s.highlight).toEqual({ source: 'resources', index: 0 })
+  })
+
+  it('leaves status rows visible but skips them during hover, exact match and keyboard movement', () => {
+    let s = open(['resources'])
+    s = menuReduce(s, { type: 'source-settled', generation: 1, source: 'resources', items: [
+      { name: 'Loading', disabled: true }, { name: 'README.md' }, { name: 'Unavailable', disabled: true },
+    ] })
+    expect(s.highlight).toEqual({ source: 'resources', index: 1 })
+    expect(menuReduce(s, { type: 'hover', source: 'resources', index: 0 })).toBe(s)
+    expect(menuReduce(s, { type: 'move', dir: 1 })).toBe(s)
+    expect(menuReduce(s, { type: 'move', dir: -1 })).toBe(s)
+    expect(exactMatch(s.groups, 'resources', 'Loading')).toBeNull()
+    s = menuReduce(s, { type: 'source-settled', generation: 1, source: 'resources', items: [{ name: 'Loading', disabled: true }] })
+    expect(s.open).toBe(true)
+    expect(s.highlight).toBeNull()
+  })
+
   it('marks the group ready and highlights the first item', () => {
     let s = open(['command', 'skill'])
     s = menuReduce(s, { type: 'source-settled', generation: 1, source: 'skill', items: [item('commit')] })
