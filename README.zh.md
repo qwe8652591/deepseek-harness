@@ -2,6 +2,12 @@
 
 [English](README.md) | 中文
 
+## Aiko 源码仓库
+
+本私有仓库维护基于 [DeepSeek 官方 Harness](https://github.com/deepseek-ai/deepseek-harness) 的 Aiko/云遥 Host 与桌面集成。[DSH 0.2 集成分支](https://github.com/aiko-dsh-plugins/deepseek-harness-source/tree/codex/aiko-desktop-020)负责当前桌面产品开发；默认分支保留较早的开发线。业务插件和产品 Profile 归 [Aiko 工作台](https://github.com/aiko-dsh-plugins/aiko-dsh-workbench)，平台身份与业务 API 归[云遥 Workspace](https://github.com/aiko-dsh-plugins/yunyao-office-site)。发布分工见[仓库定位说明](https://github.com/aiko-dsh-plugins/aiko-dsh-workbench/blob/main/docs/repository-map.md)。
+
+`apps/desktop` 存放桌面应用，`packages/` 存放 Harness 插件，`vendor/` 存放固定版本的上游依赖。构建和检查 Host 与桌面产物时，请遵循所选分支的开发指南。下方 npm 命令安装的是官方包，不会安装本私有产品构建。fork 改动由 Aiko 维护，不代表 DeepSeek 官方支持。
+
 DeepSeek Harness（`dsh`）是由 [DeepSeek AI](https://deepseek.com) 开发的开源 agent harness（智能体框架）。
 
 它构建于**一切皆插件**的架构之上，由 [Cordis](https://github.com/cordiverse/cordis) 驱动，其设计参见论文 [_A Programming Paradigm for Spatiotemporal Composability_](https://arxiv.org/abs/2608.25512)。
