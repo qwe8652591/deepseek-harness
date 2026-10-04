@@ -2,8 +2,8 @@
  * Display projection of reference forms in sent user text (bubble and queue
  * rows). The logged model text remains the single truth; this is presentation
  * only, and every part renders inline so a single-line message never breaks
- * across lines. Four decoration sources, by precedence: the wire session form
- * `@[label](dsh-session:...)` folds to its label; exact session labels
+ * across lines. Four decoration sources, by precedence: wire references
+ * `@[label](dsh-session:...)` and `@[label](dsh-resource://...)` fold to their labels; exact session labels
  * supplied by an adjacent recall decorate their bare `@label` mention; plain
  * `@name` word-boundary tokens decorate by shape alone; and a plain `/name`
  * token decorates only when the caller names it — a skill the host actually
@@ -19,8 +19,8 @@ import clsx from 'clsx'
 import { ReferenceIcon } from './ReferenceIcon.tsx'
 import css from './user-text.module.css'
 
-/** The wire form a session chip serializes to; label is the display text. */
-const SESSION_WIRE_RE = /@\[([^\]\n]+)\]\(dsh-session:[^)\s]+\)/gu
+/** Canonical reference forms; the URI and revision remain available in the hover title. */
+const REFERENCE_WIRE_RE = /@\[([^\]\r\n]+)\]\((dsh-session:|dsh-resource:\/\/)[^)\s]+\)/gu
 
 /** Sentence punctuation a bare `@name` token may carry without being part of the reference. */
 const TRAILING_PUNCTUATION_RE = /[.,;:!?，。；：！？]+$/u
@@ -30,7 +30,7 @@ interface DecorationRange {
   readonly end: number
   /** Matched source text (hover title). */
   readonly label: string
-  readonly kind: 'session' | 'plain'
+  readonly kind: 'session' | 'resource' | 'plain'
   /** Pre-resolved display text (wire folds); derived from label when absent. */
   readonly display?: string
 }
@@ -52,15 +52,15 @@ export function projectUserText(
   slashKind: 'skill' | 'command' = 'skill',
 ): ReactNode {
   const ranges: DecorationRange[] = []
-  SESSION_WIRE_RE.lastIndex = 0
+  REFERENCE_WIRE_RE.lastIndex = 0
   let wire: RegExpExecArray | null
-  while ((wire = SESSION_WIRE_RE.exec(text)) !== null) {
+  while ((wire = REFERENCE_WIRE_RE.exec(text)) !== null) {
     ranges.push({
       start: wire.index,
       end: wire.index + wire[0].length,
       label: wire[0],
-      kind: 'session',
-      display: wire[1] as string, // non-optional capture in SESSION_WIRE_RE
+      kind: wire[2] === 'dsh-session:' ? 'session' : 'resource',
+      display: wire[1] as string, // non-optional capture in REFERENCE_WIRE_RE
     })
   }
   for (const rawLabel of [...new Set(sessionLabels)].sort((a, b) => b.length - a.length)) {
@@ -85,7 +85,7 @@ export function projectUserText(
     if (label.startsWith('/') && !slashNames.includes(label.slice(1))) continue
     ranges.push({ start: tokenStart, end: tokenStart + label.length, label, kind: 'plain' })
   }
-  const rankOf = (range: DecorationRange): number => range.kind === 'session' ? 0 : 1
+  const rankOf = (range: DecorationRange): number => range.kind === 'plain' ? 1 : 0
   ranges.sort((a, b) => a.start - b.start || rankOf(a) - rankOf(b) || b.end - a.end)
   const parts: ReactNode[] = []
   let cursor = 0

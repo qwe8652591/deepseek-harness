@@ -43,6 +43,24 @@ describe('projectUserText', () => {
     expect(host.querySelector('[data-ref-chip="session"]')!.textContent).toBe('a')
   })
 
+  it('shows resource labels in bubbles and queue rows while retaining the pinned URI in the title', () => {
+    const mention = '@[Aiko 工作台](dsh-resource://workbench/session/session-source#sha256:' + 'a'.repeat(64) + ')'
+    const host = project('请读取 ' + mention + '，对比 @[设计稿](dsh-resource://design/document/42)。')
+    const chips = [...host.querySelectorAll('[data-ref-chip]')]
+    expect(chips.map(chip => chip.textContent)).toEqual(['Aiko 工作台', '设计稿'])
+    expect(chips[0]!.getAttribute('title')).toBe(mention)
+    expect(chips.every(chip => chip.querySelector('svg') !== null)).toBe(true)
+    expect(host.textContent).toMatchInlineSnapshot('"请读取 Aiko 工作台，对比 设计稿。"')
+    expect(host.querySelectorAll('a').length).toBe(0)
+  })
+
+  it('keeps resource label markup inert and an adjacent native Session reference distinct', () => {
+    const host = project('@[<img src=x onerror=alert(1)>](dsh-resource://files/a)@[会话](dsh-session:x)')
+    expect(host.textContent).toBe('<img src=x onerror=alert(1)>会话')
+    expect(host.querySelector('img')).toBeNull()
+    expect([...host.querySelectorAll('[data-ref-chip]')].map(chip => chip.getAttribute('data-ref-chip'))).toEqual(['file', 'session'])
+  })
+
   it('decorates recall-associated labels, files, folders, and quoted paths', () => {
     const host = project('@会话一 说 @src/deep/file.txt 与 @dir/ 与 @"a b.md"', ['会话一'])
     const kinds = [...host.querySelectorAll('[data-ref-chip]')].map(c =>
