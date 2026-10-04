@@ -46,6 +46,8 @@ export class ModelDirectory {
   private generation = 0
   private disposed = false
   private resolved = false
+  private allowedProviders: readonly string[] | undefined
+  private excludedProviders: readonly string[] = []
   private readonly unsubscribeCatalog: () => void
   private readonly unsubscribeSelection: () => void
 
@@ -87,10 +89,12 @@ export class ModelDirectory {
  */
   async select(selection: ModelSelection): Promise<void> {
     this.assertAvailable()
+    if (!this.providerAllowed(selection.provider)) throw new Error('model provider is unavailable for this Agent preset')
     const generation = ++this.generation
     this.store.update((s) => { s.status = 'selecting'; s.error = null })
     const result = await this.sessions.selectModel({
       sessionId: this.sessionId,
+      ...(this.allowedProviders === undefined ? {} : { saveAsDefault: false }),
       provider: selection.provider,
       model: selection.model,
       ...selection.reasoningEffort === undefined
@@ -107,6 +111,20 @@ export class ModelDirectory {
     }
     this.store.update((s) => { s.status = 'ready'; s.error = null })
     this.syncInputs()
+  }
+
+  /** Restrict the shared picker to providers supported by its Agent preset.
+   * @param allowed - Providers supported by this preset; absent retains general providers.
+   * @param excluded - Engine providers reserved by other presets.
+   */
+  restrictProviders(allowed: readonly string[] | undefined, excluded: readonly string[]): void {
+    this.allowedProviders = allowed
+    this.excludedProviders = excluded
+    this.syncInputs()
+  }
+
+  private providerAllowed(provider: string): boolean {
+    return this.allowedProviders === undefined ? !this.excludedProviders.includes(provider) : this.allowedProviders.includes(provider)
   }
 
   /**
@@ -163,9 +181,9 @@ export class ModelDirectory {
     this.resolved = true
     this.store.set({
       current,
-      routable: catalog.value.routableProviders.includes(current.provider),
-      groups: catalog.value.groups,
-      failures: catalog.value.failures,
+      routable: catalog.value.routableProviders.includes(current.provider) && this.providerAllowed(current.provider),
+      groups: catalog.value.groups.filter(group => this.providerAllowed(group.id)),
+      failures: catalog.value.failures.filter(failure => this.providerAllowed(failure.id)),
       status: this.store.getSnapshot().status === 'selecting'
         ? 'selecting'
         : 'ready',

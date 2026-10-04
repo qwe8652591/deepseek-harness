@@ -36,6 +36,8 @@ export class ModelDirectoryResolver extends Service {
   static inject = ['sessions', 'remote', 'remote.session']
 
   private readonly live: LiveState = { directories: new Map() }
+  private readonly providerPolicies = new Map<string, { allowed: readonly string[]; reserved: readonly string[] }>()
+  private readonly refreshPolicies = new Set<() => void>()
   private readonly catalog: ModelCatalogDirectory
 
   /** Localized composer-block copy; this plugin owns the string it raises. */
@@ -57,6 +59,22 @@ export class ModelDirectoryResolver extends Service {
     ctx.remote.$on('llm/adapters-updated', () => { this.catalog.refresh() })
     ctx.remote.$on('settings/document-updated', () => { this.catalog.refresh() })
     ctx.remote.$on('credentials/reference-updated', () => { this.catalog.refresh() })
+  }
+
+  /** Select providers for a preset whose external Agent owns execution.
+   * @param preset - Durable Agent preset id.
+   * @param providers - Providers offered by that preset.
+   * @param reserved - Providers hidden from general presets; defaults to all offered providers.
+   * @returns Effect disposer restoring the general catalog.
+   */
+  registerProviderPolicy(preset: string, providers: readonly string[], reserved: readonly string[] = providers): () => void {
+    if (this.providerPolicies.has(preset)) throw new Error(`model provider policy already registered: ${preset}`)
+    this.providerPolicies.set(preset, { allowed: [...providers], reserved: [...reserved] })
+    for (const refresh of this.refreshPolicies) refresh()
+    return () => {
+      this.providerPolicies.delete(preset)
+      for (const refresh of this.refreshPolicies) refresh()
+    }
   }
 
   /**
@@ -82,6 +100,18 @@ export class ModelDirectoryResolver extends Service {
       binding.session.projections.faceOf('modelSelection'),
     )
     live.directories.set(sessionId, directory)
+    const preset = binding.session.projections.faceOf('agentPreset')
+    const refreshPolicy = (): void => {
+      const id = preset.getSnapshot()
+      const policy = typeof id === 'string' ? this.providerPolicies.get(id) : undefined
+      directory.restrictProviders(policy?.allowed, [...this.providerPolicies.values()].flatMap(value => value.reserved))
+    }
+    refreshPolicy()
+    actx.effect(() => {
+      this.refreshPolicies.add(refreshPolicy)
+      const unsubscribe = preset.subscribe(refreshPolicy)
+      return () => { unsubscribe(); this.refreshPolicies.delete(refreshPolicy) }
+    }, 'ui-model-selection: preset provider policy')
     // The composer cannot read this plugin (the dependency runs one way), so
     // the block is pushed: the Host says whether an adapter serves the
     // session's route, and only a definite `false` makes the input inert.

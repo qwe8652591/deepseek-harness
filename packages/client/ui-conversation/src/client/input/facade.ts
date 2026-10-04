@@ -595,13 +595,14 @@ export class SessionInputShell implements SessionInput {
   /**
    * Bind the draft persistence mirror (Conversation store write). Adopt-on-bind: the
    * store draft may hold a persisted value from a previous mount; the caller
-   * seeds it via setDraft BEFORE binding, and afterwards every editor-adopted
-   * draft mirrors out.
+   * seeds it via setDraft BEFORE binding. Binding writes the current draft,
+   * including programmatic edits made before mount; later editor edits mirror out.
    * @param write - store draft write.
    * @returns the unbind disposer.
    */
   bindMirror(write: (text: string) => void): () => void {
     this.mirrorFn = write
+    write(this.snapshot.draft)
     return () => {
       if (this.mirrorFn === write) this.mirrorFn = undefined
     }

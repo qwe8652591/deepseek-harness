@@ -48,7 +48,7 @@ async function bench() {
   ctx.provide('sessions', {
     list: {
       getSnapshot: () => ({
-        ids: [], byId: {}, current: undefined, phase: 'ready',
+        ids: ['session'], byId: { session: { id: 'session', displayTitle: 'Session', blank: false, running: false, updatedAt: 0 } }, current: undefined, phase: 'ready',
         subagentsByParent: {}, jobsBySession: {}, currentAddress: undefined,
       }),
       subscribe,

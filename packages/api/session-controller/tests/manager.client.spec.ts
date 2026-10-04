@@ -129,6 +129,15 @@ describe('list lifecycle', () => {
     expect(manager.getListSnapshot().items.map(i => i.sessionId)).toEqual([S2])
   })
 
+  it('forwards the workbench preset and publishes it before the next list frame', async () => {
+    const api = new FakeApiClient()
+    api.onCreate = () => Promise.resolve(ok({ sessionId: S2, agentPreset: 'claude' }))
+    const manager = new SessionManager(fakeRemote(api))
+    await manager.create({ agentPreset: 'claude' })
+    expect(api.callsOf('session.create')[0]).toMatchObject({ agentPreset: 'claude' })
+    expect(manager.getListSnapshot().items[0]?.projectionValues?.agentPreset).toBe('claude')
+  })
+
   it('retains title projections before list arrival, keeps last-wins by seq, and clears them on removal', async () => {
     const api = new FakeApiClient()
     const manager = new SessionManager(fakeRemote(api))

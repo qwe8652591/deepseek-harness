@@ -14,6 +14,10 @@ import type { MainPanelId } from '@deepseek-ai/dsh-client-ui-layout/client'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface SlotMap {
+    /** Workbench tabs; each list id addresses a registered Workspace workbench. */
+    'sidebar.workbenchlist': { kind: 'list'; scope: 'root'; owner: SidebarPanelIconOwnerProps }
+    /** Workbench-specific navigation keyed by its main panel id. */
+    'sidebar.workbench.navigation': { kind: 'keyed'; scope: 'root'; owner: SidebarSectionOwnerProps }
     /**
      * Brand mark rendered in the expanded brand row and collapsed rail.
      * Declared by this package's `sidebar` entry; deployments may replace
@@ -112,6 +116,8 @@ export interface SidebarFooterActionOwnerProps {
  * factory). The renderer binds the panel metadata source to usePanels.
  */
 export type SidebarRootInjected = {
+  /** Select a workbench while retaining the native Conversation panel. */
+  selectWorkbench: (id: string | null) => void
   /**
    * Start a New Session: with a workspace, reuse-or-create its blank session
    * and open it; without one, inherit the current Session Workspace, then the
@@ -121,9 +127,13 @@ export type SidebarRootInjected = {
   /** Toggle the sidebar column through the layout service. */
   toggleSidebar: () => void
   /** Select the global panel addressed by a sidebar row. */
-  selectPanel: (id: MainPanelId) => void
+  selectPanel: (id: MainPanelId | null) => void
   /** Private reactive sources bound to framework selector hooks. */
-  hooks: { panels: ObservableSnapshot<readonly SidebarPanelMetadata[]> }
+  hooks: {
+    panels: ObservableSnapshot<readonly SidebarPanelMetadata[]>
+    workbenches: ObservableSnapshot<readonly SidebarPanelMetadata[]>
+    workbenchSelection: ObservableSnapshot<{ active: string | null }>
+  }
 }
 
 /**
@@ -135,6 +145,8 @@ export type SidebarRootComponentProps =
   PropsRuntime<'sidebar'>
   & PropsRenderSlots<
     | 'sidebar.brand.mark'
+    | 'sidebar.workbenchlist'
+    | 'sidebar.workbench.navigation'
     | 'sidebar.brand.name'
     | 'sidebar.panellist'
     | 'sidebar.workspaces'

@@ -2,6 +2,8 @@
 import { useState, type ReactNode } from 'react'
 import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ApprovalComposerProps, PendingApproval } from './contract/slots.ts'
+import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import css from './ApprovalPanel.module.css'
 
 /**
@@ -17,10 +19,12 @@ export function ApprovalPanel(props: ApprovalComposerProps) {
   return <ApprovalFlow key={approval.key} pending={approval} detail={detail} t={props.t} />
 }
 
-function ApprovalFlow({ pending, detail, t }: {
-  pending: PendingApproval
+function ApprovalFlow({ pending, detail, t, busy = false, canAllow = true }: {
+  pending: Pick<PendingApproval, 'key' | 'toolName' | 'reason' | 'answer'>
   detail: ReactNode
   t: ApprovalComposerProps['t']
+  busy?: boolean
+  canAllow?: boolean
 }) {
   const [answered, setAnswered] = useState(false)
   const answer = (outcome: 'allowed-once' | 'rejected'): void => {
@@ -42,14 +46,35 @@ function ApprovalFlow({ pending, detail, t }: {
           {detail !== null && <div className={css.command}>{detail}</div>}
         </div>
         <div className={css.actionRow}>
-          <Button variant="outline" className={css.reject} disabled={answered} onClick={() => { answer('rejected') }}>
+          <Button variant="outline" className={css.reject} disabled={answered || busy} onClick={() => { answer('rejected') }}>
             {t('reject')}
           </Button>
-          <Button variant="primary" disabled={answered} onClick={() => { answer('allowed-once') }}>
+          <Button variant="primary" disabled={answered || busy || !canAllow} onClick={() => { answer('allowed-once') }}>
             {t('allowOnce')}
           </Button>
         </div>
       </div>
     </div>
   )
+}
+
+/** Render an external engine request with the native approval flow.
+ * @param props - Displayed request and its engine-owned answer callback.
+ * @returns The shared approval card.
+ */
+export function WorkbenchApprovalPanel({ approval, answer, busy, t }: PropsRuntime<'workbench.conversation.approval'> & PropsLocale<'approval'>) {
+  const [answers, setAnswers] = useState<Record<string, string>>({})
+  const detail = <>
+    <pre>{approval.detail}</pre>
+    {approval.questions.map((item, index) => <label key={item.question}>
+      {item.question}
+      <input aria-label={item.question} list={`${approval.id}-${index}`} value={answers[item.question] ?? ''}
+        onChange={(event) => { setAnswers({ ...answers, [item.question]: event.target.value }) }} />
+      <datalist id={`${approval.id}-${index}`}>{item.options.map(option => <option key={option} value={option} />)}</datalist>
+    </label>)}
+  </>
+  return <ApprovalFlow key={approval.id} pending={{
+    key: approval.id, toolName: approval.tool, reason: undefined,
+    answer: outcome => answer(outcome === 'allowed-once', answers),
+  }} detail={detail} busy={busy} canAllow={approval.questions.every(item => answers[item.question]?.trim())} t={t} />
 }

@@ -25,6 +25,7 @@ import type { ChatSnapshot } from './contract/snapshot.ts'
 import { EMPTY_CHAT_SNAPSHOT } from './contract/snapshot.ts'
 import { ApprovalCommand } from './chat/ApprovalCommand.tsx'
 import { ChatView } from './chat/ChatView.tsx'
+import { WorkbenchMessage } from './chat/WorkbenchMessage.tsx'
 import { registerChatNodeRenderers } from './chat/register-node-renderers.ts'
 import { StatsPills } from './chat/StatsPills.tsx'
 import { registerConversationNodes } from './conversation-nodes/register.ts'
@@ -75,6 +76,9 @@ export function apply(ctx: Context): void {
   })
 
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-chat: dictionaries')
+  ctx.slots.inject('workbench.conversation.message', () => ctx.slots.register({
+    name: 'workbench.conversation.message', locale: NS,
+  }, WorkbenchMessage))
   const t = ctx.locale.bind(NS)
   const chatStore = createChatStore()
   const chatScrollPositions = new Map<SessionId, ChatScrollPosition>()

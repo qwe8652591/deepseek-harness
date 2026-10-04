@@ -9,6 +9,12 @@ const PLAN_NEXT_ACTION_EN = 'describe your task to generate plan'
 
 /** Simplified Chinese dictionary (the key-set source of truth). */
 export const zh = {
+  'workbench.welcome': '今天我们一起完成什么？',
+  'workbench.directory': '项目目录',
+  'workbench.directoryHint': '输入主机上的项目绝对路径',
+  'workbench.chooseProject': '选择已有项目',
+  'workbench.prompt': '发消息或创建任务',
+  'workbench.textOnly': '当前引擎入口支持文字输入；文件可通过项目目录读取。',
   'hint.plan': PLAN_NEXT_ACTION_ZH,
   'hint.goal': '输入目标，智能体将持续执行',
   'hint.goal.active': '当前目标进行中。可输入 edit 修改 / pause 暂停 / resume 继续 / clear 清除',
@@ -175,6 +181,12 @@ export type ConversationKey = keyof typeof zh
 
 /** English dictionary, checked complete against the zh key set. */
 export const en = {
+  'workbench.welcome': 'What shall we work on today?',
+  'workbench.directory': 'Project directory',
+  'workbench.directoryHint': 'Absolute project path on the host',
+  'workbench.chooseProject': 'Choose an existing project',
+  'workbench.prompt': 'Send a message or create a task',
+  'workbench.textOnly': 'This engine accepts text here; it can read files from the project directory.',
   'hint.plan': PLAN_NEXT_ACTION_EN,
   'hint.goal': 'describe the objective for a long-running task',
   'hint.goal.active': 'goal active — edit / pause / resume / clear',

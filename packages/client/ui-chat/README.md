@@ -14,6 +14,7 @@ File-mention providers receive the viewed Session ID with the closing-turn owner
 
 ## Table of Contents
 
+- [External engine messages](#external-engine-messages)
 - [System prompt row](#system-prompt-row)
 - [Turn token usage](#turn-token-usage)
 - [Turn Process Folding](#turn-process-folding)
@@ -23,6 +24,11 @@ File-mention providers receive the viewed Session ID with the closing-turn owner
 - [Dev Note](#dev-note)
 
 -----
+
+<a id="external-engine-messages"></a>
+## External engine messages
+
+`workbench.conversation.message` renders external-engine display records with the same user bubble, copy action, assistant Markdown, and generic JSON presenter used by Chat. It consumes owner data without binding a native Session.
 
 <a id="system-prompt-row"></a>
 ## System prompt row

@@ -113,6 +113,8 @@ root
 ├─ sidebar
 │  ├─ sidebar.brand.mark
 │  ├─ sidebar.brand.name
+│  ├─ sidebar.workbenchlist
+│  ├─ sidebar.workbench.navigation
 │  ├─ sidebar.panellist
 │  ├─ sidebar.footer.action
 │  ├─ sidebar.workspaces

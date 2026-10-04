@@ -25,6 +25,8 @@ Web GUI 允许用户通过 `/model` 弹窗或 composer 模型控件切换既有�
 <a id="use-this-package"></a>
 ## 使用本包
 
+`ctx.modelDirectories.registerProviderPolicy(preset, providers, reserved)` 指定预设支持的 Provider。可选的 reserved 列表默认包含所有可用 Provider；其他预设只排除保留的 Provider，因此工作台可以共享普通模型 Provider。两个原生选择器都使用 Session 的预设投影。预设策略下的模型选择只应用于当前 Session，保留共享默认模型。注册和清理都会刷新已有目录。不受支持的选择会在提交 RPC 前被拒绝。
+
 与 `ui-conversation` 及命令包一起挂载本插件；composer 随即在待处理指示器旁显示模型位，`/model` 则以弹窗打开同一份目录。当确切提供方／模型对仍在已公布分组中时，两个表面都显示宿主报告的当前选择；目录行缺席时，可路由的选择保持不变，触发器提示 `Select model`。
 
 ### 模型与推理强度

@@ -89,6 +89,8 @@ export type DirectoryPickingHooks = PropsHooks<DirectoryPickingInjected['hooks']
  */
 export type WorkspaceBrowserInjected = {
   hooks: DirectoryPickingInjected['hooks'] & {
+    /** Native Session list filtered by the active workbench. */
+    workspaceSessions: HostObservable<import('@deepseek-ai/dsh-api-session-controller/client').SessionListState>
     /**
      * Fixed Host facts, reached through a hook rather than injected as values:
      * the renderer memoizes an entry's inject result for the registration's

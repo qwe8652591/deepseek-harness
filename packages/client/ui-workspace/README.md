@@ -25,6 +25,8 @@ This package lets users browse grouped or flat Session lists, choose a Workspace
 <a id="use-this-package"></a>
 ## Use this package
 
+`ctx.uiWorkspace.registerWorkbench()` accepts `kind: 'sessions'` to group native Sessions by their durable Agent preset, or `kind: 'panel'` with a registered `main` slot key to open a plugin panel without creating a Session. Session workbenches own disjoint preset sets, apply their default preset to new Sessions, and optionally initialize empty Sessions before opening them. The native browser and search show the selected group; Workspaces remain shared. Switching restores that group's last selected Session during the browser lifetime, or opens an empty one. Superseded creation cannot take selection back. Panel workbenches retain selection during native Session updates. Opening a Conversation explicitly selects its Session's workbench; unregistered presets belong to Cowork. Effect disposal removes the registration and reveals the current Conversation when removing an active panel.
+
 Use the sidebar to browse Workspaces and their Sessions, reorder them, and start new ones; use the picker in the Session Intent hero to choose a Workspace for a new session. An open Workspace shows five non-blank Sessions by default and keeps the selected blank **New Session** as one provisional extra row until its first prompt. **Show more** reveals the hidden remainder; closing and reopening the Workspace restores this folded projection.
 
 ### Reordering and view options
@@ -120,4 +122,4 @@ None.
 
 </details>
 
-**Runtime invariant:** No companion is published. A pure-consumer plugin registering presentational components into two host-declared slots plus its locale dictionaries — its inject face is stateless RPC wrappers plus a create-and-open call; it emits no cordis events and owns no cross-plugin mutable state.
+**Runtime invariant:** No companion is published. Workbench membership and selection derive from the local registrations and native Session summaries; no independent observation can diverge from those owned inputs. Navigation and disposal are covered by service tests.

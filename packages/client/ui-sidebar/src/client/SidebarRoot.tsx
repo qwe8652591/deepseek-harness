@@ -19,7 +19,7 @@
 import { useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
 import {
-  FishLogo, IconNewChatOutline16, IconPanelLeftOutline16, Tooltip,
+  FishLogo, IconNewChatOutline16, IconPanelLeftOutline16, IconSparkle16, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsRenderSlots, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {
@@ -91,12 +91,18 @@ export function SidebarRoot({
   startSession,
   toggleSidebar,
   selectPanel,
+  selectWorkbench,
   usePanels,
+  useWorkbenches,
+  useWorkbenchSelection,
   usePanelInfo,
   t,
   renderSlot,
 }: SidebarRootComponentProps) {
   const panels = usePanels(snapshot => snapshot)
+  const workbenches = useWorkbenches(snapshot => snapshot)
+  const activePanel = usePanelInfo(info => info.activePanelId)
+  const activeWorkbench = useWorkbenchSelection(state => state.active)
   // Wide content stays mounted while the collapse animates (fading via
   // .collapsed .wide), unmounts at settle, and remounts right away on expand.
   const [settled, setSettled] = useState(collapsed)
@@ -226,43 +232,75 @@ export function SidebarRoot({
         </Tooltip>
       </div>
 
-      {/* Expanded, the button carries its own label — tooltip only on the rail. */}
-      <Tooltip label={t('session.new.label')} delayMs={500} disabled={wide}>
-        <button
-          type="button"
-          className={css.newSession}
-          aria-label={t('session.new.label')}
-          onClick={() => { startSession() }}
-        >
-          <IconNewChatOutline16 size={wide ? 14 : 18} />
-          {wide && <span className={clsx(css.newSessionLabel, css.wide)}>{t('session.new')}</span>}
-        </button>
-      </Tooltip>
-
-      {panels.length > 0 && (
-        <nav className={css.panelList} aria-label={t('panels.label')}>
-          {panels.map(({ id, label }) => (
-            <PanelRow
-              key={id}
-              id={id}
-              label={label}
-              wide={wide}
-              usePanelInfo={usePanelInfo}
-              selectPanel={selectPanel}
-              renderSlot={renderSlot}
-            />
+      {workbenches.length > 0 && (
+        <nav className={wide ? css.workbenchTabs : css.panelList} aria-label={t('workbenches.label')}>
+          <Tooltip label={t('workbenches.cowork')} delayMs={500} disabled={wide}>
+            <button type="button" aria-current={activeWorkbench === null ? 'page' : undefined}
+              className={clsx(!wide && css.panelRow, !wide && activeWorkbench === null && css.panelActive)}
+              aria-label={t('workbenches.cowork')} onClick={() => { selectWorkbench(null) }}>
+              {wide
+                ? <span className={css.workbenchLabel}>{t('workbenches.cowork')}</span>
+                : <span className={css.panelGlyph} aria-hidden="true"><IconSparkle16 size={18} /></span>}
+            </button>
+          </Tooltip>
+          {workbenches.map(({ id, label }) => (
+            <Tooltip key={id} label={label} delayMs={500} disabled={wide}>
+              <button type="button"
+                className={clsx(!wide && css.panelRow, !wide && activeWorkbench === id && css.panelActive)}
+                aria-label={label} aria-current={activeWorkbench === id ? 'page' : undefined}
+                onClick={() => { selectWorkbench(id) }}>
+                {wide
+                  ? <span className={css.workbenchLabel}>{label}</span>
+                  : <span className={css.panelGlyph} aria-hidden="true">
+                    {renderSlot('sidebar.workbenchlist', { size: 18, active: activeWorkbench === id }, { only: id })}
+                  </span>}
+              </button>
+            </Tooltip>
           ))}
         </nav>
       )}
 
-      {/* The browsing region fills the column between the controls and the
+      {renderSlot('sidebar.workbench.navigation', {
+        wide, expandSidebar: () => { if (collapsed) toggleSidebar() },
+      }, { entryKey: activePanel ?? 'conversation', fallback: <>
+        {/* Expanded, the button carries its own label — tooltip only on the rail. */}
+        <Tooltip label={t('session.new.label')} delayMs={500} disabled={wide}>
+          <button
+            type="button"
+            className={css.newSession}
+            aria-label={t('session.new.label')}
+            onClick={() => { startSession() }}
+          >
+            <IconNewChatOutline16 size={wide ? 14 : 18} />
+            {wide && <span className={clsx(css.newSessionLabel, css.wide)}>{t('session.new')}</span>}
+          </button>
+        </Tooltip>
+
+        {panels.length > 0 && (
+          <nav className={css.panelList} aria-label={t('panels.label')}>
+            {panels.map(({ id, label }) => (
+              <PanelRow
+                key={id}
+                id={id}
+                label={label}
+                wide={wide}
+                usePanelInfo={usePanelInfo}
+                selectPanel={selectPanel}
+                renderSlot={renderSlot}
+              />
+            ))}
+          </nav>
+        )}
+
+        {/* The browsing region fills the column between the controls and the
           foot in both states; its rail icon column rides the same slot. */}
-      <div className={css.regionArea}>
-        {renderSlot('sidebar.workspaces', {
-          wide,
-          expandSidebar: () => { if (collapsed) toggleSidebar() },
-        })}
-      </div>
+        <div className={css.regionArea}>
+          {renderSlot('sidebar.workspaces', {
+            wide,
+            expandSidebar: () => { if (collapsed) toggleSidebar() },
+          })}
+        </div>
+      </> })}
 
       {/* Footer actions stack above Settings in both sidebar widths. */}
       <div className={css.footArea}>

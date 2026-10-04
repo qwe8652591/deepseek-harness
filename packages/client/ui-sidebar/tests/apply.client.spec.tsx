@@ -31,7 +31,8 @@ async function bench(declare = true) {
   if (ctx === undefined) throw new Error('the sidebar fixture owner did not activate')
   await ctx.plugin(SlotRegistry).await()
   const layout = { toggleSidebar: vi.fn(), selectPanel: vi.fn() }
-  const uiWorkspace = { startSession: vi.fn() }
+  const uiWorkspace = { startSession: vi.fn(), selectWorkbench: vi.fn(),
+    workbench: { getSnapshot: () => ({ active: null }), subscribe: () => () => {} } }
   ctx.provide('layout', layout)
   ctx.provide('uiWorkspace', uiWorkspace as never)
   ctx.provide('locale', new LocaleRuntime(ctx))
@@ -70,7 +71,7 @@ describe('ui-sidebar apply', () => {
     // Copy rides the standard locale seat, not the inject face.
     expect(b.slots.entries('sidebar')[0]!.locale).toBe('sidebar')
     const injected = (b.slots.entries('sidebar')[0]!.inject as () => SidebarRootInjected)()
-    expect(Object.keys(injected)).toEqual(['startSession', 'toggleSidebar', 'selectPanel', 'hooks'])
+    expect(Object.keys(injected)).toEqual(['selectWorkbench', 'startSession', 'toggleSidebar', 'selectPanel', 'hooks'])
     expect(injected.hooks.panels.getSnapshot()).toEqual([])
     expect(b.slots.entries('main')).toEqual([])
     // Both arms delegate to the Workspace UI's shared New Session action.
@@ -83,7 +84,7 @@ describe('ui-sidebar apply', () => {
     const panelId = 'custom-panel' as MainPanelId
     injected.selectPanel(panelId)
     expect(b.layout.selectPanel).toHaveBeenCalledExactlyOnceWith(panelId)
-    expectTypeOf<Parameters<SidebarRootInjected['selectPanel']>[0]>().toEqualTypeOf<MainPanelId>()
+    expectTypeOf<Parameters<SidebarRootInjected['selectPanel']>[0]>().toEqualTypeOf<MainPanelId | null>()
   })
 
   it('waits for the sidebar declaration before registering', async () => {
