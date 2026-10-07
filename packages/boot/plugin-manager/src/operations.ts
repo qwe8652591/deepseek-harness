@@ -612,6 +612,16 @@ export function registryArguments(registry: Registry): string[] {
 }
 
 /**
+ * The argument that sends `pnpm remove` to a registry: pnpm 11 refuses `--registry` there, yet the removal
+ * re-resolves the remaining dependencies, so the setting is passed as configuration.
+ * @param registry - the registry, or null for the one pnpm's own configuration names.
+ * @returns `--config.registry=<url>` for a URL; nothing for null.
+ */
+export function removalRegistryArguments(registry: Registry): string[] {
+  return registry === null ? [] : [`--config.registry=${registry}`]
+}
+
+/**
  * Ask the registry what a spec names through `pnpm view`, run in the profile
  * directory so the registry, proxy, and authentication settings of an install
  * apply. The lookup makes one request without pnpm's own retries: a registry

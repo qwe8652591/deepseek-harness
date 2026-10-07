@@ -293,6 +293,19 @@ it.each(['live', 'startup'] as const)('removes a bundle skipped at startup in a 
   expect((await manager.listBundles()).some(row => row.name === 'extra')).toBe(false)
 })
 
+it('removes through the configured registry so remaining private dependencies still resolve', async () => {
+  const { manager, dir } = await fixture('live', false, undefined, { registry: 'http://127.0.0.1:4873/' })
+  const remove = vi.spyOn(operations, 'runProfilePnpm').mockImplementation(async () => {
+    const manifest = readProfileManifest('test', dir)
+    delete manifest.dependencies?.extra
+    writeFileSync(join(dir, 'package.json'), JSON.stringify(manifest))
+    return { exitCode: 0, output: 'removed', truncated: false, logPath: join(dir, 'pnpm.log') }
+  })
+  onTestFinished(() => { remove.mockRestore() })
+  expect(await manager.removeBundle('extra')).toMatchObject({ changed: true, application: 'applied' })
+  expect(remove.mock.calls[0]?.[1]).toEqual(['remove', 'extra', '--config.registry=http://127.0.0.1:4873/'])
+})
+
 it('recomposes the remaining layers while another bundle is broken and mounts it after repair', async () => {
   const { manager, dir, bundle, ctx } = await fixture()
   writeFileSync(join(dir, 'node_modules', 'extra', 'cordis.patch.yml'), '[invalid')

@@ -19,7 +19,7 @@ import {
 } from '@deepseek-ai/dsh-app-boot'
 import type {} from '@deepseek-ai/dsh-hmr'
 import type { ProfileContext, ProfileManifest } from '@deepseek-ai/dsh-app-boot'
-import { bundleManifest, readProfileRegistry, registryArguments, runProfilePnpm, saveManifest, viewProfilePackage } from './operations.ts'
+import { bundleManifest, readProfileRegistry, registryArguments, removalRegistryArguments, runProfilePnpm, saveManifest, viewProfilePackage } from './operations.ts'
 import { classifyInstallFailure } from './install-failure.ts'
 import { InvalidInstallSpecError, parseInstallSpec, type ParsedInstallSpec } from './install-spec.ts'
 import { attributeFailure, normalizeRegistry, NPMMIRROR_REGISTRY, registryPlan } from './registry.ts'
@@ -625,7 +625,9 @@ export class PluginManager extends TypertRemoteService {
           throw new ManagementFailure('bundle-in-use')
         }
       })
-      result.packageResult = await this.runPnpm(['remove', name])
+      // pnpm re-resolves the remaining dependencies while removing, so it asks the registry installations ask first.
+      const [registry = null] = registryPlan(undefined, await this.registries())
+      result.packageResult = await this.runPnpm(['remove', name, ...removalRegistryArguments(registry)])
       if (result.packageResult.exitCode !== 0 || result.packageResult.timedOut === true) {
         throw new Error(result.packageResult.output)
       }
