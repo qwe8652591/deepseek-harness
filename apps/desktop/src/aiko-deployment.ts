@@ -15,6 +15,7 @@ export interface AikoDeployment {
 }
 const themes = { aiko: 'aiko-dsh-theme', yunyao: 'yunyao-dsh-theme' } as const
 const plugins = ['aiko-dsh-workbench', 'aiko-dsh-tender', '@aiko-dsh-plugins/dsh-knowledge', 'aiko-dsh-code', 'aiko-dsh-market']
+const releaseAgeExempt = ['@aiko-dsh-plugins/*', 'aiko-dsh-*', 'yunyao-dsh-*']
 const record = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
 
 /**
@@ -176,6 +177,11 @@ export async function prepareAikoDesktopProfile(deployment: AikoDeployment, prof
   // Package operations retain deployment-owned links and the unpublished passive directory.
   workspace.overrides = { ...Object.fromEntries(Object.entries(workspace.overrides ?? {}).filter(([name]) => name !== other)),
     ...Object.fromEntries(paths.map(({ name, target }) => [name, 'link:' + target.replaceAll('\\', '/')])) }
+  // App-center plugins are pinned by the platform registration. pnpm 11.7.0 honors only the first exclusion naming a
+  // package while appending one exact-version entry per added package, so these names lead the list.
+  const previousExclusions: unknown[] = Array.isArray(workspace.minimumReleaseAgeExclude) ? workspace.minimumReleaseAgeExclude : []
+  const excluded = previousExclusions.filter(item => typeof item !== 'string' || !releaseAgeExempt.includes(item))
+  workspace.minimumReleaseAgeExclude = [...releaseAgeExempt, ...excluded]
   if (patchChanged) await writeFile(patchPath, dump(nextPatch))
   else if (initialPatch !== undefined) await writeFile(patchPath, initialPatch)
   await writeFile(workspacePath, dump(workspace))

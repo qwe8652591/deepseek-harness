@@ -74,6 +74,21 @@ it('uses one theme, preserves user plugins and patches, and switches only owned 
   expect(await readFile(join(profile, 'pnpm-workspace.yaml'), 'utf8')).not.toContain('yunyao-dsh-theme:')
 })
 
+it('puts the Aiko plugin names first in the release-age exclusions, keeping pnpm’s own entries after them', async () => {
+  const { profile, config } = await fixture()
+  // pnpm 11.7.0 appends one exact-version entry per added package and honors only the first entry naming a
+  // package, so a second fresh version of the same app-center plugin would fail every later install.
+  await writeFile(join(profile, 'pnpm-workspace.yaml'), 'packages: [.]\nnodeLinker: hoisted\nminimumReleaseAgeExclude:\n'
+    + "  - '@aiko-dsh-plugins/dsh-knowledge-weknora@1.0.0'\n  - left-pad@1.3.0\n  - aiko-dsh-code\n")
+  await prepareAikoDesktopProfile(config, profile)
+  await prepareAikoDesktopProfile(config, profile)
+  const workspace = load(await readFile(join(profile, 'pnpm-workspace.yaml'), 'utf8')) as { minimumReleaseAgeExclude: string[] }
+  expect(workspace.minimumReleaseAgeExclude).toEqual([
+    '@aiko-dsh-plugins/*', 'aiko-dsh-*', 'yunyao-dsh-*',
+    '@aiko-dsh-plugins/dsh-knowledge-weknora@1.0.0', 'left-pad@1.3.0', 'aiko-dsh-code',
+  ])
+})
+
 it('rejects unmanaged plugins without deleting their files', async () => {
   const { profile, config } = await fixture()
   const unknown = join(profile, 'node_modules/aiko-dsh-workbench')
