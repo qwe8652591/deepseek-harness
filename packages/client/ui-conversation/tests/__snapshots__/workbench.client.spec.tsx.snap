@@ -1,0 +1,238 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`renders engine messages with native Markdown, copy actions, and composer keyboard guards 1`] = `
+<div>
+  <div
+    data-slot="root"
+    style="display: contents;"
+  >
+    <div
+      data-slot="workbench.conversation"
+      style="display: contents;"
+    >
+      <section
+        class="root"
+        data-workbench-conversation="true"
+      >
+        <header
+          class="header"
+        >
+          <strong>
+            Code
+          </strong>
+          <span>
+            Claude Code
+             · 
+            Ready
+          </span>
+        </header>
+        <div
+          class="scroll"
+        >
+          <div
+            class="transcript"
+          >
+            <div>
+              <div
+                data-slot="workbench.conversation.message"
+                style="display: contents;"
+              >
+                <div
+                  class="userRow"
+                >
+                  <div
+                    class="userStack"
+                  >
+                    <div
+                      class="bubble"
+                    >
+                      <span
+                        class="plainRun"
+                      >
+                        Explain this function.
+                      </span>
+                    </div>
+                  </div>
+                  <div
+                    class="actions"
+                  >
+                    <button
+                      aria-label="copy"
+                      class="action"
+                      type="button"
+                    >
+                      <svg
+                        data-content="82bfa716"
+                        fill="none"
+                        height="16"
+                        viewBox="0 0 16 16"
+                        width="16"
+                        xmlns="http://www.w3.org/2000/svg"
+                      />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div>
+              <div
+                data-slot="workbench.conversation.message"
+                style="display: contents;"
+              >
+                <div
+                  class="root"
+                >
+                  <div
+                    class="body"
+                  >
+                    <div
+                      class="markdown"
+                    >
+                      <p>
+                        It returns 
+                        <strong>
+                          42
+                        </strong>
+                        .
+                      </p>
+                      
+
+                      <div
+                        class="block md-code-block"
+                      >
+                        <div
+                          class="bannerWrap"
+                        >
+                          <div
+                            class="banner"
+                            data-code-block-banner="true"
+                          >
+                            <div
+                              class="infostring"
+                            >
+                              ts
+                            </div>
+                            <div
+                              class="action"
+                            >
+                              <button
+                                class="copyButton"
+                                type="button"
+                              >
+                                copy
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                        <div>
+                          <pre
+                            class="shiki css-variables"
+                            style="background-color:var(--shiki-background);color:var(--shiki-foreground)"
+                            tabindex="0"
+                          >
+                            <code>
+                              <span
+                                class="line"
+                              >
+                                <span
+                                  style="color:var(--shiki-token-keyword)"
+                                >
+                                  return
+                                </span>
+                                <span
+                                  style="color:var(--shiki-token-constant)"
+                                >
+                                   42
+                                </span>
+                              </span>
+                            </code>
+                          </pre>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div
+          class="composer"
+        >
+          <div
+            class="path"
+          >
+            /project
+          </div>
+          <div
+            class="root"
+          >
+            <div
+              class="card"
+              data-composer-card="true"
+            >
+              <div
+                class="scroll"
+                data-input-scroll="true"
+              >
+                <div
+                  class="grow"
+                >
+                  <div
+                    data-slot="workbench.conversation.editor"
+                    style="display: contents;"
+                  >
+                    <div
+                      aria-label="Send a message or create a task"
+                      aria-multiline="true"
+                      class="input"
+                      contenteditable="true"
+                      data-composer-input="true"
+                      data-lexical-editor="true"
+                      data-placeholder="Send a message or create a task"
+                      role="textbox"
+                      style="user-select: text; white-space: pre-wrap; word-break: break-word;"
+                    >
+                      <p
+                        dir="auto"
+                      >
+                        <span
+                          data-lexical-text="true"
+                        >
+                          Continue
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div
+                class="row"
+              >
+                <span
+                  class="engine"
+                >
+                  Claude Code
+                </span>
+                <button
+                  aria-label="Send message"
+                  class="primary"
+                  type="button"
+                >
+                  <svg
+                    aria-hidden="true"
+                    data-content="c4bac06f"
+                    height="16"
+                    viewBox="0 0 16 16"
+                    width="16"
+                  />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+`;
