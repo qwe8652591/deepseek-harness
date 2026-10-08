@@ -290,16 +290,19 @@ export class PluginManager extends TypertRemoteService {
     const installation = JSON.parse(readFileSync(this.profile.installAnchor, 'utf8')) as InstallationManifest
     const names = [...new Set([...selected, ...dependencies, ...Object.keys(installation.dependencies ?? {})])]
     const bundles: BundleInfo[] = []
+    const locked = this.lockedBundles()
     for (const name of names) {
       const installed = dependencies.includes(name)
       const optional = OPTIONAL_BUNDLES.includes(name)
       const removable = installed && !Object.hasOwn(installation.dependencies ?? {}, name)
       const enabled = selected.includes(name)
-      const readOnlyReason = this.protectsManager(name) ? 'management-required' as const : undefined
+      const protects = this.protectsManager(name)
+      // A lock keeps the person from switching the bundle; the deployment that set it may still remove the package.
+      const readOnlyReason = protects ? 'management-required' as const : locked.has(name) ? 'locked' as const : undefined
       try {
         const info = bundleManifest(name, this.profile.dir, this.profile.installAnchor)
         if (info === undefined) {
-          if (enabled) bundles.push({ name, enabled, installed, optional, removable: removable && readOnlyReason === undefined,
+          if (enabled) bundles.push({ name, enabled, installed, optional, removable: removable && !protects,
             ...(readOnlyReason === undefined ? {} : { readOnlyReason }), error: { code: 'not-bundle' }, rows: [], overrides: [] })
           continue
         }
@@ -310,12 +313,12 @@ export class PluginManager extends TypertRemoteService {
         bundles.push({ name, ...(info.version === undefined ? {} : { version: info.version }),
           ...(info.description === undefined || info.description === '' ? {} : { description: info.description }),
           ...meta === undefined ? {} : { meta },
-          enabled, installed, optional, removable: removable && readOnlyReason === undefined,
+          enabled, installed, optional, removable: removable && !protects,
           ...(readOnlyReason === undefined ? {} : { readOnlyReason }),
           ...this.declaredRows(name, info) })
       } catch (error) {
         if (enabled || installed) {
-          bundles.push({ name, enabled, installed, optional, removable: removable && readOnlyReason === undefined,
+          bundles.push({ name, enabled, installed, optional, removable: removable && !protects,
             ...(readOnlyReason === undefined ? {} : { readOnlyReason }), error: managementError(error), rows: [], overrides: [] })
         }
       }
@@ -450,6 +453,30 @@ export class PluginManager extends TypertRemoteService {
       await this.selectBundle(name, enabled)
       result.warnings = await this.reload(enabled ? this.bundleRows(name).map(row => row.id) : [])
     }), { stage: 'enable', target: name, enabled }, 'bundle')
+  }
+
+  /**
+   * Lock a bundle off, or release it. A deployment's entitlement service calls this; a locked bundle stays installed,
+   * contributes no layer, and reports `locked` so no control can select it until the lock is released.
+   * @param name Bundle package name.
+   * @param locked Whether the bundle is held off.
+   * @returns Persisted and runtime outcomes; releasing leaves the bundle off for the caller to select.
+   */
+  @Remote
+  setBundleLocked(name: string, locked: boolean): Promise<ChangeResult> {
+    return this.change(result => this.configure(async () => {
+      if (locked && this.protectsManager(name)) throw new ManagementFailure('management-required')
+      const names = this.lockedBundles()
+      if (names.has(name) !== locked) {
+        if (locked) names.add(name)
+        else names.delete(name)
+        await writeFileAtomic(this.bundleLocksPath, JSON.stringify({ locked: [...names].sort() }, null, 2) + '\n', { mode: 0o600 })
+      }
+      if (locked) {
+        await this.selectBundle(name, false)
+        result.warnings = await this.reload()
+      }
+    }), { stage: 'enable', target: name, enabled: false }, 'bundle')
   }
 
   /**
@@ -721,6 +748,18 @@ export class PluginManager extends TypertRemoteService {
     }
   }
 
+  private get bundleLocksPath(): string { return join(this.profile.dir, 'bundle-locks.json') }
+
+  /** Bundles a deployment holds off; an absent or unreadable record locks nothing. */
+  private lockedBundles(): Set<string> {
+    try {
+      const value = JSON.parse(readFileSync(this.bundleLocksPath, 'utf8')) as { locked?: unknown }
+      return new Set(Array.isArray(value.locked) ? value.locked.filter((name): name is string => typeof name === 'string') : [])
+    } catch (_error) {
+      return new Set()
+    }
+  }
+
   private async selectBundle(name: string, enabled: boolean): Promise<void> {
     const manifest = readProfileManifest('dsh', this.profile.dir)
     const previous = manifest.dsh?.profile?.bundles ?? []
@@ -728,6 +767,7 @@ export class PluginManager extends TypertRemoteService {
       const metadata = bundleManifest(name, this.profile.dir, this.profile.installAnchor)
       if (metadata === undefined) throw new ManagementFailure('not-bundle')
       if (enabled) {
+        if (this.lockedBundles().has(name)) throw new ManagementFailure('locked')
         const compatibility = evaluatePluginCompatibility(metadata, readProfileVersionExemptions(this.profile.dir))
         if (compatibility !== undefined && !compatibility.exempted) throw new ManagementFailure('incompatible-version', [incompatiblePlugin(compatibility)])
         this.bundleRows(name)

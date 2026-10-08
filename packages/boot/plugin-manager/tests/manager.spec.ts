@@ -99,6 +99,17 @@ it('keeps managed bundle controls while refusing package installs and removals b
   expect(await manager.setBundleEnabled('extra', true)).toMatchObject({ application: 'applied' })
 })
 
+it('holds a locked bundle off until the lock is released, across restarts of the manager', async () => {
+  const { manager, dir } = await fixture()
+  expect(await manager.setBundleLocked('extra', true)).toMatchObject({ application: 'applied' })
+  expect(await manager.listBundles()).toEqual(expect.arrayContaining([expect.objectContaining({ name: 'extra', enabled: false, readOnlyReason: 'locked' })]))
+  expect(await manager.setBundleEnabled('extra', true)).toMatchObject({ application: 'failed', changed: false, error: { code: 'locked' } })
+  expect(JSON.parse(readFileSync(join(dir, 'bundle-locks.json'), 'utf8'))).toEqual({ locked: ['extra'] })
+  expect(await manager.setBundleLocked('extra', false)).toMatchObject({ application: 'applied' })
+  expect((await manager.listBundles()).find(item => item.name === 'extra')).not.toHaveProperty('readOnlyReason')
+  expect(await manager.setBundleEnabled('extra', true)).toMatchObject({ application: 'applied' })
+})
+
 it.each(['network', 'timeout'] as const)('stops a GitHub %s before pnpm and attributes it to the repository', async (kind) => {
   const { manager, dir, connection } = await fixture()
   const before = readFileSync(join(dir, 'package.json'), 'utf8')

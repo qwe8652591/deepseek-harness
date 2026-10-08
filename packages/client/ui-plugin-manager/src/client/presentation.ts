@@ -49,6 +49,7 @@ const CODE_KEYS = {
   'managed-installation': 'managedIntro',
   'management-required': 'reasonManagementRequired',
   'unaddressable': 'reasonUnaddressable',
+  'locked': 'reasonLocked',
   'unknown-plugin': 'reasonUnknownPlugin',
   'invalid-spec': 'reasonInvalidSpec',
   'ambiguous-install': 'reasonAmbiguousInstall',
