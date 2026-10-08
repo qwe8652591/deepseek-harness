@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 /** Global panel rows and DOM focus through the production slot renderer. */
 import type { Context } from '@deepseek-ai/cordis'
+import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, waitFor, within } from '@testing-library/react'
 import { SlotTestRuntime } from '@deepseek-ai/dsh-client-test-runtime'
@@ -43,11 +44,14 @@ async function bench(collapsed = false) {
     openRightbar: vi.fn(),
     closeRightbar: vi.fn(),
   } satisfies ILayout
+  const workbench = createSnapshotStore<{ active: string | null }>({ active: null })
   await runtime.mount({
     inject: ['slots'],
     apply(ctx: Context) {
       ctx.provide('layout', layout)
-      ctx.provide('uiWorkspace', { startSession: vi.fn() } as never)
+      ctx.provide('uiWorkspace', { startSession: vi.fn(), workbench,
+        selectWorkbench: (active: string | null) => { workbench.set({ active }); layout.selectPanel(null) },
+      } as never)
       ctx.provide('locale', locale)
       ctx.effect(() => locale.register('common', { zh: commonZh, en: commonEn }), 'panel test: common locale')
       ctx.effect(() => locale.register('sidebar-panel-test', {
@@ -118,6 +122,25 @@ async function mountPanels(runtime: SlotTestRuntime, locale: LocaleRuntime, beta
 }
 
 describe('sidebar global panels', () => {
+  it('switches workbench tabs while retaining the native conversation and navigation', async () => {
+    const { runtime, view } = await bench()
+    await runtime.mount({
+      inject: ['slots'],
+      apply(ctx: Context) {
+        ctx.slots.inject('sidebar.workbenchlist', () => ctx.slots.register({ name: 'sidebar.workbenchlist', id: ALPHA, label: 'Code' }, () => <span />))
+      },
+    })
+    fireEvent.click(await view.findByRole('button', { name: 'Code' }))
+    expect(await view.findByText('Conversation content')).toBeTruthy()
+    expect(view.getAllByRole('button', { name: 'New session' })).toHaveLength(2)
+    expect(view.getByRole('button', { name: 'Code' }).getAttribute('aria-current')).toBe('page')
+    expect(view.container).toMatchSnapshot('Code workbench selected')
+    fireEvent.click(view.getByRole('button', { name: 'Cowork' }))
+    expect(await view.findByText('Conversation content')).toBeTruthy()
+    expect(view.queryByText('Code sessions')).toBeNull()
+    expect(view.getAllByRole('button', { name: 'New session' })).toHaveLength(2)
+  })
+
   it('adds late registrations, removes each plugin contribution, and leaves no empty panel-list DOM', async () => {
     const { runtime, locale, view } = await bench()
     expect(runtime.slots.entries('sidebar.panellist')).toEqual([])

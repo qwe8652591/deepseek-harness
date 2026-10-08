@@ -415,6 +415,46 @@
   width: auto;
 }
 
+.workbenchTabs {
+  display: flex;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+  min-width: 0;
+  gap: 3px;
+  margin: 2px 10px 10px;
+  padding: 3px;
+  border-radius: 9px;
+  background: var(--dsw-specific-selector);
+}
+
+.workbenchTabs button {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 7px;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+  opacity: 0.65;
+}
+
+.workbenchLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workbenchTabs button[aria-current="page"] {
+  background: var(--dsw-specific-sidebar-nav-item-active-accent);
+  color: var(--dsw-alias-brand-text);
+  opacity: 1;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .wide,
   .fading > *,

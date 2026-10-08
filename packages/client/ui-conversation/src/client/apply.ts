@@ -31,6 +31,8 @@ import { ConversationRoot } from './skeleton/ConversationRoot.tsx'
 import { ConversationPanel } from './skeleton/ConversationPanel.tsx'
 import { ConversationSession, ConversationSessionHeader } from './skeleton/ConversationSession.tsx'
 import { InputBar } from './skeleton/InputBar.tsx'
+import { WorkbenchEditor } from './input/WorkbenchEditor.tsx'
+import { WorkbenchConversation } from './skeleton/WorkbenchConversation.tsx'
 import { todoDockEntry } from './skeleton/TodoPanel.tsx'
 import { resolveActiveView } from './view-selection.ts'
 import { en, NS, zh, type ConversationKey } from './locales.ts'
@@ -123,6 +125,18 @@ export function apply(ctx: Context, config: Config = Config({})): void {
   const uiConversation = new UiConversation(ctx, sessions)
 
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-conversation: dictionaries')
+  ctx.slots.inject('workbench.conversation', () => slots.register({
+    name: 'workbench.conversation',
+    locale: NS,
+    children: {
+      'workbench.conversation.message': { kind: 'single', scope: 'root' },
+      'workbench.conversation.approval': { kind: 'single', scope: 'root' },
+      'workbench.conversation.editor': { kind: 'single', scope: 'root' },
+    },
+  }, WorkbenchConversation))
+  ctx.slots.inject('workbench.conversation.editor', () => slots.register({
+    name: 'workbench.conversation.editor', locale: NS,
+  }, WorkbenchEditor))
   const t = ctx.locale.bind(NS)
   const conversationStore = createConversationStore()
   const submissionPolicy = new ComposerSubmissionPolicy(

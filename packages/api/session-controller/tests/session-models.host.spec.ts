@@ -5,7 +5,7 @@
  * boundary for a running selection change.
  */
 
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, onTestFinished, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import AgentRegistry, { agentEvents } from '@deepseek-ai/dsh-agent'
 import type { Agent } from '@deepseek-ai/dsh-agent'
@@ -556,6 +556,25 @@ describe('Web session model selection', () => {
 
     expect(new ApiSessionAgentController(ctx).selectionFor(agent).current)
       .toEqual({ provider: 'deepseek-official', model: 'deepseek-chat' })
+    await ctx.fiber.dispose()
+  })
+
+  it('keeps an engine selection in its Session without replacing the shared default', async () => {
+    const { ctx, sessionId } = await harness()
+    onTestFinished(() => ctx.fiber.dispose())
+    const saved: unknown[] = []
+    const remote = createSessionTestRemote(ctx, {
+      defaultModelSelection: () => ({ provider: 'deepseek-official', model: 'deepseek-chat' }),
+      saveDefaultModelSelection: async (selection) => { saved.push(selection) },
+      cwd: '/tmp',
+    })
+    const accepted = expectValue(await remote.selectModel(request({
+      sessionId, provider: 'deepseek-official', model: 'deepseek-reasoner',
+      reasoningEffort: 'max', saveAsDefault: false,
+    })))
+    expect(currentSelection(ctx, sessionId)).toEqual(accepted.selected)
+    expect(accepted.selected.model).toBe('deepseek-reasoner')
+    expect(saved).toEqual([])
     await ctx.fiber.dispose()
   })
 

@@ -52,7 +52,9 @@ const closed = (state: MenuState): MenuState =>
 /** First item of the first non-empty ready group, or null. */
 function firstHighlight(groups: MenuState['groups']): MenuState['highlight'] {
   for (const g of groups) {
-    if (g.status === 'ready' && g.items.length > 0) return { source: g.source, index: 0 }
+    if (g.status !== 'ready') continue
+    const index = g.items.findIndex(item => item.disabled !== true)
+    if (index >= 0) return { source: g.source, index }
   }
   return null
 }
@@ -61,7 +63,8 @@ function firstHighlight(groups: MenuState['groups']): MenuState['highlight'] {
 function validHighlight(highlight: MenuState['highlight'], groups: MenuState['groups']): MenuState['highlight'] {
   if (!highlight) return null
   const g = groups.find(x => x.source === highlight.source)
-  return g && g.status === 'ready' && highlight.index < g.items.length ? highlight : null
+  const item = g?.items[highlight.index]
+  return g?.status === 'ready' && item && item.disabled !== true ? highlight : null
 }
 
 /** Flatten ready items into (source, index) positions in group order. */
@@ -69,7 +72,9 @@ function positions(groups: MenuState['groups']): { source: string; index: number
   const out: { source: string; index: number }[] = []
   for (const g of groups) {
     if (g.status !== 'ready') continue
-    for (let i = 0; i < g.items.length; i++) out.push({ source: g.source, index: i })
+    for (let i = 0; i < g.items.length; i++) {
+      if (g.items[i]?.disabled !== true) out.push({ source: g.source, index: i })
+    }
   }
   return out
 }
@@ -116,7 +121,16 @@ export const menuReduce: MenuReduce = (state, ev) => {
       const groups = state.groups.map((g, i) =>
         i === idx ? { ...g, status: 'ready' as const, items } : g)
       if (allReadyEmpty(groups)) return closed(state)
-      const highlight = validHighlight(state.highlight, groups) ?? firstHighlight(groups)
+      let previous = state.highlight
+      const oldGroup = state.groups[idx]
+      if (previous?.source === ev.source && oldGroup?.status === 'ready') {
+        const selected = oldGroup.items[previous.index]
+        const index = selected === undefined ? -1 : items.findIndex(item => selected.value !== undefined
+          ? item.value === selected.value
+          : item.name === selected.name && item.section === selected.section)
+        previous = index < 0 ? null : { source: ev.source, index }
+      }
+      const highlight = validHighlight(previous, groups) ?? firstHighlight(groups)
       return { ...state, groups, highlight }
     }
     case 'source-failed': {
@@ -165,5 +179,5 @@ export const menuReduce: MenuReduce = (state, ev) => {
 export const exactMatch: ExactMatch = (groups, source, name) => {
   const group = groups.find(g => g.source === source)
   if (!group || group.status !== 'ready') return null
-  return group.items.find(c => c.name === name) ?? null
+  return group.items.find(c => c.name === name && c.disabled !== true) ?? null
 }

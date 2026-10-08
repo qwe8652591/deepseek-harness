@@ -681,6 +681,27 @@ describe('MessageItem arms', () => {
     expect(rows).toEqual(['sandbox:policyworkspace-write', 'workspace/repo'])
   })
 
+  it('keeps a resource mention compact and its separately logged context folded until opened', () => {
+    const view = render(<>
+      <MessageItem t={t} node={{
+        kind: 'user', seq: 2, source: { kind: 'user' },
+        content: [{ type: 'text', text: '请读取 @[Aiko工作台](dsh-resource://workbench/session/source#sha256:revision)' }],
+      } as never} />
+      <MessageItem t={t} node={{
+        kind: 'context', seq: 3,
+        content: [{ type: 'text', text: '<workbench-resources>[{"text":"需求正文"}]</workbench-resources>' }],
+        source: { kind: 'plugin', plugin: 'fixture-resources', form: 'snapshot', sections: [{ name: 'Aiko工作台', text: '需求正文' }] },
+        provenance: { role: 'inject', label: 'fixture-resources' }, form: 'snapshot',
+      } as never} />
+    </>)
+    expect(view.container.querySelector('[data-ref-chip]')?.textContent).toBe('Aiko工作台')
+    expect(view.container.querySelector('[data-context-injection-body]')).toBeNull()
+    expect(view.container.textContent).toMatchInlineSnapshot('"请读取 Aiko工作台上下文注入fixture-resources"')
+    fireEvent.click(view.getByRole('button', { name: /^上下文注入\s*fixture-resources$/ }))
+    expect(view.container.querySelector('[data-context-sections]')?.textContent).toBe('Aiko工作台需求正文')
+    expect(view.container.textContent).not.toContain('<workbench-resources>')
+  })
+
   it('a notice puts its account on the collapsed row', () => {
     // The whole point of the form: readable without expanding.
     const view = render(

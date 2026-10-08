@@ -840,7 +840,7 @@ export function WorkspaceBrowser({
   wide,
   usePanelInfo,
   expandSidebar,
-  useSessions,
+  useWorkspaceSessions: useSessions,
   useSessionPendingInteraction,
   useWorkspaces,
   useStore,

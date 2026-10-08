@@ -9,7 +9,7 @@
  * Scope disposal drops the directory (HMR safety).
  */
 import { Context } from '@deepseek-ai/cordis'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, onTestFinished, vi } from 'vitest'
 import { createScope } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
@@ -71,6 +71,7 @@ async function bench(locale: 'zh' | 'en' = 'zh') {
   let selected = defaultSelection
   const calls = { models: 0, select: 0 }
   const projections = new Map<SessionId, SnapshotStore<ModelSelectionProjection | undefined>>()
+  const presets = new Map<SessionId, SnapshotStore<string | null>>()
   // Whether the Host reports an adapter for the current route; the composer
   // block follows this, never catalog membership.
   let routable = true
@@ -142,7 +143,7 @@ async function bench(locale: 'zh' | 'en' = 'zh') {
         ? undefined
         : {
           sessionId: id,
-          session: { projections: { faceOf: () => projection } },
+          session: { projections: { faceOf: (name: string) => name === 'agentPreset' ? presets.get(id) : projection } },
           ctx: scope,
         }
     },
@@ -157,6 +158,7 @@ async function bench(locale: 'zh' | 'en' = 'zh') {
     const id = sid(key)
     const handle = createScope(ctx, id)
     scopes.set(id, handle.ctx)
+    presets.set(id, createSnapshotStore<string | null>(null))
     projections.set(id, createSnapshotStore<ModelSelectionProjection | undefined>({
       lastUsed: null,
       next: null,
@@ -175,6 +177,7 @@ async function bench(locale: 'zh' | 'en' = 'zh') {
     hostCurrent: () => selected,
     setHostCurrent: (selection: ModelSelection) => { defaultSelection = selection },
     setProjected: (id: SessionId, value: ModelSelectionProjection) => { projections.get(id)?.set(value) },
+    setPreset: (id: SessionId, value: string) => { presets.get(id)?.set(value) },
     address: (id: SessionId) => { addressed.add(id) },
     setRoutable: (next: boolean) => { routable = next },
     blockOf: (key: string) => blocks.get(sid(key)),
@@ -184,6 +187,47 @@ async function bench(locale: 'zh' | 'en' = 'zh') {
 const projection = (id: string) => ({ sessionId: sid(id) })
 
 describe('ui-model-selection dual entry', () => {
+  it('shares DSH providers across workbenches while keeping Code selections session-local', async () => {
+    const b = await bench()
+    onTestFinished(() => b.ctx.fiber.dispose())
+    b.mint('cowork')
+    b.mint('code')
+    b.setPreset(sid('code'), 'code')
+    const cowork = b.ctx.modelDirectories.directoryFor(sid('cowork'))
+    const code = b.ctx.modelDirectories.directoryFor(sid('code'))
+    await Promise.all([cowork.load(), code.load()])
+    b.ctx.modelDirectories.registerProviderPolicy('code', ['deepseek-official', 'external'], ['external'])
+    expect(code.store.getSnapshot().groups.map(group => group.id)).toEqual(['deepseek-official', 'external'])
+    expect(cowork.store.getSnapshot().groups.map(group => group.id)).toEqual(['deepseek-official'])
+    const select = vi.spyOn(b.remote.session, 'selectModel')
+    await code.select({ provider: 'deepseek-official', model: 'deepseek-v4-pro' })
+    expect(select).toHaveBeenCalledWith(expect.objectContaining({ sessionId: sid('code'), saveAsDefault: false }))
+    expect(cowork.store.getSnapshot().current?.model).toBe('deepseek-v4-flash')
+  })
+
+  it('applies and disposes preset provider policies in the shared directory', async () => {
+    const b = await bench()
+    onTestFinished(() => b.ctx.fiber.dispose())
+    b.mint('cowork')
+    b.mint('code')
+    b.setPreset(sid('code'), 'code')
+    const cowork = b.ctx.modelDirectories.directoryFor(sid('cowork'))
+    const code = b.ctx.modelDirectories.directoryFor(sid('code'))
+    await Promise.all([cowork.load(), code.load()])
+    const release = b.ctx.modelDirectories.registerProviderPolicy('code', ['external'])
+    expect(code.store.getSnapshot().groups.map(group => group.id)).toEqual(['external'])
+    expect(cowork.store.getSnapshot().groups.map(group => group.id)).toEqual(['deepseek-official'])
+    await expect(code.select({ provider: 'deepseek-official', model: 'deepseek-v4-pro' })).rejects.toThrow('unavailable')
+    expect(b.calls.select).toBe(0)
+    const select = vi.spyOn(b.remote.session, 'selectModel')
+    await code.select({ provider: 'external', model: 'deepseek-v4-flash' })
+    expect(select).toHaveBeenCalledWith(expect.objectContaining({ sessionId: sid('code'), saveAsDefault: false }))
+    release()
+    expect(cowork.store.getSnapshot().groups).toHaveLength(2)
+    expect(code.store.getSnapshot().groups).toHaveLength(2)
+    await b.ctx.fiber.dispose()
+  })
+
   it('registers the /model contribution and the composer model seat', async () => {
     const b = await bench()
     expect(b.contribution().name).toBe('model')

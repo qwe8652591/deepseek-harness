@@ -29,6 +29,8 @@ kind: "package-reference"
 
 ### 键盘与鼠标
 
+来源可在请求尚未结束时发布部分候选列表，较慢的后端不会拖住已可用的选项。标记为 `disabled` 的加载和错误行保持可见，但不能选中。列表更新按来源拥有的 `value` 保留高亮候选；没有 value 时按名称和分组匹配。更换查询、关闭菜单或销毁所属 Session 会取消发布；请求结束后也不再接受该请求的发布。
+
 菜单打开期间 composer 表面保持焦点：行在 mousedown 时完成 pick，高亮由 `aria-activedescendant` 承载，指针落在菜单与所在 composer 卡片之外即关闭菜单。空格与回车裁决按注册序轮询可选的 `matchSpace`／`matchEnter` 钩子；第一个非 undefined 的应答胜出，source 也可以拒绝它无法整体消费的提交。Tab 会作用于高亮补全项：声明 `drill: true` 的候选项以 `action: 'drill'` 进入 `onPick`，普通候选项则以 `action: 'pick'` 完成选定；没有高亮项时 Tab 原样放行，原生焦点遍历不受影响。可下钻行尾的 chevron 向指针用户提供同一个动词。实现可选 `header` 钩子的 source 还会在其分组上方发布面包屑：管线在每次命中时用实时查询、以及该查询由下钻还是由键入产生这一事实重新询问它，点击面包屑经 `onPick` 以 `action: 'drill'` 回到该 source。
 
 -----
@@ -38,6 +40,8 @@ kind: "package-reference"
 
 <details>
 <summary>实现细节——点击展开</summary>
+
+`CandidateRequest.publish(items)` 立即替换该来源的当前候选行；`candidates` 返回的 Promise 提供最终列表。仅消费最终结果的调用方可不提供此回调。发布列表遵循通常的空菜单自动关闭规则，因此仍在等待结果的来源保留自己的禁用加载行。请求被拒绝时移除整个分组；汇总独立后端的来源在各自的候选行中表示后端失败。[渐进候选决策](../../../.agents/notes/implemented/feature/2026-09-15-progressive-resource-candidates.zh.md) 说明了加载和选择的保证。
 
 `src/core/` 是纯内核——触发器检测、菜单归约与精确匹配，零 React／DOM／cordis——而 `src/client/service.ts` 把内核接到菜单快照 store、逐 hit 候选拉取（以 generation 把关、后继请求经 `AbortSignal` 取代、失败的 source 静默丢弃并留一条 console 记录）与 pick 路径上。每个会话 scope 各解析一个 `InputTriggerController`（`sessionOf`）；对话接线层在 controller 上驱动 `track`／`arbitrate`／`onSpace`／`adjudicate`。source 会被预热进它能触达的每个会话 controller；`lexicon` 名录在预热后变化的 source 实现 `subscribeLexicon`，controller 每收到通知就重拉。`MenuView` 自注册进 `conversation.input.overlay`（列表类，会话 scope），菜单关闭期间渲染 null。`listbox` 角色落在其滚动视口而非有界外壳上，因为面包屑头部不是选项，listbox 也不得承载它；面包屑走菜单 store 之外的独立快照 store，冻结的归约器因此对它一无所知。overlay 的 SlotMap 合并放在本包，因为依赖方向（ui-conversation → ui-input-trigger）不允许反向的类型导入。
 

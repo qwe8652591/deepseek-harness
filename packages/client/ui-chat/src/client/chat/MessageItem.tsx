@@ -153,8 +153,11 @@ function TurnMaxTokensItem({ t }: {
   )
 }
 
-/** Right-aligned bubble shared by user and steering rows. */
-function UserStyleBubble({
+/** Right-aligned bubble shared by user and steering rows.
+ * @param props - Message content, optional actions, and localized labels.
+ * @returns The shared user message bubble.
+ */
+export function UserStyleBubble({
   content, renderMessageImages, actions, pending = false, echo = false, referenceLabels = [], skillNames = [],
   previewAttachments, t,
 }: {

@@ -221,9 +221,14 @@ describe('Conversation inject API', () => {
 
     const mirrored: string[] = []
     const unbind = injected.bindDraftMirror(text => mirrored.push(text))
+    expect(mirrored).toEqual(['retry me'])
+    actions.setDraft('retry me')
+    expect(mirrored).toEqual(['retry me'])
     actions.setDraft('mirrored text')
-    expect(mirrored).toEqual(['mirrored text'])
+    expect(mirrored).toEqual(['retry me', 'mirrored text'])
     unbind()
+    actions.setDraft('after unbind')
+    expect(mirrored).toEqual(['retry me', 'mirrored text'])
     expect(b.inputApi(ROOT).state).toBe(state)
 
     b.sessionFake.cancel.mockResolvedValueOnce({

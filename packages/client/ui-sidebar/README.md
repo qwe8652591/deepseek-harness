@@ -35,6 +35,10 @@ The expanded brand row renders `sidebar.brand.mark` and `sidebar.brand.name` as 
 
 Plugins add an icon component to the root-scoped `sidebar.panellist` list with an `id`, optional `order`, and a string or locale-aware `label`. The same id addresses the component registered in the layout's root-scoped `main` keyed slot; selecting a missing main entry throws without changing the current selection. The label supplies plain visible text, the accessible name, and the collapsed tooltip. Each row reads its own selected state through `usePanelInfo`; moving DOM focus to search or a directory picker does not change the displayed panel or its selected row. With no registrations, neither the list nor spacing for it is rendered. The shipped composition registers no example panel.
 
+### Workbench tabs
+
+Plugins register an icon in `sidebar.workbenchlist` with the id registered through `uiWorkspace.registerWorkbench()`. The shell shows Cowork followed by ordered plugin tabs. Expanded tabs show text only and wrap when the sidebar is too narrow; their fill and selected accent follow the theme's selector, sidebar-selection and brand-text tokens. The collapsed rail uses a sparkle for Cowork and the registered plugin icons, with the same 18px glyphs, 36px buttons, 12px spacing, selection styling and tooltips as the global panel rows. Tabs select a native Session workbench and restore its conversation while retaining the native New Session action, Workspace browser and composer. The selected workbench is independent of global panels. A keyed `sidebar.workbench.navigation` contribution can supply navigation for an explicit custom panel, including a read-only archive.
+
 ### Collapse behavior
 
 During a live collapse, the expanded content fades out at its current width, the upper controls share one fade and leftward translation into the 56px rail, and the layout's column slide ends the motion. A page that starts collapsed renders the rail statically, and reduced-motion mode disables both transitions. The bottom-pinned `sidebar.settings` control shares the fade timing but has no horizontal translation.

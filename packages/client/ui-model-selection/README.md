@@ -25,6 +25,8 @@ The Web GUI lets users switch the model and reasoning effort for an existing ses
 <a id="use-this-package"></a>
 ## Use this package
 
+`ctx.modelDirectories.registerProviderPolicy(preset, providers, reserved)` selects a preset's supported providers. The optional reserved list defaults to all offered providers; other presets exclude only those reserved providers, so workbenches can share ordinary model providers. Both native selectors use the Session's preset projection. Selections under a preset policy apply only to that Session and preserve the shared default model. Registration and disposal refresh existing directories. An unsupported selection is rejected before RPC submission.
+
 Mount this plugin alongside `ui-conversation` and the commands package; the composer then shows the model seat next to the pending indicator, and `/model` opens the same directory as a popup. Both surfaces show the host-reported current selection when the exact provider/model pair remains in the advertised groups; a missing catalog row leaves the routable selection intact while the trigger prompts `Select model`.
 
 ### Model and effort

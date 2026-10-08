@@ -25,6 +25,8 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用本包
 
+`ctx.uiWorkspace.registerWorkbench()` 接受 `kind: 'sessions'`，根据持久化的 Agent 预设对原生 Session 分组；也接受 `kind: 'panel'` 和已注册的 `main` 插槽键，打开插件面板而不创建 Session。会话工作台拥有互不重叠的预设集合，将默认预设用于新建 Session，并可在空 Session 打开前初始化。原生浏览器和搜索只显示所选分组，Workspace 保持共享。切换会恢复该分组在当前浏览器生命周期内最后选中的 Session，或打开空会话。被后续导航取代的创建操作不会夺回选中状态。面板工作台在原生 Session 更新时保持选中。显式打开 Conversation 会选中该 Session 所属的工作台；未注册的预设归入 Cowork。Effect 清理会移除注册项，移除当前面板时显示当前 Conversation。
+
 用侧边栏浏览 Workspace 及其 Session、重排它们并新建会话；在 Session Intent 主视觉区用选择器为新会话选择 Workspace。打开的 Workspace 默认显示五条非空白 Session，并在首条提示词落地前把当前选中的空白**新会话**作为一条临时额外行。**展开其余**会显示隐藏条目；关闭再打开 Workspace 会恢复该折叠投影。
 
 ### 重排序与视图选项
@@ -120,4 +122,4 @@ Workspace 与 Session 悬浮卡片会复制对应行被截断的值：激活 Wor
 
 </details>
 
-**运行时不变式：** 不发布伴生入口。这是纯消费插件，只注册展示组件和 locale dictionary；inject face 是无状态 RPC wrapper 加 create-and-open 调用，不发出事件或持有跨插件可变状态。
+**运行时不变式：** 不发布伴生入口。工作台归属与选中状态由本地注册项和原生 Session 摘要派生，没有会与这些自有输入分歧的独立观测。服务测试覆盖导航和清理行为。

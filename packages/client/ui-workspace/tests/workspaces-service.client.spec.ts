@@ -1,5 +1,5 @@
 import { Context } from '@deepseek-ai/cordis'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import type {
   ISessions, SessionListState, SessionSummary,
 } from '@deepseek-ai/dsh-api-session-controller/client'
@@ -192,6 +192,7 @@ interface BenchOptions {
 
 function bench(options: BenchOptions = {}) {
   const ctx = new Context()
+  onTestFinished(() => ctx.fiber.dispose())
   const layout = new LayoutController({
     selectPanel: vi.fn(), retainMainPanels: vi.fn(),
     setSidebar: vi.fn(), toggleSidebar: vi.fn(), setViewportWidth: vi.fn(),
@@ -211,6 +212,128 @@ function bench(options: BenchOptions = {}) {
   )
   return { ctx, directoryPicker, sessions, uiWorkspace, workspaces, layout, selectPanel }
 }
+
+describe('workbench navigation', () => {
+  it('opens a document panel without creating Sessions and retains it while its native Session changes', () => {
+    const cowork = summary('cowork', { projectionValues: { agentPreset: 'standard' } })
+    const code = summary('code', { running: true, projectionValues: { agentPreset: 'claude' } })
+    const b = bench({ sessions: sessionState([cowork, code], cowork.id) })
+    b.ctx.effect(() => b.uiWorkspace.registerWorkbench({ kind: 'sessions', id: 'code', defaultPreset: 'claude' }))
+    b.ctx.effect(() => b.uiWorkspace.registerWorkbench({ kind: 'panel', id: 'requirements', panel: 'requirements-document' as MainPanelId }))
+    b.uiWorkspace.selectWorkbench('requirements')
+    expect(b.selectPanel).toHaveBeenLastCalledWith('requirements-document')
+    expect(b.sessions.list.getSnapshot().current).toBe(cowork.id)
+    b.sessions.open(code.id)
+    expect({
+      selectedWorkbench: b.uiWorkspace.workbench.getSnapshot().active,
+      panel: b.selectPanel.mock.lastCall?.[0],
+      currentSession: b.sessions.list.getSnapshot().current,
+      running: b.sessions.list.getSnapshot().byId[code.id]?.running,
+      visibleSessions: b.uiWorkspace.workbenchSessions.getSnapshot().ids,
+    }).toMatchInlineSnapshot(`
+      {
+        "currentSession": "code",
+        "panel": "requirements-document",
+        "running": true,
+        "selectedWorkbench": "requirements",
+        "visibleSessions": [],
+      }
+    `)
+    b.uiWorkspace.openSession(code.id)
+    expect(b.uiWorkspace.workbench.getSnapshot().active).toBe('code')
+    expect(b.selectPanel).toHaveBeenLastCalledWith(null)
+    b.uiWorkspace.selectWorkbench('requirements')
+    b.uiWorkspace.selectWorkbench(null)
+    expect(b.sessions.list.getSnapshot().current).toBe(cowork.id)
+    expect(b.uiWorkspace.workbench.getSnapshot().active).toBe(null)
+    expect(b.sessions.create).not.toHaveBeenCalled()
+    expect(b.sessions.clear).not.toHaveBeenCalled()
+  })
+
+  it('keeps a panel selected when an earlier native Session creation completes', async () => {
+    const b = bench({ workspaces: workspaceState([workspace('project')]), sessions: sessionState() })
+    const pending = Promise.withResolvers<SessionId>()
+    b.sessions.create.mockReturnValue(pending.promise)
+    b.ctx.effect(() => b.uiWorkspace.registerWorkbench({ kind: 'sessions', id: 'code', defaultPreset: 'claude' }))
+    b.ctx.effect(() => b.uiWorkspace.registerWorkbench({ kind: 'panel', id: 'requirements', panel: 'requirements-document' as MainPanelId }))
+    b.uiWorkspace.selectWorkbench('code')
+    b.uiWorkspace.selectWorkbench('requirements')
+    pending.resolve(sid('late-code'))
+    await flush()
+    expect(b.uiWorkspace.workbench.getSnapshot().active).toBe('requirements')
+    expect(b.selectPanel).toHaveBeenLastCalledWith('requirements-document')
+  })
+
+  it.each([true, false])('reveals the native view when the selected panel is removed (current Session: %s)', (hasCurrent) => {
+    const code = summary('code', { projectionValues: { agentPreset: 'claude' } })
+    const b = bench({ sessions: sessionState(hasCurrent ? [code] : [], hasCurrent ? code.id : undefined) })
+    b.ctx.effect(() => b.uiWorkspace.registerWorkbench({ kind: 'sessions', id: 'code', defaultPreset: 'claude' }))
+    const dispose = b.uiWorkspace.registerWorkbench({ kind: 'panel', id: 'requirements', panel: 'requirements-document' as MainPanelId })
+    b.uiWorkspace.selectWorkbench('requirements')
+    dispose()
+    expect(b.uiWorkspace.workbench.getSnapshot().active).toBe(hasCurrent ? 'code' : null)
+    expect(b.selectPanel).toHaveBeenLastCalledWith(null)
+    expect(b.sessions.create).not.toHaveBeenCalled()
+  })
+
+  it('rejects duplicate workbench ids, overlapping presets and unknown selections', () => {
+    const b = bench()
+    b.ctx.effect(() => b.uiWorkspace.registerWorkbench({ kind: 'sessions', id: 'code', defaultPreset: 'claude', presets: ['claude-review'] }))
+    expect(() => b.uiWorkspace.registerWorkbench({ kind: 'panel', id: 'code', panel: 'document' as MainPanelId })).toThrow('workbench already registered')
+    expect(() => b.uiWorkspace.registerWorkbench({ kind: 'sessions', id: 'review', defaultPreset: 'claude-review' })).toThrow('workbench preset already registered')
+    expect(() => { b.uiWorkspace.selectWorkbench('missing') }).toThrow('unknown workbench')
+    expect(b.uiWorkspace.workbench.getSnapshot().active).toBe(null)
+  })
+
+  it('creates a Claude Session instead of adopting a blank Cowork Session in the same workspace', async () => {
+    const cowork = summary('cowork', { blank: true, cwd: '/w/project', projectionValues: { agentPreset: 'standard' } })
+    const b = bench({ sessions: sessionState([cowork], cowork.id), workspaces: workspaceState([workspace('project', [cowork.id])]) })
+    const dispose = b.uiWorkspace.registerWorkbench({ kind: 'sessions', id: 'code', defaultPreset: 'claude' })
+    b.uiWorkspace.selectWorkbench('code')
+    await flush()
+    expect(b.sessions.create).toHaveBeenCalledExactlyOnceWith({ workspaceId: wid('project'), agentPreset: 'claude' })
+    expect(b.uiWorkspace.workbench.getSnapshot().active).toBe('code')
+    expect(b.sessions.list.getSnapshot().byId[cowork.id]).toBe(cowork)
+    dispose()
+    await b.ctx.fiber.dispose()
+  })
+
+  it('restores each workbench selection while sharing the native Session list and preserving a running turn', async () => {
+    const cowork = summary('cowork', { projectionValues: { agentPreset: 'standard' } })
+    const code = summary('code', { running: true, projectionValues: { agentPreset: 'claude' } })
+    const b = bench({ sessions: sessionState([cowork, code], cowork.id) })
+    const dispose = b.uiWorkspace.registerWorkbench({ kind: 'sessions', id: 'code', defaultPreset: 'claude' })
+    b.uiWorkspace.openSession(code.id)
+    expect(b.uiWorkspace.workbench.getSnapshot().active).toBe('code')
+    expect(b.uiWorkspace.workbenchSessions.getSnapshot().ids).toEqual([code.id])
+    b.uiWorkspace.selectWorkbench(null)
+    expect(b.sessions.list.getSnapshot().current).toBe(cowork.id)
+    expect(b.uiWorkspace.workbenchSessions.getSnapshot().ids).toEqual([cowork.id])
+    b.uiWorkspace.selectWorkbench('code')
+    expect(b.sessions.list.getSnapshot().current).toBe(code.id)
+    expect(b.sessions.list.getSnapshot().byId[code.id]?.running).toBe(true)
+    expect(b.sessions.list.getSnapshot().ids).toEqual([cowork.id, code.id])
+    expect(b.sessions.create).not.toHaveBeenCalled()
+    dispose()
+    await b.ctx.fiber.dispose()
+  })
+
+  it('does not let a pending Code creation replace a later Cowork selection', async () => {
+    const cowork = summary('cowork', { blank: true, cwd: '/w/project', projectionValues: { agentPreset: 'standard' } })
+    const b = bench({ sessions: sessionState([cowork], cowork.id), workspaces: workspaceState([workspace('project', [cowork.id])]) })
+    let finish: (id: SessionId) => void = () => { throw new Error('create was not called') }
+    b.sessions.create.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve }))
+    const dispose = b.uiWorkspace.registerWorkbench({ kind: 'sessions', id: 'code', defaultPreset: 'claude' })
+    b.uiWorkspace.selectWorkbench('code')
+    b.uiWorkspace.selectWorkbench(null)
+    finish(sid('late-code'))
+    await flush()
+    expect(b.sessions.list.getSnapshot().current).toBe(cowork.id)
+    expect(b.uiWorkspace.workbench.getSnapshot().active).toBe(null)
+    dispose()
+    await b.ctx.fiber.dispose()
+  })
+})
 
 async function flush(): Promise<void> {
   await Promise.resolve()

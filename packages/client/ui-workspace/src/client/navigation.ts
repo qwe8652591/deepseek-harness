@@ -11,9 +11,24 @@ import type {
 } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
+import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
+import { WorkspaceWorkbenches, type WorkspaceWorkbench, type WorkspaceWorkbenchSelection } from './workbenches.ts'
 
 /** Workspace archive and directory operations consumed by Client UI domains. */
 export interface UiWorkspace {
+  /** Selected workbench, independent of the main panel and Session selection. */
+  readonly workbench: ObservableSnapshot<WorkspaceWorkbenchSelection>
+  /** Native Session list filtered for the selected workbench. */
+  readonly workbenchSessions: ObservableSnapshot<SessionListState>
+  /** Register a native Session workbench or plugin-owned panel.
+   * @param definition - Preset membership or a registered main slot key.
+   * @returns Registration disposer; removing an active panel reveals the current native Conversation.
+   */
+  registerWorkbench(definition: WorkspaceWorkbench): () => void
+  /** Open a plugin panel, or restore/create a native workbench Session.
+   * @param id - Registered name, or null for the native default.
+   */
+  selectWorkbench(id: string | null): void
   /**
    * Select a Session and show its Conversation as one UI navigation action.
    * @param sessionId - listed or retained Session to display.
@@ -88,8 +103,11 @@ export class DirectoryBrowseError extends Error {
 
 /** Implements Workspace archive and directory UI operations. */
 class UiWorkspaceService extends Service implements UiWorkspace {
-  private readonly connecting = new Map<WorkspaceId, Promise<SessionId>>()
+  private readonly connecting = new Map<string, Promise<SessionId>>()
   private readonly lifetime = new AbortController()
+  private readonly workbenches: WorkspaceWorkbenches
+  readonly workbench: ObservableSnapshot<WorkspaceWorkbenchSelection>
+  readonly workbenchSessions: ObservableSnapshot<SessionListState>
 
   /**
    * @param ctx - Client root Context.
@@ -104,7 +122,47 @@ class UiWorkspaceService extends Service implements UiWorkspace {
     private readonly sessions: ISessions,
   ) {
     super(ctx, 'uiWorkspace')
+    this.workbenches = new WorkspaceWorkbenches(sessions.list)
+    this.workbench = this.workbenches.selection
+    this.workbenchSessions = this.workbenches.sessions
+    ctx.effect(() => sessions.list.subscribe(() => { this.workbenches.sync() }), 'ui-workspace: workbench membership')
+    this.workbenches.sync()
     ctx.effect(() => this.watchNavigation(), 'ui-workspace: Workspace navigation policy')
+  }
+
+  registerWorkbench(definition: WorkspaceWorkbench): () => void {
+    const dispose = this.workbenches.register(definition)
+    return () => {
+      const active = this.workbench.getSnapshot().active === definition.id
+      dispose()
+      if (active && definition.kind === 'panel') {
+        const current = this.sessions.list.getSnapshot().current
+        if (current === undefined) this.ctx.layout.selectPanel(null)
+        else this.openSession(current)
+      }
+    }
+  }
+
+  selectWorkbench(id: string | null): void {
+    const list = this.sessions.list.getSnapshot()
+    const workspaces = this.workspaces.list.getSnapshot()
+    const workspaceId = workspaces.items.find(item => list.current !== undefined && item.sessionIds.includes(list.current))?.workspaceId
+    this.ctx.layout.beginNavigation()
+    this.workbenches.setActive(id)
+    const panel = this.workbenches.panel()
+    if (panel !== undefined) {
+      this.ctx.layout.selectPanel(panel)
+      return
+    }
+    const previous = this.workbenches.previous(id)
+    const summary = previous === undefined ? undefined : list.byId[previous]
+    if (summary !== undefined && this.workbenches.contains(summary) && !workspaces.archivedSessionIds.includes(summary.id)) {
+      this.openSession(summary.id)
+    } else {
+      this.sessions.clear()
+      this.ctx.layout.selectPanel(null)
+      this.startSession(workspaceId)
+    }
   }
 
   async connectWorkspace(workspaceId: WorkspaceId): Promise<SessionId> {
@@ -113,7 +171,10 @@ class UiWorkspaceService extends Service implements UiWorkspace {
     if (workspace === undefined) {
       throw new Error(`uiWorkspace.connectWorkspace: unknown workspace ${workspaceId}`)
     }
-    const inflight = this.connecting.get(workspaceId)
+    const agentPreset = this.workbenches.defaultPreset()
+    const prepare = this.workbenches.prepareSession()
+    const key = JSON.stringify([workspaceId, this.workbench.getSnapshot().active])
+    const inflight = this.connecting.get(key)
     if (inflight !== undefined) return inflight
 
     const archived = this.workspaces.list.getSnapshot().archivedSessionIds
@@ -121,18 +182,26 @@ class UiWorkspaceService extends Service implements UiWorkspace {
     for (const id of sessions.ids) {
       const summary = sessions.byId[id]
       if (summary !== undefined && summary.blank && summary.cwd === workspace.path
+        && this.workbenches.contains(summary)
         && workspace.sessionIds.includes(summary.id)
-        && !archived.includes(summary.id)) return summary.id
+        && !archived.includes(summary.id)) {
+        await prepare?.(summary.id)
+        return summary.id
+      }
     }
 
-    const attempt = this.sessions.create({ workspaceId })
-      .finally(() => { this.connecting.delete(workspaceId) })
-    this.connecting.set(workspaceId, attempt)
+    const attempt = this.sessions.create({ workspaceId, ...(agentPreset === undefined ? {} : { agentPreset }) })
+      .then(async (sessionId) => { await prepare?.(sessionId); return sessionId })
+      .finally(() => { this.connecting.delete(key) })
+    this.connecting.set(key, attempt)
     return attempt
   }
 
   openSession(sessionId: SessionId): void {
     this.sessions.open(sessionId)
+    const summary = this.sessions.list.getSnapshot().byId[sessionId]
+    if (summary !== undefined) this.workbenches.setActive(this.workbenches.owner(summary))
+    else if (this.workbenches.panel() !== undefined) this.workbenches.setActive(null)
     this.ctx.layout.selectPanel(null)
   }
 

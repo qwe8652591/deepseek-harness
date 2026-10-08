@@ -175,7 +175,7 @@ export class InputTriggerController {
     if (this.disposed || !state.open || hit === null) return
     const group = state.groups.find(g => g.source === source)
     const candidate = group !== undefined && group.status === 'ready' ? group.items[index] : undefined
-    if (candidate === undefined) return
+    if (candidate === undefined || candidate.disabled === true) return
     const src = this.deps.roster.sources(hit.trigger).find(s => s.name === source)
     if (src === undefined) return
     this.settle(src, candidate, hit, action)
@@ -453,6 +453,7 @@ export class InputTriggerController {
     const generation = this.menu.getSnapshot().generation
     const projection = this.project()
     for (const source of roster) {
+      let settled = false
       void source
         .candidates(projection, {
           query: hit.query,
@@ -460,13 +461,19 @@ export class InputTriggerController {
           position: hit.position,
           drilled: this.drilled,
           signal: controller.signal,
+          publish: (items) => {
+            if (controller.signal.aborted || settled) return
+            this.reduce({ type: 'source-settled', generation, source: source.name, items })
+          },
         })
         .then(
           (items) => {
+            settled = true
             if (controller.signal.aborted) return
             this.reduce({ type: 'source-settled', generation, source: source.name, items })
           },
           (error: unknown) => {
+            settled = true
             if (controller.signal.aborted) return
             console.error(`[ui-input-trigger] source "${source.name}" candidates failed:`, error)
             this.reduce({ type: 'source-failed', generation, source: source.name })

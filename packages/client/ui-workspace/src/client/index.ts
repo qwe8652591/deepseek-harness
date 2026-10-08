@@ -31,6 +31,7 @@ import { WorkspacePicker } from './WorkspacePicker.tsx'
 import { en, zh, type WorkspaceKey } from './locales.ts'
 
 export type { UiWorkspace } from './navigation.ts'
+export type { WorkspaceWorkbench, WorkspaceWorkbenchSelection } from './workbenches.ts'
 export type {
   DirectoryFlowOwnerProps, DirectoryFlowSlotName, DirectoryPickingHooks, DirectoryPickingInjected,
   WorkspaceBrowserInjected, WorkspaceBrowserProps, WorkspacePickerInjected, WorkspacePickerProps,
@@ -81,7 +82,8 @@ export function apply(ctx: Context): void {
   const searchSessions: WorkspaceBrowserInjected['searchSessions'] = async (query, signal) => {
     const result = await sessions.search(query, signal)
     if (!result.ok) throw new Error(result.error.message)
-    return result.value
+    const visible = uiWorkspace.workbenchSessions.getSnapshot().byId
+    return { ...result.value, items: result.value.items.filter(item => visible[item.sessionId] !== undefined) }
   }
 
   // Stable per-surface occupancy sources (the renderer's hook cache keys by
@@ -130,7 +132,7 @@ export function apply(ctx: Context): void {
       await workspaces.insertSessionBefore(workspaceId, sessionId, beforeSessionId)
     },
     createWorkspace: input => workspaces.create(input),
-    hooks: { directoryFlow: browserFlowSource, hostInfo },
+    hooks: { directoryFlow: browserFlowSource, hostInfo, workspaceSessions: uiWorkspace.workbenchSessions },
   })
   const pickerInjected = (): WorkspacePickerInjected => ({
     createWorkspace: input => workspaces.create(input),

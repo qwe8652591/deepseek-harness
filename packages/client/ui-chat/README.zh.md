@@ -14,6 +14,7 @@ kind: "package-reference"
 
 ## 目录
 
+- [外部引擎消息](#external-engine-messages)
 - [系统提示词行](#system-prompt-row)
 - [轮次 token 用量](#turn-token-usage)
 - [轮次过程折叠](#turn-process-folding)
@@ -23,6 +24,11 @@ kind: "package-reference"
 - [开发备注](#dev-note)
 
 -----
+
+<a id="external-engine-messages"></a>
+## 外部引擎消息
+
+`workbench.conversation.message` 使用 Chat 相同的用户气泡、复制操作、助手 Markdown 和通用 JSON 组件绘制外部引擎显示记录。它读取所有者数据，不绑定原生 Session。
 
 <a id="system-prompt-row"></a>
 ## 系统提示词行

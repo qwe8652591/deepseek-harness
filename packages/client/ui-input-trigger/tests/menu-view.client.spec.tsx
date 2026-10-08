@@ -94,6 +94,37 @@ function titles(container: HTMLElement): string[] {
 }
 
 describe('MenuView', () => {
+  it('renders source-local status rows beside selectable resources', () => {
+    const { onPick, onHover } = mount(openState({
+      groups: [{ source: 'resources', showGroupTitle: false, status: 'ready', items: [
+        { name: '正在读取…', section: 'Aiko Studio', disabled: true, drill: true },
+        { name: 'README.md', section: '本地文件', value: 'file:readme' },
+      ] }],
+      highlight: { source: 'resources', index: 1 },
+    }))
+    const options = screen.getAllByRole('option')
+    expect(options.map(option => ({ text: option.textContent, disabled: option.getAttribute('aria-disabled') })))
+      .toMatchInlineSnapshot(`
+        [
+          {
+            "disabled": "true",
+            "text": "正在读取…",
+          },
+          {
+            "disabled": null,
+            "text": "README.md",
+          },
+        ]
+      `)
+    fireEvent.mouseDown(options[0]!)
+    fireEvent.mouseMove(options[0]!)
+    expect(onPick).not.toHaveBeenCalled()
+    expect(onHover).not.toHaveBeenCalled()
+    expect(options[0]!.querySelector('[role="button"]')).toBeNull()
+    fireEvent.mouseDown(options[1]!)
+    expect(onPick).toHaveBeenCalledWith('resources', 1)
+  })
+
   it('renders null while closed and appears when the store opens', () => {
     const { menu, view } = mount(CLOSED)
     expect(view.container.childElementCount).toBe(0)

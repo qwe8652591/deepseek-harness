@@ -7,7 +7,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type { PendingInteractionPublisher } from '@deepseek-ai/dsh-client-ui-session/client'
 import type { TypertClientEventListener } from '@deepseek-ai/dsh-typert-protocol'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
-import { ApprovalPanel } from './ApprovalPanel.tsx'
+import { ApprovalPanel, WorkbenchApprovalPanel } from './ApprovalPanel.tsx'
 import { PendingApproval } from './contract/slots.ts'
 import { en, zh } from './locales.ts'
 
@@ -74,6 +74,9 @@ async function answerApproval(
  */
 export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-approval: dictionaries')
+  ctx.slots.inject('workbench.conversation.approval', () => ctx.slots.register({
+    name: 'workbench.conversation.approval', locale: NS,
+  }, WorkbenchApprovalPanel))
   const registerPendingInteraction = ctx.uiSession.registerPendingInteraction<PendingApproval>(
     () => 0,
   )

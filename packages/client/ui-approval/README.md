@@ -10,6 +10,8 @@ English | [中文](README.zh.md)
 
 Browser approval presentation over the Agent-scoped Remote Event waterfall. The plugin publishes each pending request through `ctx.uiSession`, takes over the Conversation composer, optionally renders correlated Tool detail, and returns the user's decision to the waiting Host request. Use it when a browser must collect approval for a waiting Host operation.
 
+`workbench.conversation.approval` presents an external-engine decision through the native approval flow. It forwards only the displayed request, requires every requested answer before allowing, and re-enables decisions when the engine rejects the answer operation.
+
 ## Table of Contents
 
 - [Model Experience](#model-experience)
