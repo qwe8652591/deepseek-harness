@@ -53,30 +53,40 @@ type PanelRowProps =
   & Pick<SidebarSectionOwnerProps, 'wide'>
   & Pick<PropsRuntime<'sidebar'>, 'usePanelInfo'>
   & Pick<InjectFace<SidebarRootInjected>, 'selectPanel'>
-  & PropsRenderSlots<'sidebar.panellist'>
+  & PropsRenderSlots<'sidebar.panellist' | 'sidebar.panellist.action'>
 
-/** Each panel row subscribes only to its own selection state. */
+/**
+ * Each panel row subscribes only to its own selection state. A trailing
+ * control registered for the same id sits beside the button, not inside it.
+ */
 function PanelRow({ id, label, wide, usePanelInfo, selectPanel, renderSlot }: PanelRowProps) {
   const active = usePanelInfo(info => info.activePanelId === id)
   return (
-    <Tooltip label={label} delayMs={500} disabled={wide}>
-      <button
-        type="button"
-        className={clsx(css.panelRow, active && css.panelActive)}
-        aria-label={label}
-        aria-current={active ? 'page' : undefined}
-        onClick={() => { selectPanel(id) }}
-      >
-        <span className={css.panelGlyph} aria-hidden="true">
-          {renderSlot('sidebar.panellist', { size: wide ? 16 : 18, active }, { only: id })}
-        </span>
-        {wide && (
-          <span className={clsx(css.panelTitle, css.wide)}>
-            {label}
+    <div className={clsx(css.panelItem, active && css.panelActive)}>
+      <Tooltip label={label} delayMs={500} disabled={wide}>
+        <button
+          type="button"
+          className={clsx(css.panelRow, active && css.panelActive)}
+          aria-label={label}
+          aria-current={active ? 'page' : undefined}
+          onClick={() => { selectPanel(id) }}
+        >
+          <span className={css.panelGlyph} aria-hidden="true">
+            {renderSlot('sidebar.panellist', { size: wide ? 16 : 18, active }, { only: id })}
           </span>
-        )}
-      </button>
-    </Tooltip>
+          {wide && (
+            <span className={clsx(css.panelTitle, css.wide)}>
+              {label}
+            </span>
+          )}
+        </button>
+      </Tooltip>
+      {wide && (
+        <span className={css.panelAction}>
+          {renderSlot('sidebar.panellist.action', { active, label }, { only: id })}
+        </span>
+      )}
+    </div>
   )
 }
 

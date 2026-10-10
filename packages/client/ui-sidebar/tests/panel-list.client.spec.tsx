@@ -277,3 +277,45 @@ describe('sidebar global panels', () => {
     expect(view.queryByRole('navigation')).toBeNull()
   })
 })
+
+describe('sidebar panel row actions', () => {
+  it('renders a registered trailing control beside its row only while expanded, and removes it with its plugin', async () => {
+    const { runtime, locale, layout, view } = await bench()
+    await mountPanels(runtime, locale)
+    const onClose = vi.fn()
+    function Close({ active, label }: PropsRuntime<'sidebar.panellist.action'>) {
+      return <button type="button" aria-label={`Close ${label}`} data-active={active} onClick={onClose} />
+    }
+    const action = await runtime.mount({
+      inject: ['slots'],
+      apply(ctx: Context) {
+        ctx.slots.inject('sidebar.panellist.action', () => ctx.slots.register({ name: 'sidebar.panellist.action', id: ALPHA }, Close))
+      },
+    })
+    const navigation = await view.findByRole('navigation', { name: 'Global panels' })
+    const close = await within(navigation).findByRole('button', { name: 'Close Alpha panel' })
+    expect(close.closest('button[aria-current], button[aria-label="Alpha panel"]')).toBeNull()
+    expect(within(navigation).queryByRole('button', { name: 'Close Beta panel' })).toBeNull()
+    fireEvent.click(close)
+    expect(onClose).toHaveBeenCalledTimes(1)
+    expect(layout.selectPanel).not.toHaveBeenCalled()
+    fireEvent.click(within(navigation).getByRole('button', { name: 'Alpha panel' }))
+    await waitFor(() => { expect(within(navigation).getByRole('button', { name: 'Close Alpha panel' }).dataset.active).toBe('true') })
+    await action.dispose()
+    await waitFor(() => { expect(within(navigation).queryByRole('button', { name: 'Close Alpha panel' })).toBeNull() })
+  })
+
+  it('omits trailing controls from the collapsed rail', async () => {
+    const { runtime, locale, view } = await bench(true)
+    await mountPanels(runtime, locale)
+    await runtime.mount({
+      inject: ['slots'],
+      apply(ctx: Context) {
+        ctx.slots.inject('sidebar.panellist.action', () => ctx.slots.register({ name: 'sidebar.panellist.action', id: ALPHA },
+          ({ label }: PropsRuntime<'sidebar.panellist.action'>) => <button type="button" aria-label={`Close ${label}`} />))
+      },
+    })
+    await view.findByRole('button', { name: 'Alpha panel' })
+    expect(view.queryByRole('button', { name: 'Close Alpha panel' })).toBeNull()
+  })
+})

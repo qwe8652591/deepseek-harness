@@ -34,6 +34,13 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      */
     'sidebar.panellist': { kind: 'list'; scope: 'root'; owner: SidebarPanelIconOwnerProps }
     /**
+     * Optional trailing control for one global panel row, addressed by the
+     * same list id. The shell renders it beside (never inside) the row button
+     * in the expanded sidebar and reveals it on row hover, focus or selection;
+     * the occupant owns its own button, e.g. closing an opened application.
+     */
+    'sidebar.panellist.action': { kind: 'list'; scope: 'root'; owner: SidebarPanelActionOwnerProps }
+    /**
      * The workspace/session browsing region: section header, search, the
      * grouped/flat session list, and every workspace dialog. Declared by this
      * package's 'sidebar' entry (declaring is claiming); ui-workspace
@@ -72,6 +79,14 @@ export interface SidebarPanelIconOwnerProps {
   size: number
   /** Whether this panel is selected in the main column. */
   active: boolean
+}
+
+/** Context supplied to a global panel row's trailing control. */
+export interface SidebarPanelActionOwnerProps {
+  /** Whether this panel is selected in the main column. */
+  active: boolean
+  /** The row's resolved label, for the control's accessible name. */
+  label: string
 }
 
 /** Serializable metadata for one active global panel list registration. */
@@ -141,6 +156,7 @@ export type SidebarRootComponentProps =
     | 'sidebar.brand.name'
     | 'sidebar.toggle.badge'
     | 'sidebar.panellist'
+    | 'sidebar.panellist.action'
     | 'sidebar.workspaces'
     | 'sidebar.settings'
     | 'sidebar.footer.action'

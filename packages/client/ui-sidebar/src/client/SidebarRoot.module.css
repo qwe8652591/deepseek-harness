@@ -522,6 +522,42 @@
   outline-offset: -2px;
 }
 
+/* A row and its optional trailing control. The control overlays the row's
+   right edge so rows without one keep their full-width hit area. */
+.panelItem {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.panelItem .panelRow {
+  width: calc(100% - 4px);
+}
+
+.panelAction {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  display: flex;
+  transform: translateY(-50%);
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.panelAction:empty {
+  display: none;
+}
+
+.panelItem:hover .panelAction,
+.panelItem:focus-within .panelAction,
+.panelItem.panelActive .panelAction {
+  opacity: 1;
+}
+
+.panelItem:has(.panelAction:not(:empty)) .panelTitle {
+  padding-right: 20px;
+}
+
 .panelGlyph {
   flex: none;
   display: inline-flex;
