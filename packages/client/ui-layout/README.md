@@ -31,6 +31,8 @@ The root slot composes the sidebar, main content, and right column. The sidebar 
 
 Global panels occupy the root-scoped `main` keyed slot; `conversation` is the reserved key for the Conversation. `ctx.layout.selectPanel(id)` selects a registered panel, and `null` selects the Conversation without changing the current Session. No global panel is registered by the shipped composition.
 
+A plugin can register a band above one panel in the root-scoped `main.header` keyed slot under the same key. The frame renders it only while that panel is selected and only when a header is registered for it; the panel fills the space below. A plugin that hosts other plugins' pages, such as an application workbench, uses it to give them one shared header without wrapping their panels.
+
 <a id="window-chrome-seat"></a>
 ### Window-chrome seat
 

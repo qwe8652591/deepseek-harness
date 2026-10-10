@@ -31,6 +31,8 @@ kind: "package-reference"
 
 全局面板占据 root 作用域的 `main` keyed slot；`conversation` 是为会话界面保留的 key。`ctx.layout.selectPanel(id)` 选中已注册面板，`null` 则选中会话界面，但不改变当前会话。默认组合不注册任何全局面板。
 
+插件可以用同一个 key 在 root 作用域的 `main.header` keyed slot 中为某个面板注册上方的页头。只有该面板被选中、且为它注册了页头时，外框才渲染页头，面板占据下方剩余空间。承载其他插件页面的插件（例如应用工作台）用它给这些页面统一的页头，而不必包裹它们的面板。
+
 <a id="window-chrome-seat"></a>
 ### 窗口 chrome 座
 

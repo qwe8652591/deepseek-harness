@@ -269,7 +269,7 @@ describe('AppFrame', () => {
     expect(queryByTestId('shell.leading-content')).toBeNull()
   })
 
-  it('switches only the keyed main outlet when the active panel changes', () => {
+  it('switches only the keyed main outlet and its optional header when the active panel changes', () => {
     selectedSessionTitle = 'Session title'
     const { instance, frame, slotCalls, getByTestId } = mountFrame()
     const sessionId = selectedSession
@@ -277,7 +277,10 @@ describe('AppFrame', () => {
     for (const panelId of ['panel-a' as MainPanelId, 'panel-b' as MainPanelId, null]) {
       slotCalls.length = 0
       act(() => { instance.actions.selectPanel(panelId) })
-      expect(slotCalls).toEqual([{ key: 'main', props: {}, options: { entryKey: panelId ?? 'conversation' } }])
+      expect(slotCalls).toEqual([
+        { key: 'main.header', props: {}, options: { entryKey: panelId ?? 'conversation' } },
+        { key: 'main', props: {}, options: { entryKey: panelId ?? 'conversation' } },
+      ])
       expect(getByTestId('main-content').getAttribute('data-entry-key')).toBe(panelId ?? 'conversation')
       expect(instance.getSnapshot().panelInfo).toEqual({ activePanelId: panelId })
       expect(instance.getSnapshot().layoutInfo).toBe(layoutInfo)

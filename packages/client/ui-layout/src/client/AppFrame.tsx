@@ -27,7 +27,7 @@ import css from './AppFrame.module.css'
 /** Full composed props: runtime share + child-slot render share + store share. */
 export type AppFrameProps =
   & PropsRuntime<'root'>
-  & PropsRenderSlots<'sidebar' | 'main' | 'rightbar' | 'shell.overlay' | 'shell.leading'>
+  & PropsRenderSlots<'sidebar' | 'main' | 'main.header' | 'rightbar' | 'shell.overlay' | 'shell.leading'>
   & PropsStore<ReturnType<typeof createLayoutStore>>
   & PropsLocale<'common'>
 
@@ -36,10 +36,19 @@ function CenterColumn(props: { children?: ReactNode }) {
   return <div className={css.centerCol}>{props.children}</div>
 }
 
-/** Subscribe to the main key without subscribing the column frame to each panel id. */
-function MainPanel({ usePanelInfo, renderSlot }: Pick<PropsRuntime<'root'>, 'usePanelInfo'> & PropsRenderSlots<'main'>) {
+/**
+ * Subscribe to the main key without subscribing the column frame to each panel id.
+ * A header registered for the selected panel sits above it; the panel keeps its own subtree either way.
+ */
+function MainPanel({ usePanelInfo, renderSlot }: Pick<PropsRuntime<'root'>, 'usePanelInfo'> & PropsRenderSlots<'main' | 'main.header'>) {
   const panelId = usePanelInfo(info => info.activePanelId)
-  return renderSlot('main', {}, { entryKey: panelId ?? 'conversation' })
+  const key = panelId ?? 'conversation'
+  return (
+    <>
+      {renderSlot('main.header', {}, { entryKey: key })}
+      <div className={css.mainBody}>{renderSlot('main', {}, { entryKey: key })}</div>
+    </>
+  )
 }
 
 /**

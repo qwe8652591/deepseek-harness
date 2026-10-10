@@ -72,6 +72,14 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      */
     'main': { kind: 'keyed'; scope: 'root' }
     /**
+     * Optional band above one central panel, keyed by the same panel id as
+     * `main`. Rendered only while that panel is selected and only when a
+     * header is registered for its id; the panel then fills the space below
+     * it. Lets a plugin that hosts other plugins' pages (an application
+     * workbench) give them one shared header without wrapping their panels.
+     */
+    'main.header': { kind: 'keyed'; scope: 'root' }
+    /**
      * The right column: a track the centre makes room for, or nothing. OCCUPIED
      * by the right Sidebar, which uses the resolved column width in normal
      * mode and covers the viewport in fullscreen, retaining the wide-screen
@@ -174,6 +182,7 @@ export function apply(ctx: ClientContext): void {
       children: {
         'sidebar': { kind: 'single', scope: 'root' },
         'main': { kind: 'keyed', scope: 'root' },
+        'main.header': { kind: 'keyed', scope: 'root' },
         'rightbar': { kind: 'single', scope: 'root' },
         'shell.overlay': { kind: 'list', scope: 'root' },
         'shell.leading': { kind: 'single', scope: 'root' },
