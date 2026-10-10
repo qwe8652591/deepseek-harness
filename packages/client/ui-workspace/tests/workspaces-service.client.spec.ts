@@ -821,6 +821,30 @@ describe('UiWorkspaceService', () => {
     })
   })
 
+  it.each(['saved', 'workspace'])('creates after the selected %s blank records an uninstalled preset', async (source) => {
+    if (source === 'saved') persistSelection({ sessionId: sid('stale') })
+    const b = bench({
+      sessions: sessionState([summary('stale', { blank: true, cwd: '/w/a' })], source === 'saved' ? 'ready' : 'pending'),
+      workspaces: workspaceState([workspace('a', [sid('stale')])]),
+      configureSessions: (sessions) => {
+        sessions.create.mockRejectedValueOnce(new SessionCreateError(
+          new RemoteError('agent-preset/not-found', 'Unknown agent preset: claude', { agentPreset: 'claude' }), sid('stale'),
+        ))
+      },
+    })
+    if (source === 'saved') {
+      await vi.waitFor(() => {
+        expect(b.sessions.retain).toHaveBeenCalledExactlyOnceWith(sid('created-a'), { source: 'mainView' })
+      })
+    } else {
+      await expect(b.uiWorkspace.connectWorkspace(wid('a'))).resolves.toBe(sid('created-a'))
+    }
+    expect(b.sessions.create.mock.calls).toEqual([
+      [{ workspaceId: wid('a'), sessionId: sid('stale') }],
+      [{ workspaceId: wid('a') }],
+    ])
+  })
+
   it.each(['saved', 'workspace'])('creates after the selected %s blank is held without trying another blank', async (source) => {
     if (source === 'saved') persistSelection({ sessionId: sid('held') })
     const b = bench({

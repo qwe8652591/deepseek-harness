@@ -188,11 +188,16 @@ class UiWorkspaceService extends Service implements UiWorkspace {
     return this.sessions.create({ workspaceId: workspace.workspaceId })
   }
 
+  /**
+   * Resume a blank Session, or create a fresh one when that blank cannot be resumed:
+   * another writer holds it, or the agent preset it recorded is no longer installed.
+   */
   private async reuseBlank(workspaceId: WorkspaceId, sessionId: SessionId): Promise<SessionId> {
     try {
       return await this.sessions.create({ workspaceId, sessionId })
     } catch (error: unknown) {
-      if (sessionCreateErrorOf(error)?.rpcError.code !== 'session/writer-held') throw error
+      const code = sessionCreateErrorOf(error)?.rpcError.code
+      if (code !== 'session/writer-held' && code !== 'agent-preset/not-found') throw error
       return this.sessions.create({ workspaceId })
     }
   }
