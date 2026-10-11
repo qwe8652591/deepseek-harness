@@ -42,7 +42,7 @@ afterEach(async () => {
 })
 
 describe('DesktopAccount relay', () => {
-  it('forwards application calls to the gateway delegation route and nothing else outside the capability API', async () => {
+  it('forwards application calls and panel sign-in tickets to the gateway, and nothing else outside the capability API', async () => {
     const account = new DesktopAccount({ gatewayOrigin: origin, websiteOrigin: 'http://127.0.0.1:4173', storageDirectory: directory, loginTimeoutMs: 5000, checkIntervalMs: 5000 })
     expect(await account.restore()).toBe(true)
     const relay = JSON.parse(await readFile(await account.startRelay(), 'utf8')) as { baseUrl: string; token: string }
@@ -58,9 +58,13 @@ describe('DesktopAccount relay', () => {
       // The relay authenticates with the device session cookie; it never invents a bearer token for the application.
       expect(forwarded[0]?.cookie).toBe(`${credential.cookieName}=${credential.credential}`)
       expect(forwarded[0]?.authorization).toBeUndefined()
+      const ticket = await fetch(relay.baseUrl + '/panel/ticket', { method: 'POST', headers: { authorization: 'Bearer ' + relay.token, 'content-type': 'application/json' }, body: '{"applicationId":"test-sso-panel"}' })
+      expect(ticket.status).toBe(200)
+      expect(forwarded[2]?.url).toBe('/auth/desktop/panel/ticket')
+      expect((await call('/panel/ticket')).status).toBe(404)
       expect((await call('/applications/Test/api/echo')).status).toBe(404)
       expect((await call('/applications/test-api-user/admin')).status).toBe(404)
-      expect(forwarded).toHaveLength(2)
+      expect(forwarded).toHaveLength(3)
     } finally { await account.dispose() }
   })
 })

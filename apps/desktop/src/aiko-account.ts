@@ -259,7 +259,9 @@ export class DesktopAccount {
         // /applications/<id>/api/* reaches an application's own service as the signed-in user: the gateway swaps
         // in a short-lived token for that application, so neither plugins nor this relay ever hold it.
         const delegated = /^\/applications\/[a-z0-9]+(?:-[a-z0-9]+)*\/api(?:\/|$)/.test(url.pathname)
-        if (!(delegated || url.pathname.startsWith('/api/') || url.pathname === '/mcp' || url.pathname.startsWith('/mcp/'))) { res.writeHead(404); res.end(); return }
+        // POST /panel/ticket returns a one-time URL that signs an application panel in with this account's unified login.
+        const panel = url.pathname === '/panel/ticket' && req.method === 'POST' && !url.search
+        if (!(delegated || panel || url.pathname.startsWith('/api/') || url.pathname === '/mcp' || url.pathname.startsWith('/mcp/'))) { res.writeHead(404); res.end(); return }
         const controller = new AbortController(); this.relayRequests.add(controller)
         res.once('close', () =>{  controller.abort() })
         try {
@@ -270,7 +272,7 @@ export class DesktopAccount {
           const method = req.method ?? 'GET'
           const init: RequestInit & { duplex?: 'half' } = { method, headers, signal: controller.signal }
           if (!['GET', 'HEAD'].includes(method)) { init.body = Readable.toWeb(req) as ReadableStream<Uint8Array>; init.duplex = 'half' }
-          const response = await this.request((delegated ? '/auth/desktop' : '/auth/desktop/capabilities') + url.pathname + url.search, init)
+          const response = await this.request((delegated || panel ? '/auth/desktop' : '/auth/desktop/capabilities') + url.pathname + url.search, init)
           res.statusCode = response.status
           for (const name of ['content-type', 'mcp-session-id']) { const value = response.headers.get(name); if (value) res.setHeader(name, value) }
           if (response.body) await pipeline(Readable.fromWeb(response.body as import('node:stream/web').ReadableStream<Uint8Array>), res)
