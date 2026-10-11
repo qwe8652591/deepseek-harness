@@ -221,14 +221,14 @@ export class DesktopAccount {
     const response = await this.request('/auth/logout', { method: 'POST' })
     if (response.status !== 303 && response.status !== 401) throw new Error(this.messages.accountLogoutFailed)
     await this.forget()
-    // The server owns the IdP logout URL; the browser clears its existing SSO session.
+    // Per-device logout redirects to the website, which has no meaning here; only the issuer's end-session URL
+    // is opened, so the browser clears its SSO session. Any other destination is ignored, never opened.
     const target = response.headers.get('location')
-    if (target && issuer) {
-      const url = new URL(target), expected = new URL(issuer)
-      if (url.origin !== expected.origin || url.pathname !== expected.pathname + '/protocol/openid-connect/logout') throw new Error('Invalid provider logout destination')
-      // Session revocation is complete even if the OS cannot open its browser to clear provider cookies.
-      await this.openBrowser(target).catch(() => {})
-    }
+    if (!target || !issuer) return
+    const url = new URL(target, this.config.gatewayOrigin), expected = new URL(issuer)
+    if (url.origin !== expected.origin || url.pathname !== expected.pathname + '/protocol/openid-connect/logout') return
+    // Session revocation is complete even if the OS cannot open its browser to clear provider cookies.
+    await this.openBrowser(url.href).catch(() => {})
   }
 
   private async forget(): Promise<void> { this.credential = undefined; this.user = undefined; await rm(this.file, { force: true }) }
