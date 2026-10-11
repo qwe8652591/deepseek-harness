@@ -3,6 +3,7 @@ import { WINDOWS_TITLEBAR_HEIGHT } from './windows-layout.ts'
 /** Electron shell: desktop project ownership, custom protocol, windows, and lifecycle. */
 import { installDesktopActivation, revealDesktopWindow } from './window-activation.ts'
 
+import { createHash } from 'node:crypto'
 import { readFile, writeFile } from 'node:fs/promises'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -426,7 +427,9 @@ async function main(): Promise<void> {
   const applicationUrl = `${SCHEME}://app/`
   let hostUrl: string | undefined
   let hostCookie: string | undefined
-  const browserGuests = new DesktopBrowserGuests(() => hostUrl)
+  // Signed-in accounts keep guest storage per account (unified login inside app panels survives restarts).
+  const browserGuests = new DesktopBrowserGuests(() => hostUrl,
+    aikoAccount === undefined ? undefined : createHash('sha256').update(aikoAccount.home()).digest('hex').slice(0, 32))
   let injections: readonly unknown[] = []
   let welcomeBackend: DesktopWelcomeBackend | undefined
   let reportedLaunch = false
@@ -1379,7 +1382,9 @@ async function main(): Promise<void> {
     app.quit()
   }
   const activeAikoAccount = aikoAccount
-  if (activeAikoAccount !== undefined) installAikoAccountBridge(activeAikoAccount, assertProductSender, restartAiko)
+  // Signing out also erases this account's app panel storage; an expired session alone keeps it for the same account.
+  if (activeAikoAccount !== undefined) installAikoAccountBridge(activeAikoAccount, assertProductSender, restartAiko,
+    () => browserGuests.clearAccountStorage())
   aikoAccountPoll.timer = activeAikoAccount === undefined ? undefined : setInterval(() => {
     if (checkingAikoAccount || quitting) return
     checkingAikoAccount = true

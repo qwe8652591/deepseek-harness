@@ -23,7 +23,7 @@
 
 身份文件包含 `gatewayOrigin`、`websiteOrigin`、绝对路径 `storageDirectory`，以及取值在 1,000 至 300,000 之间的整数 `loginTimeoutMs` 和 `checkIntervalMs`。Origin 必须使用 HTTPS，本地开发允许 `http://127.0.0.1`。网关提供既有平台 Desktop PKCE 接口和能力 API。两个配置文件均不保存密码或 bearer 凭据。
 
-Electron 验证加密保存的会话，或在系统浏览器中打开平台。凭据只留在 Electron 主进程，通过系统存储加密。绑定 state 的本机回调兑换 PKCE code。每个进程为 Host 插件创建受 bearer 保护的能力转接服务。渲染进程只接收公开账号字段和固定账号动作。凭据失效会停止 Host 并返回登录流程；临时验证失败也会停止准入。原生退出只撤销此 Desktop 会话，不退出其他浏览器会话。
+Electron 验证加密保存的会话，或在系统浏览器中打开平台。凭据只留在 Electron 主进程，通过系统存储加密。绑定 state 的本机回调兑换 PKCE code。每个进程为 Host 插件创建受 bearer 保护的能力转接服务。转接服务把 `/api/*` 与 `/mcp` 转到能力 API，把 `/applications/<id>/api/*` 转到网关的代用户调用路由；网关以当前用户身份、用它签发的短期令牌调用该已登记应用的服务，插件拿不到这个令牌。渲染进程只接收公开账号字段和固定账号动作。凭据失效会停止 Host 并返回登录流程；临时验证失败也会停止准入。原生退出只撤销此 Desktop 会话，不退出其他浏览器会话。登录期间 webview guest 存储（应用面板与 Sidebar Browser）按账号持久保存，应用面板里的统一登录会话跨重启保留；退出会清除该账号的全部 guest 分区，包括之前运行留下的分区。
 
 已验证的 `issuer` 和 `subject` 决定 `storageDirectory/accounts/<digest>`，并以此作为 `DSH_HOME`。并行开发实例应使用独立 `storageDirectory` 和 `DSH_DESKTOP_USER_DATA_DIR`。Windows 的加密密钥属于 Electron 用户数据目录，须与 `account.enc` 一起保留；更换目录后需要重新登录平台。不会自动导入已有浏览器工作区或凭据。
 

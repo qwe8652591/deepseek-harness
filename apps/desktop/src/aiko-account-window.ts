@@ -80,14 +80,18 @@ export async function signInAikoDesktop(deployment: AikoDeployment, configurePla
  * @param account - main-process account that owns the credential.
  * @param assertSender - rejects calls outside the product window's main frame.
  * @param restart - stops the Host and restarts admission after logout.
+ * @param forgetLocal - erases account-scoped local browser storage after the server session is revoked.
  */
 export function installAikoAccountBridge(
   account: DesktopAccount, assertSender: (event: IpcMainInvokeEvent) => void, restart: () => Promise<void>,
+  forgetLocal: () => Promise<void> = async () => {},
 ): void {
   ipcMain.handle('aiko:account:get', (event) => { assertSender(event); return account.profile() })
   ipcMain.handle('aiko:account:logout', async (event) => {
     assertSender(event)
     await account.logout()
+    // Local leftovers must not block the restart that completes sign-out.
+    await forgetLocal().catch((error: unknown) => { console.error(error) })
     await restart()
   })
   ipcMain.handle('aiko:account:open', async (event, destination: unknown) => {

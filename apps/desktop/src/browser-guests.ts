@@ -1,5 +1,7 @@
 /** Main-process ownership and fixed isolation policy for Sidebar webview guests. */
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
+import { readdir } from 'node:fs/promises'
+import { join } from 'node:path'
 import { app, session, type BrowserWindow, type Session, type WebContents } from 'electron'
 import type { DesktopBrowserLeaseId, DesktopBrowserOpenRequest, DesktopBrowserReservation } from '@deepseek-ai/dsh-client-ui-sidebar-browser/types'
 import { DESKTOP_IPC } from './ipc.ts'
@@ -17,11 +19,17 @@ export class DesktopBrowserGuests {
   private readonly partitions = new Map<string, string>()
   private readonly leases = new Map<DesktopBrowserLeaseId, GuestLease>()
 
-  /** @param hostUrl - current authenticated DSH Host, which guests cannot request. */
-  constructor(private readonly hostUrl: () => string | undefined) {}
+  /**
+   * @param hostUrl - current authenticated DSH Host, which guests cannot request.
+   * @param accountScope - stable per-account hex id; when present, workspace storage persists for that account so
+   *   sign-ins inside guests (for example the platform's unified login) survive restarts. Without it storage is process-lifetime.
+   */
+  constructor(private readonly hostUrl: () => string | undefined, private readonly accountScope?: string) {
+    if (accountScope !== undefined && !/^[a-f0-9]{16,64}$/.test(accountScope)) throw new Error('desktop browser: invalid account scope')
+  }
 
   /**
-   * Reserve one guest in a workspace's process-lifetime partition.
+   * Reserve one guest in a workspace's partition: persistent per account when signed in, otherwise process-lifetime.
    * @param owner - authenticated primary application WebContents.
    * @param workspace - workspace identity received over IPC.
    * @returns opaque lease and the partition approved for it.
@@ -32,7 +40,9 @@ export class DesktopBrowserGuests {
     }
     let partition = this.partitions.get(workspace)
     if (partition === undefined) {
-      partition = `dsh-sidebar-browser-${randomUUID()}`
+      partition = this.accountScope === undefined
+        ? `dsh-sidebar-browser-${randomUUID()}`
+        : `persist:${this.accountPrefix()}${createHash('sha256').update(workspace).digest('hex').slice(0, 16)}`
       this.configureSession(session.fromPartition(partition))
       this.partitions.set(workspace, partition)
     }
@@ -137,6 +147,24 @@ export class DesktopBrowserGuests {
     owner.on('render-process-gone', releaseAll)
     owner.once('destroyed', releaseAll)
   }
+
+  /** Erase every persistent guest partition of this account, including ones created by earlier runs; used on sign-out. */
+  async clearAccountStorage(): Promise<void> {
+    if (this.accountScope === undefined) return
+    const names = new Set([...this.partitions.values()].filter(name => name.startsWith('persist:')))
+    try {
+      for (const entry of await readdir(join(app.getPath('sessionData'), 'Partitions'))) {
+        if (entry.startsWith(this.accountPrefix())) names.add('persist:' + entry)
+      }
+    } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error }
+    for (const name of names) {
+      const browserSession = session.fromPartition(name)
+      await browserSession.clearStorageData()
+      await browserSession.clearCache()
+    }
+  }
+
+  private accountPrefix(): string { return `dsh-browser-${this.accountScope ?? ''}-` }
 
   private configureSession(browserSession: Session): void {
     browserSession.setPermissionRequestHandler((_contents, _permission, callback) => { callback(false) })
