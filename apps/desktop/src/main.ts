@@ -64,7 +64,7 @@ import { DesktopTray } from './tray.ts'
 import { DesktopBackgroundNotice } from './background-notice.ts'
 import { readAikoDeployment, prepareAikoDesktopProfile, type AikoDeployment } from './aiko-deployment.ts'
 import { signInAikoDesktop, installAikoAccountBridge, DesktopPlatformChangeRequested } from './aiko-account-window.ts'
-import type { DesktopAccount } from './aiko-account.ts'
+import { AccountSignedOutError, type DesktopAccount } from './aiko-account.ts'
 import { readNativeDesktopBrand, type DesktopBrand } from './desktop-brand.ts'
 import { readPackagedProduct, prepareProductProfile } from './product-deployment.ts'
 import { readProductPlatform, saveProductPlatform, ProductPlatformConfigurationError } from './product-platform.ts'
@@ -1382,13 +1382,19 @@ async function main(): Promise<void> {
     app.quit()
   }
   const activeAikoAccount = aikoAccount
-  // Signing out also erases this account's app panel storage; an expired session alone keeps it for the same account.
+  // Signing out, here or anywhere else (unified sign-out), also erases this account's app panel storage;
+  // an expired session alone keeps it for the same account.
   if (activeAikoAccount !== undefined) installAikoAccountBridge(activeAikoAccount, assertProductSender, restartAiko,
     () => browserGuests.clearAccountStorage())
   aikoAccountPoll.timer = activeAikoAccount === undefined ? undefined : setInterval(() => {
     if (checkingAikoAccount || quitting) return
     checkingAikoAccount = true
-    void activeAikoAccount.verify().catch(restartAiko).catch((error: unknown) => { console.error(error) })
+    void activeAikoAccount.verify().catch(async (error: unknown) => {
+      if (error instanceof AccountSignedOutError) {
+        await browserGuests.clearAccountStorage().catch((cause: unknown) => { console.error(cause) })
+      }
+      await restartAiko()
+    }).catch((error: unknown) => { console.error(error) })
       .finally(() => { checkingAikoAccount = false })
   }, activeAikoAccount.config.checkIntervalMs)
   automaticCheck()

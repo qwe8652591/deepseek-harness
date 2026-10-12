@@ -29,6 +29,8 @@ export interface AccountConfig {
 }
 interface Credential { credential: string; cookieName: string }
 class AccountSessionExpiredError extends Error {}
+/** The account signed out elsewhere (unified sign-out); unlike an expiry, local account storage is erased as on sign-out. */
+export class AccountSignedOutError extends AccountSessionExpiredError {}
 const random = (): string => randomBytes(32).toString('base64url')
 const digest = (text: string): string => createHash('sha256').update(text).digest('hex')
 const record = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
@@ -208,7 +210,12 @@ export class DesktopAccount {
   /** Refresh public identity through the server; revoked credentials are removed locally. */
   async verify(): Promise<void> {
     const response = await this.request('/auth/me')
-    if (response.status === 401) { await this.forget(); throw new AccountSessionExpiredError(this.messages.accountSessionExpired) }
+    if (response.status === 401) {
+      const reason = await response.json().then((body: unknown) => record(body) ? body.error : undefined, () => undefined)
+      await this.forget()
+      if (reason === 'Signed out everywhere') throw new AccountSignedOutError(this.messages.accountSignedOutElsewhere)
+      throw new AccountSessionExpiredError(this.messages.accountSessionExpired)
+    }
     if (!response.ok) throw new Error(this.messages.accountUnavailable)
     const next = parseUser(await response.json())
     if (this.user && (next.subject !== this.user.subject || next.issuer !== this.user.issuer)) throw new Error('Account identity changed')
@@ -219,7 +226,9 @@ export class DesktopAccount {
   async logout(): Promise<void> {
     const issuer = this.user?.issuer
     const response = await this.request('/auth/logout', { method: 'POST' })
-    if (response.status !== 303 && response.status !== 401) throw new Error(this.messages.accountLogoutFailed)
+    // Sign-out ends every session of the account. A 502 still means this session ended; only other sessions may linger.
+    if (response.status !== 303 && response.status !== 401 && response.status !== 502) throw new Error(this.messages.accountLogoutFailed)
+    if (response.status === 502) console.error('Unified sign-out did not reach the identity provider; this device is signed out')
     await this.forget()
     // Per-device logout redirects to the website, which has no meaning here; only the issuer's end-session URL
     // is opened, so the browser clears its SSO session. Any other destination is ignored, never opened.
