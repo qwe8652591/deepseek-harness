@@ -1,7 +1,7 @@
 /** Native account ownership: browser handoff, OS-encrypted credentials and a per-process capability relay. */
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
 import { createServer, type Server } from 'node:http'
-import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { dirname, isAbsolute, join } from 'node:path'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
@@ -34,6 +34,11 @@ export class AccountSignedOutError extends AccountSessionExpiredError {}
 const random = (): string => randomBytes(32).toString('base64url')
 const digest = (text: string): string => createHash('sha256').update(text).digest('hex')
 const record = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
+const running = (pid: number): boolean => {
+  try { process.kill(pid, 0); return true }
+  // EPERM: the process exists but belongs to another user.
+  catch (error) { return (error as NodeJS.ErrnoException).code === 'EPERM' }
+}
 
 /**
  * Read a public deployment configuration, rejecting remote cleartext and relative storage.
@@ -244,6 +249,7 @@ export class DesktopAccount {
 
   /**
    * Serve the verified account and capability API with a per-process local key; upstream credentials stay in main.
+   * Relay files that this account's exited processes left behind are removed first.
    * @returns private credentials file understood by the Workbench and capability Host providers.
    */
   async startRelay(): Promise<string> {
@@ -295,6 +301,11 @@ export class DesktopAccount {
     if (!address || typeof address === 'string') throw new Error('Capability relay unavailable')
     const file = join(this.home(), 'credentials', 'desktop-capabilities-' + String(process.pid) + '.json')
     await mkdir(dirname(file), { recursive: true, mode: 0o700 })
+    // dispose() is skipped when a process is killed or crashes; its relay file outlives the relay it describes.
+    for (const name of await readdir(dirname(file))) {
+      const pid = Number(/^desktop-capabilities-(\d+)\.json$/.exec(name)?.[1])
+      if (pid > 0 && pid !== process.pid && !running(pid)) await rm(join(dirname(file), name), { force: true })
+    }
     await writeFile(file, JSON.stringify({ authMode: 'aiko', platformOrigin: this.config.gatewayOrigin, baseUrl: `http://127.0.0.1:${String(address.port)}`, token }), { mode: 0o600 })
     this.relayFile = file
     return file

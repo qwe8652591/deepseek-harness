@@ -1,8 +1,9 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { spawnSync } from 'node:child_process'
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const credential = { credential: 'a'.repeat(43), cookieName: 'aiko_session_0123456789ab' }
@@ -65,6 +66,20 @@ describe('DesktopAccount relay', () => {
       expect((await call('/applications/Test/api/echo')).status).toBe(404)
       expect((await call('/applications/test-api-user/admin')).status).toBe(404)
       expect(forwarded).toHaveLength(3)
+    } finally { await account.dispose() }
+  })
+
+  it('removes relay files left by exited processes of the account and keeps those of running processes', async () => {
+    const account = new DesktopAccount({ gatewayOrigin: origin, websiteOrigin: 'http://127.0.0.1:4173', storageDirectory: directory, loginTimeoutMs: 5000, checkIntervalMs: 5000 })
+    expect(await account.restore()).toBe(true)
+    const credentials = join(account.home(), 'credentials')
+    await mkdir(credentials, { recursive: true })
+    const exited = spawnSync(process.execPath, ['-e', '']).pid
+    const files = { exited: `desktop-capabilities-${String(exited)}.json`, running: `desktop-capabilities-${String(process.ppid)}.json`, unrelated: 'other.json' }
+    for (const name of Object.values(files)) await writeFile(join(credentials, name), '{}')
+    const own = await account.startRelay()
+    try {
+      expect((await readdir(credentials)).sort()).toEqual([basename(own), files.running, files.unrelated].sort())
     } finally { await account.dispose() }
   })
 })
