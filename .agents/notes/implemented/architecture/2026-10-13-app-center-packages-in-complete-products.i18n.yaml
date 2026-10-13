@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-10-13-app-center-packages-in-complete-products.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-10-13-app-center-packages-in-complete-products.md
+/agent-note-app-center-packages-in-complete-products:
+  en: 8530436102e74439
+  zh: f1f66968ad397814
+/agent-note-app-center-packages-in-complete-products/problem:
+  en: 02599e0e5551e04a
+  zh: 6709a97c020d91b0
+/agent-note-app-center-packages-in-complete-products/decision:
+  en: c8692f79dac4aec9
+  zh: 22b6ff9841d82d43
+/agent-note-app-center-packages-in-complete-products/alternatives-considered:
+  en: 1bb6081090dd3d05
+  zh: a37bc0b7326d9c21
+/agent-note-app-center-packages-in-complete-products/consequences:
+  en: faf9817aafd47ccb
+  zh: 55256320474ab1d4

@@ -6,6 +6,7 @@ import { createServer } from 'node:http'
 import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { parseArgs } from 'node:util'
+import { gzipSync } from 'node:zlib'
 import { readAsar } from 'app-builder-lib/out/asar/asar.js'
 import electron from 'electron'
 import { createPluginProfile } from '../src/project-manager.ts'
@@ -31,6 +32,36 @@ const executable = join(installed, product.productName + (process.platform === '
 const evidenceRoot = resolve(import.meta.dirname, '../.desktop-build/qualification')
 await mkdir(evidenceRoot, { recursive: true })
 const evidence = await mkdtemp(join(evidenceRoot, 'product-host-'))
+/** A gzip-compressed npm package holding a bundle with an empty patch. */
+function bundleTarball(manifest: Record<string, string>): Buffer {
+  const files: [string, string][] = [
+    ['package/package.json', JSON.stringify({ ...manifest, dsh: { bundle: { patch: './cordis.patch.yml' } } })],
+    ['package/cordis.patch.yml', '[]\n'],
+  ]
+  const blocks = files.flatMap(([name, text]) => {
+    const body = Buffer.from(text)
+    const header = Buffer.alloc(512)
+    header.write(name, 0, 100)
+    header.write('0000644\0', 100)
+    header.write('0000000\0', 108)
+    header.write('0000000\0', 116)
+    header.write(body.length.toString(8).padStart(11, '0') + '\0', 124)
+    header.write('00000000000\0', 136)
+    header.write('        ', 148)
+    header.write('0', 156)
+    header.write('ustar\0', 257)
+    header.write('00', 263)
+    header.write(header.reduce((sum, byte) => sum + byte, 0).toString(8).padStart(6, '0') + '\0 ', 148)
+    return [header, body, Buffer.alloc((512 - body.length % 512) % 512)]
+  })
+  return gzipSync(Buffer.concat([...blocks, Buffer.alloc(1024)]))
+}
+const APP_FIXTURE = 'dsh-product-app-fixture'
+await mkdir(join(evidence, 'fixtures'), { recursive: true })
+const appFixture = join(evidence, 'fixtures', `${APP_FIXTURE}-1.0.0.tgz`)
+const suppliedFixture = join(evidence, 'fixtures', 'aiko-dsh-workbench-999.0.0.tgz')
+await writeFile(appFixture, bundleTarball({ name: APP_FIXTURE, version: '1.0.0' }))
+await writeFile(suppliedFixture, bundleTarball({ name: 'aiko-dsh-workbench', version: '999.0.0' }))
 const environment = Object.fromEntries(Object.entries(process.env).filter(([name]) =>
   !/KEY|SECRET|TOKEN|PASSWORD|^DSH_|^AIKO_|^NODE_OPTIONS$|^ELECTRON_/iu.test(name)))
 const requiredClients = product.plugins.map(plugin => plugin.name)
@@ -113,21 +144,40 @@ async function start(profile: string): Promise<(typeof children)[number]> {
     assert.ok(clients.includes('@deepseek-ai/dsh-client-ui-plugin-manager'), 'Plugin sidebar must be loaded')
     const policy = ready.injections.find(row => isRecord(row) && row.kind === 'global' && row.name === '__DSH_PLUGIN_MANAGER_CONFIG__')
     assert.ok(isRecord(policy) && isRecord(policy.value) && policy.value.packageChanges === false)
-    const profileBefore = await readFile(join(profile, 'package.json'), 'utf8')
-    for (const [method, args] of [['installBundle', { spec: 'dsh-product-policy-test' }], ['removeBundle', { name: 'aiko-dsh-workbench' }]] as const) {
+    const call = async (method: string, args: Record<string, unknown>): Promise<unknown> => {
       const response = await fetch(new URL('/api/pluginManager/' + method, ready.url), {
         method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({
           type: 'client-request', rpcId: method, method: 'pluginManager/' + method, payload: { args },
         }),
-        signal: AbortSignal.timeout(10000),
+        signal: AbortSignal.timeout(120000),
       })
       const reply: unknown = await response.json()
-      assert.ok(isRecord(reply))
-      const result = reply.result
-      assert.ok(isRecord(result) && result.ok === true && isRecord(result.value) && result.value.application === 'failed'
-        && isRecord(result.value.error) && result.value.error.code === 'managed-installation', 'Whole-product package policy must be enforced on the Host')
+      assert.ok(isRecord(reply) && isRecord(reply.result) && reply.result.ok === true, `${method} failed: ${JSON.stringify(reply)}`)
+      return reply.result.value
+    }
+    const profileBefore = await readFile(join(profile, 'package.json'), 'utf8')
+    // Bundled packages stay fixed: registry specs and installation-supplied names are refused before pnpm runs.
+    for (const [method, args, code] of [
+      ['installBundle', { spec: 'dsh-product-policy-test' }, 'managed-installation'],
+      ['installBundle', { spec: suppliedFixture }, 'managed-installation'],
+      ['removeBundle', { name: 'aiko-dsh-workbench' }, 'not-removable'],
+    ] as const) {
+      const value = await call(method, args)
+      assert.ok(isRecord(value) && value.application === 'failed' && isRecord(value.error) && value.error.code === code,
+        `Whole-product package policy must refuse ${method} with ${code}: ${JSON.stringify(value)}`)
     }
     assert.equal(await readFile(join(profile, 'package.json'), 'utf8'), profileBefore)
+    // App-center plugins arrive as local package files: one installs with the bundled pnpm and removes again.
+    const installedFixture = await call('installBundle', { spec: appFixture, options: { enabled: false } })
+    assert.ok(isRecord(installedFixture) && ['applied', 'restart-required'].includes(String(installedFixture.application))
+      && installedFixture.bundle === APP_FIXTURE, `A local application package must install: ${JSON.stringify(installedFixture)}`)
+    const listed = await call('listBundles', {})
+    assert.ok(Array.isArray(listed) && listed.some(row => isRecord(row) && row.name === APP_FIXTURE && row.removable === true),
+      'An installed application package must be removable')
+    const removedFixture = await call('removeBundle', { name: APP_FIXTURE })
+    assert.ok(isRecord(removedFixture) && removedFixture.application === 'applied', `A local application package must remove: ${JSON.stringify(removedFixture)}`)
+    const dependencies: unknown = JSON.parse(await readFile(join(profile, 'package.json'), 'utf8')).dependencies
+    assert.ok(!isRecord(dependencies) || !(APP_FIXTURE in dependencies), 'Removal must leave no profile dependency')
     for (const entry of entries.filter(row => requiredClients.includes(String(row.id)))) {
       assert.equal(typeof entry.url, 'string')
       const script = await fetch(new URL(String(entry.url), ready.url), { headers: { cookie }, signal: AbortSignal.timeout(10000) })
@@ -190,7 +240,7 @@ try {
   await Promise.all(children.map(stop))
   await stop(await start(profiles[0]!))
   await writeFile(join(evidence, 'result.json'), JSON.stringify({ product: product.profile, passed: true, reports }, null, 2) + '\n')
-  console.log(`Product Host passed: ${product.profile}; two concurrent profiles, bundled clients and restart`)
+  console.log(`Product Host passed: ${product.profile}; two concurrent profiles, bundled clients, app-center package install and restart`)
 } finally {
   await Promise.all(children.map(async (state) => {
     if (state.child.exitCode === null && state.child.signalCode === null) state.child.kill()

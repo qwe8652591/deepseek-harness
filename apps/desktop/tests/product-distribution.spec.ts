@@ -84,7 +84,7 @@ it('refuses unowned installed packages and a runtime with different plugin bytes
   await writeProductPolicy(root, product())
   const policy: unknown = JSON.parse(await readFile(join(root, 'desktop-product.patch.yml'), 'utf8'))
   expect(policy).toContainEqual({ id: 'llm-claude', config: { pluginUpdates: false } })
-  expect(policy).toContainEqual({ id: 'plugin-manager', disabled: false, config: { packageChanges: false } })
+  expect(policy).toContainEqual({ id: 'plugin-manager', disabled: false, config: { packageChanges: 'local-files' } })
   expect(policy).toContainEqual({ id: 'ui-plugin-manager', disabled: false, config: {
     packageChanges: false, registryProbeEnabled: false, bundledPackages: product().bundles.filter(name => name !== 'aiko-dsh-market'),
   } })

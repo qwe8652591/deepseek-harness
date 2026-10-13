@@ -6,7 +6,7 @@
 
 ## 构建输入
 
-在工作台单仓库执行 `corepack pnpm run prepare:desktop-products --output <new-directory> --channel beta`。命令构建并打包各模块，然后输出 `aiko.json`、`yunyao.json` 及通过 SHA-512 固定的归档。目录模块是市场的被动依赖。Kit 不包含在内。每个 profile 只包含所选主题。
+在工作台单仓库执行 `corepack pnpm run prepare:desktop-products --output <new-directory> --channel beta`。命令构建并打包工作台、市场及其目录模块，然后输出 `aiko.json`、`yunyao.json` 及通过 SHA-512 固定的归档。目录模块是市场的被动依赖。Kit 不包含在内。标书、Code 和知识库应用等应用插件不打进安装包，用户在工作台应用中心安装。每个 profile 只包含所选主题。
 
 在 Host 仓库中，将 `apps/desktop/.env.windows.example` 复制为 `.env.windows` 并配置生产签名。未签名本地构建需要该文件，但无需签名凭据。执行：
 
@@ -17,7 +17,7 @@ corepack pnpm --dir apps/desktop run package:win:x64:unsigned --product D:/relea
 
 Windows 签名构建使用 `package:win:x64`；macOS 在配置好签名和公证的 Mac 上使用 `package:mac:arm64` 或 `package:mac:x64`。`--build-version <semver>` 指定递增的应用发布版本。打包命令在准备完整运行时前验证归档身份与完整性。未签名构建的文件名带有 `-unsigned` 后缀，产品发布命令拒绝发布这类构建。
 
-输出分别位于 `apps/desktop/.desktop-build/products/<brand>/<target>/artifacts` 或 `unsigned-artifacts`。原生图标、应用 ID、协议、应用名、更新缓存和用户数据目录按品牌区分。内置插件从不可变的应用运行时解析，启动时不安装到用户目录。部署最后一层覆盖配置保留插件菜单、清单、配置和启停控制；Host 拒绝单独安装和卸载包，页面隐藏相应操作。市场启用入口和 Code 的独立更新仍禁用。
+输出分别位于 `apps/desktop/.desktop-build/products/<brand>/<target>/artifacts` 或 `unsigned-artifacts`。原生图标、应用 ID、协议、应用名、更新缓存和用户数据目录按品牌区分。内置插件从不可变的应用运行时解析，启动时不安装到用户目录。部署最后一层覆盖配置保留插件菜单、清单、配置和启停控制，页面隐藏包操作。Host 保持自带的包不变：只安装包名不属于自带包的本地插件包文件（由工作台应用中心从平台下载），拒绝 registry 和远程 spec。市场启用入口和 Code 的独立更新仍禁用。
 
 产品 Host 从声明所有内置插件的运行时清单解析模块，并使用操作系统分配的回环端口。不同品牌应用和开发版 Host 可以同时运行，无需共用固定监听端口。
 
@@ -37,7 +37,7 @@ Windows 签名构建使用 `package:win:x64`；macOS 在配置好签名和公证
 
 构建 Desktop 后，分别为每个品牌执行 `node apps/desktop/scripts/test-product-admission.mjs --resources <packaged-application>/resources`。它使用独立应用数据，在 Electron 中执行真实启动入口，覆盖首次配置、从登录页修改平台、重新打开已保存配置和主动取消。添加 `--main <packaged-application>/resources/app.asar/lib/main.js` 可验证打包入口，而不是本地构建。测试将证据保留在 `.desktop-build/qualification`，不会登录远程账号。
 
-为每个已安装产品执行 `corepack pnpm exec tsx apps/desktop/scripts/test-product-host.ts --installed <application-directory>`。这项独立验证通过打包 Host 同时启动两个账号配置，检查每个已启用内置应用的客户端和所提供的脚本，并在正常关闭后重启其中一个配置。它从安装目录读取产品元数据，将证据保留在 `.desktop-build/qualification`，无需平台凭据。添加 `--ui` 可在隔离的 Electron 渲染器中验证插件菜单、组件详情、模块配置和知识库模块开关。测试提供本地账号中继夹具，并验证单个包的安装和卸载请求被拒绝。登录窗口验证与 Host 验证覆盖不同启动阶段，两者都必须通过。
+为每个已安装产品执行 `corepack pnpm exec tsx apps/desktop/scripts/test-product-host.ts --installed <application-directory>`。这项独立验证通过打包 Host 同时启动两个账号配置，检查每个已启用内置应用的客户端和所提供的脚本，并在正常关闭后重启其中一个配置。它从安装目录读取产品元数据，将证据保留在 `.desktop-build/qualification`，无需平台凭据。添加 `--ui` 可在隔离的 Electron 渲染器中验证插件菜单、组件详情、模块配置和知识库模块开关。测试提供本地账号中继夹具，验证 registry spec 和自带包名的安装被拒绝、自带的包不能卸载，并从本地文件安装、卸载一个夹具应用插件包。登录窗口验证与 Host 验证覆盖不同启动阶段，两者都必须通过。
 
 ## GitHub Release 发布
 
