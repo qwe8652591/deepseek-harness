@@ -15,6 +15,7 @@ import { scrubbedParentEnv } from '@deepseek-ai/dsh-subprocess'
 import { parseInstallSpec } from './install-spec.ts'
 import { awaitTreeGone, leadsOwnGroup, treeAlive, type RunTree } from './run-tree.ts'
 import { incompatiblePlugin } from './failure.ts'
+import { readTarballManifest } from './tarball-manifest.ts'
 import type { IncompatiblePlugin, PackageResult, Registry } from './types.ts'
 export { setProfileVersionExemption, readProfileVersionExemptions } from '@deepseek-ai/dsh-app-boot'
 
@@ -154,8 +155,8 @@ function namedSpecs(args: readonly string[]): string[] {
 }
 
 /** The manifest a named spec would install, read without installing it.
- * A path spec is read from disk. A registry spec asks pnpm's own configuration for the version the
- * range selects and its peer requirements. A git or tarball spec needs the fetch itself, so the
+ * A path spec and a local tarball are read from disk. A registry spec asks pnpm's own configuration for the
+ * version the range selects and its peer requirements. A git or remote tarball spec needs the fetch itself, so the
  * check after installation is what judges it.
  * @param dir Profile directory the lookup runs in.
  * @param spec Anchored install spec.
@@ -173,6 +174,7 @@ async function namedSpecManifest(
     const filename = join(parsed.path, 'package.json')
     return existsSync(filename) ? JSON.parse(readFileSync(filename, 'utf8')) as object : undefined
   }
+  if (parsed.kind === 'tarball' && parsed.path !== undefined) return readTarballManifest(parsed.path)
   if (parsed.kind !== 'registry') return undefined
   const viewed = await execa(options.command ?? 'pnpm', [
     ...options.args ?? [], 'view', parsed.spec, 'name', 'version', 'peerDependencies', '--json',

@@ -7,6 +7,7 @@ import { PassThrough } from 'node:stream'
 import { expect, it, onTestFinished, vi } from 'vitest'
 import { getDshRuntimeVersion, initProfile, readProfileManifest } from '@deepseek-ai/dsh-app-boot'
 import { anchorPathSpec, readProfileRegistry, runPluginCommand, runProfilePnpm, viewProfilePackage } from '../src/operations.ts'
+import { writeBundleTarball } from './tarball.ts'
 
 /** What execa resolves for a run that settled, including the buffered output the pre-install lookup is read for. */
 interface FakeOutcome {
@@ -210,6 +211,24 @@ it.each([
   // The spec was read from disk, so no pnpm invocation exists to install anything.
   expect(command.run).not.toHaveBeenCalled()
   expect(existsSync(join(dir, 'node_modules'))).toBe(false)
+  expect(readFileSync(join(dir, 'package.json'), 'utf8')).toBe(manifestBefore)
+  expect(readFileSync(join(dir, 'pnpm-lock.yaml'), 'utf8')).toBe('original-lock\n')
+})
+
+it('rejects an incompatible local package file before pnpm runs and leaves both profile files alone', async () => {
+  const { home, dir, context } = fixture()
+  const tarball = join(home, 'plugin-1.0.0.tgz')
+  writeBundleTarball(tarball, { name: 'plugin', version: '1.0.0', peerDependencies: { '@deepseek-ai/dsh': '999.0.0' } })
+  const manifestBefore = readFileSync(join(dir, 'package.json'), 'utf8')
+  writeFileSync(join(dir, 'pnpm-lock.yaml'), 'original-lock\n')
+  const outcome = await runProfilePnpm(context, ['add', tarball], { execution: 'service', outputBytes: 8192 })
+  expect(outcome.exitCode).toBe(1)
+  expect(outcome.incompatible).toEqual([
+    { name: 'plugin', version: '1.0.0', runtimeVersion: getDshRuntimeVersion(), peers: { '@deepseek-ai/dsh': '999.0.0' } },
+  ])
+  expect(outcome.output).toContain('nothing was installed')
+  // The file was read from disk, so no pnpm invocation exists to install anything.
+  expect(command.run).not.toHaveBeenCalled()
   expect(readFileSync(join(dir, 'package.json'), 'utf8')).toBe(manifestBefore)
   expect(readFileSync(join(dir, 'pnpm-lock.yaml'), 'utf8')).toBe('original-lock\n')
 })
