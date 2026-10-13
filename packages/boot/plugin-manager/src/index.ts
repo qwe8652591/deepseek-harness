@@ -27,6 +27,7 @@ import { writePluginEnabled } from './patch.ts'
 import { incompatiblePlugin, ManagementFailure } from './failure.ts'
 import { approveBuilds, readPendingBuilds } from './build-approval.ts'
 import { checkGithubConnection } from './github-connection.ts'
+import { readTarballManifest } from './tarball-manifest.ts'
 import type {
   BundleInfo, BundleRowInfo, ChangeResult, InspectOptions, InstallBundleOptions, ManagementError, PackageResult, PluginChange,
   PluginEntryId, PluginInfo, PluginInspectProblem, PluginInstallCancellation, PluginInstallProgress, PluginInstallRequestId,
@@ -38,8 +39,12 @@ export { InvalidInstallSpecError, parseInstallSpec, type ParsedInstallSpec } fro
 
 /** The pnpm executable, registries, and limits for diagnostics, lookups and connection checks. */
 export interface Config {
-  /** Whether this deployment permits installing or removing individual packages. Bundle activation remains available. */
-  packageChanges?: boolean
+  /**
+   * Which individual package installations and removals this deployment permits: `true` all, `false` none,
+   * `'local-files'` only local package files (`.tgz`) for packages the installation does not supply.
+   * Bundle activation remains available in every mode.
+   */
+  packageChanges?: boolean | 'local-files'
   /** The pnpm executable name or path; resolved through `PATH` like the `dsh plugin` command. */
   pnpmCommand?: string
   /** Maximum retained package-operation diagnostic bytes. */
@@ -94,7 +99,11 @@ function messageOf(error: unknown): string { return error instanceof Error ? err
 /** An expected refusal keeps its code; anything else becomes an operation error carrying its exact diagnostic. */
 function managementError(error: unknown): ManagementError {
   if (!(error instanceof ManagementFailure)) return { code: 'operation-error', diagnostic: messageOf(error) }
-  return { code: error.code, ...error.incompatible === undefined ? {} : { incompatible: error.incompatible } }
+  return {
+    code: error.code,
+    ...error.diagnostic === undefined ? {} : { diagnostic: error.diagnostic },
+    ...error.incompatible === undefined ? {} : { incompatible: error.incompatible },
+  }
 }
 
 /** The caller stopped an installation; its files are restored before this is thrown. */
@@ -178,7 +187,7 @@ declare module '@deepseek-ai/cordis' {
 export class PluginManager extends TypertRemoteService {
   static inject = ['loader', 'profileContext']
   static Config: z<Config> = z.object({
-    packageChanges: z.boolean().default(true),
+    packageChanges: z.union([z.boolean(), z.const('local-files')]).default(true),
     pnpmCommand: z.string().default('pnpm'),
     outputBytes: z.number().step(1).min(1).default(16384),
     lockWaitMs: z.number().step(1).min(0).default(120000),
@@ -192,7 +201,7 @@ export class PluginManager extends TypertRemoteService {
   private readonly managementBundles = new Set<string>()
   private readonly ownerEntryId: string | undefined
   private readonly packageOperations = new Set<Promise<unknown>>()
-  private readonly packageChanges: boolean
+  private readonly packageChanges: boolean | 'local-files'
   private readonly profile: ProfileContext
   private readonly outputBytes: number
   private readonly lockWaitMs: number
@@ -227,6 +236,25 @@ export class PluginManager extends TypertRemoteService {
       this.abort.abort()
       await Promise.allSettled([...this.packageOperations])
     }, 'plugin-manager: package cancellation')
+  }
+
+  /** A whole-product deployment installs only local package files for packages its installation does not supply.
+   * The file's manifest is read before pnpm runs, so a refused file changes no profile file.
+   * @param spec The install spec as requested.
+   */
+  private async requireLocalPackage(spec: string): Promise<void> {
+    const parsed = parsedForRegistry(spec)
+    if (parsed.kind !== 'tarball' || parsed.path === undefined) {
+      throw new ManagementFailure('managed-installation', undefined, 'this installation accepts only local package files (.tgz)')
+    }
+    let name: string | undefined
+    try { name = stringField(await readTarballManifest(parsed.path), 'name') }
+    catch (error) { throw new ManagementFailure('managed-installation', undefined, `the package file cannot be read: ${messageOf(error)}`) }
+    if (name === undefined) throw new ManagementFailure('managed-installation', undefined, 'the package file names no package')
+    const installation = JSON.parse(readFileSync(this.profile.installAnchor, 'utf8')) as InstallationManifest
+    if (Object.hasOwn(installation.dependencies ?? {}, name)) {
+      throw new ManagementFailure('managed-installation', undefined, `${name} is supplied by this installation`)
+    }
   }
 
   /** Read exact plugin-version exemptions saved in this profile.
@@ -500,8 +528,9 @@ export class PluginManager extends TypertRemoteService {
       if (requestId !== undefined) this.ownerContext.emit('plugin-manager/install-state', { requestId, phase, ...attempt === undefined ? {} : { attempt } })
     }
     const result = this.change(async (result) => {
-      if (!this.packageChanges) throw new ManagementFailure('managed-installation')
+      if (this.packageChanges === false) throw new ManagementFailure('managed-installation')
       if (spec.trim() === '' || spec.startsWith('-')) throw new ManagementFailure('invalid-spec')
+      if (this.packageChanges === 'local-files') await this.requireLocalPackage(spec)
       if (stopped()) throw new InstallCancelledError()
       if (options?.approvedBuilds !== undefined) {
         await approveBuilds(this.profile.dir, options.approvedBuilds)
@@ -633,7 +662,7 @@ export class PluginManager extends TypertRemoteService {
   @Remote
   removeBundle(name: string): Promise<ChangeResult> {
     return this.change(async (result) => {
-      if (!this.packageChanges) throw new ManagementFailure('managed-installation')
+      if (this.packageChanges === false) throw new ManagementFailure('managed-installation')
       await this.configure(async () => {
         const bundle = (await this.listBundles()).find(item => item.name === name)
         if (bundle === undefined || !bundle.removable) throw new ManagementFailure('not-removable')

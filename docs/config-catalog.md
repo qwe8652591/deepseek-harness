@@ -2256,13 +2256,17 @@ export interface PlanModeConfig {
 ## `@deepseek-ai/dsh-plugin-manager`
 
 - `inject`: `loader` · `profileContext`
-- `source`: [`packages/boot/plugin-manager/src/index.ts:40`](../packages/boot/plugin-manager/src/index.ts)
+- `source`: [`packages/boot/plugin-manager/src/index.ts:41`](../packages/boot/plugin-manager/src/index.ts)
 
 ```ts config-catalog
 /** The pnpm executable, registries, and limits for diagnostics, lookups and connection checks. */
 export interface Config {
-  /** Whether this deployment permits installing or removing individual packages. Bundle activation remains available. */
-  packageChanges?: boolean
+  /**
+   * Which individual package installations and removals this deployment permits: `true` all, `false` none,
+   * `'local-files'` only local package files (`.tgz`) for packages the installation does not supply.
+   * Bundle activation remains available in every mode.
+   */
+  packageChanges?: boolean | 'local-files'
   /** The pnpm executable name or path; resolved through `PATH` like the `dsh plugin` command. */
   pnpmCommand?: string
   /** Maximum retained package-operation diagnostic bytes. */

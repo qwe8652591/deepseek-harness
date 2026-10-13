@@ -24,6 +24,7 @@ import * as operations from '../src/operations.ts'
 import * as githubConnection from '../src/github-connection.ts'
 import { parse, parseDocument } from 'yaml'
 import { isolateGitCommandLineConfig } from './git-environment.ts'
+import { writeBundleTarball } from './tarball.ts'
 
 // These cases install through real Git and pnpm, so the host's command-line configuration group must not reach their children.
 let restoreGitCommandLineConfig: () => void
@@ -99,6 +100,36 @@ it('keeps managed bundle controls while refusing package installs and removals b
   expect(await manager.setBundleEnabled('extra', true)).toMatchObject({ application: 'applied' })
 })
 
+it('accepts only local package files for packages the installation does not supply, before any side effect', async () => {
+  const { manager, dir, profile, connection } = await fixture('live', false, undefined, { packageChanges: 'local-files' })
+  writeFileSync(profile.installAnchor, JSON.stringify({ name: 'installation', dependencies: { 'supplied-bundle': '1.0.0' } }))
+  const supplied = join(profile.home, 'supplied-bundle-2.0.0.tgz')
+  writeBundleTarball(supplied, { name: 'supplied-bundle', version: '2.0.0' })
+  const unnamed = join(profile.home, 'unnamed-1.0.0.tgz')
+  writeBundleTarball(unnamed, { version: '1.0.0' })
+  const broken = join(profile.home, 'broken-1.0.0.tgz')
+  writeFileSync(broken, 'not a tarball')
+  const before = readFileSync(join(dir, 'package.json'), 'utf8')
+  const pnpm = vi.spyOn(operations, 'runProfilePnpm')
+  onTestFinished(() => { pnpm.mockRestore() })
+  for (const [spec, diagnostic] of [
+    ['untrusted-package', 'accepts only local package files'],
+    ['https://cdn.example.com/x/addon-1.0.0.tgz', 'accepts only local package files'],
+    [supplied, 'supplied-bundle is supplied by this installation'],
+    [unnamed, 'names no package'],
+    [broken, 'cannot be read'],
+  ] as const) {
+    const result = await manager.installBundle(spec)
+    expect(result).toMatchObject({ application: 'failed', changed: false, error: { code: 'managed-installation' } })
+    expect(result.error?.diagnostic).toContain(diagnostic)
+  }
+  expect(pnpm).not.toHaveBeenCalled()
+  expect(connection).not.toHaveBeenCalled()
+  expect(readFileSync(join(dir, 'package.json'), 'utf8')).toBe(before)
+  // Removal keeps the ordinary rule: a package the profile does not own is not removable.
+  expect(await manager.removeBundle('core')).toMatchObject({ application: 'failed', error: { code: 'not-removable' } })
+})
+
 it('holds a locked bundle off until the lock is released, across restarts of the manager', async () => {
   const { manager, dir } = await fixture()
   expect(await manager.setBundleLocked('extra', true)).toMatchObject({ application: 'applied' })
@@ -108,6 +139,17 @@ it('holds a locked bundle off until the lock is released, across restarts of the
   expect(await manager.setBundleLocked('extra', false)).toMatchObject({ application: 'applied' })
   expect((await manager.listBundles()).find(item => item.name === 'extra')).not.toHaveProperty('readOnlyReason')
   expect(await manager.setBundleEnabled('extra', true)).toMatchObject({ application: 'applied' })
+})
+
+it('refuses to lock the bundle carrying the manager, keeps a repeated lock unchanged and ignores a malformed lock record', async () => {
+  const { manager, dir } = await fixture()
+  expect(await manager.setBundleLocked('core', true)).toMatchObject({ application: 'failed', changed: false, error: { code: 'management-required' } })
+  expect(await manager.setBundleLocked('extra', true)).toMatchObject({ application: 'applied' })
+  const record = readFileSync(join(dir, 'bundle-locks.json'), 'utf8')
+  expect(await manager.setBundleLocked('extra', true)).toMatchObject({ application: 'applied' })
+  expect(readFileSync(join(dir, 'bundle-locks.json'), 'utf8')).toBe(record)
+  writeFileSync(join(dir, 'bundle-locks.json'), '{"locked":"extra"}')
+  expect((await manager.listBundles()).find(item => item.name === 'extra')).not.toHaveProperty('readOnlyReason')
 })
 
 it.each(['network', 'timeout'] as const)('stops a GitHub %s before pnpm and attributes it to the repository', async (kind) => {
@@ -1200,6 +1242,27 @@ it('installs and removes with the bundled pnpm when PATH contains no pnpm', asyn
   expect(removed.error).toBeUndefined()
   expect(removed.packageResult?.exitCode).toBe(0)
   expect(readProfileManifest('test', dir).dependencies ?? {}).not.toHaveProperty('@test/desktop-manager')
+})
+
+it('installs and removes a local package file in a whole-product deployment with the bundled pnpm', async () => {
+  const pnpm = fileURLToPath(new URL('../../../../apps/desktop/node_modules/pnpm/bin/pnpm.mjs', import.meta.url))
+  const { manager, dir, profile } = await fixture('startup', false, undefined, { packageChanges: 'local-files' }, {
+    command: process.execPath, args: ['--expose-internals', pnpm], env: { PATH: '', ELECTRON_RUN_AS_NODE: '1' },
+  })
+  // An installation that supplies nothing; fixture-only packages need no registry resolution.
+  writeFileSync(profile.installAnchor, '{"name":"installation"}\n')
+  const manifest = readProfileManifest('test', dir)
+  delete manifest.dependencies
+  writeFileSync(join(dir, 'package.json'), JSON.stringify(manifest))
+  const tarball = join(profile.home, 'local-file-bundle-1.0.0.tgz')
+  writeBundleTarball(tarball, { name: 'local-file-bundle', version: '1.0.0' })
+  const installed = await manager.installBundle(tarball, { enabled: false })
+  expect(installed.error).toBeUndefined()
+  expect(installed).toMatchObject({ bundle: 'local-file-bundle', packageResult: { exitCode: 0 } })
+  expect((await manager.listBundles()).find(row => row.name === 'local-file-bundle')).toMatchObject({ installed: true, removable: true })
+  const removed = await manager.removeBundle('local-file-bundle')
+  expect(removed.error).toBeUndefined()
+  expect(readProfileManifest('test', dir).dependencies ?? {}).not.toHaveProperty('local-file-bundle')
 })
 
 const MIRROR = 'https://registry.npmmirror.com/'
