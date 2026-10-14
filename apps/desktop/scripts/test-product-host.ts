@@ -75,7 +75,8 @@ const children: {
 const reports: { profile: string; origin: string; clients: string[] }[] = []
 const account = { issuer: 'https://product-test.example', subject: 'fixture', name: 'Product qualification',
   organization: 'Qualification', capabilities: true, expiresAt: Date.now() + 600000 }
-const accountKey = createHash('sha256').update(JSON.stringify([account.issuer, account.subject])).digest('hex')
+// Same layout as a product installation (aiko-account accountHomeDirectory): accounts/<16-character digest prefix>.
+const accountKey = createHash('sha256').update(JSON.stringify([account.issuer, account.subject])).digest('hex').slice(0, 16)
 const relayToken = randomBytes(32).toString('base64url')
 const relay = createServer((request, response) => {
   if (request.headers.authorization !== 'Bearer ' + relayToken) { response.writeHead(401); response.end(); return }
@@ -141,6 +142,14 @@ async function start(profile: string): Promise<(typeof children)[number]> {
     const inventory = envelope.result
     assert.ok(isRecord(inventory) && inventory.ok === true && Array.isArray(inventory.value))
     for (const name of requiredClients) assert.ok(inventory.value.some(row => isRecord(row) && row.name === name && row.error === undefined), `Unavailable bundled module: ${name}`)
+    // The Workbench platform foundation serves the app center; it starts only when the verified account owns this home.
+    const platform = await fetch(new URL('/aiko-platform/accountProfile', ready.url), {
+      method: 'POST', headers: { cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ type: 'client-request', rpcId: 'account-profile', method: 'accountProfile', payload: {} }), signal: AbortSignal.timeout(10000),
+    })
+    assert.equal(platform.status, 200, 'Workbench platform RPC is not registered')
+    const platformReply: unknown = await platform.json()
+    assert.ok(isRecord(platformReply) && isRecord(platformReply.result) && platformReply.result.ok === true, `accountProfile failed: ${JSON.stringify(platformReply)}`)
     assert.ok(clients.includes('@deepseek-ai/dsh-client-ui-plugin-manager'), 'Plugin sidebar must be loaded')
     const policy = ready.injections.find(row => isRecord(row) && row.kind === 'global' && row.name === '__DSH_PLUGIN_MANAGER_CONFIG__')
     assert.ok(isRecord(policy) && isRecord(policy.value) && policy.value.packageChanges === false)
@@ -226,7 +235,7 @@ try {
   const address = relay.address()
   assert.ok(address && typeof address !== 'string')
   const relayOrigin = `http://127.0.0.1:${address.port}`
-  const profiles = ['first', 'second'].map(name => join(evidence, name, accountKey, 'profiles/desktop'))
+  const profiles = ['first', 'second'].map(name => join(evidence, name, 'accounts', accountKey, 'profiles/desktop'))
   for (const profile of profiles) {
     createPluginProfile(profile); await prepareProductProfile(product, profile)
     const credentials = resolve(profile, '../../credentials')
