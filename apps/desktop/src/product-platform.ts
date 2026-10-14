@@ -55,7 +55,8 @@ export async function readProductPlatform(userData: string): Promise<ProductPlat
  * @returns Absolute native account configuration path; old platforms remain intact.
  */
 export async function saveProductPlatform(userData: string, platform: ProductPlatform): Promise<string> {
-  const key = createHash('sha256').update(platform.gatewayOrigin).digest('hex')
+  // A short service digest keeps account homes and their plugin installs under the Windows MAX_PATH limit.
+  const key = createHash('sha256').update(platform.gatewayOrigin).digest('hex').slice(0, 16)
   const storageDirectory = join(userData, 'platforms', key)
   await mkdir(storageDirectory, { recursive: true, mode: 0o700 })
   const identity = join(storageDirectory, 'identity.json')

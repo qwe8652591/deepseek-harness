@@ -1,5 +1,6 @@
 /** Native account ownership: browser handoff, OS-encrypted credentials and a per-process capability relay. */
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
+import { existsSync } from 'node:fs'
 import { createServer, type Server } from 'node:http'
 import { mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { dirname, isAbsolute, join } from 'node:path'
@@ -33,6 +34,20 @@ class AccountSessionExpiredError extends Error {}
 export class AccountSignedOutError extends AccountSessionExpiredError {}
 const random = (): string => randomBytes(32).toString('base64url')
 const digest = (text: string): string => createHash('sha256').update(text).digest('hex')
+
+/**
+ * Local home of one verified account. Desktop processes are not long-path aware on Windows, so new homes use a
+ * 16-character digest prefix to keep plugin installs under MAX_PATH; a home created under the full digest stays in use.
+ * @param storageDirectory Platform-specific account storage root.
+ * @param issuer Verified token issuer.
+ * @param subject Verified token subject.
+ * @returns Absolute account home path.
+ */
+export function accountHomeDirectory(storageDirectory: string, issuer: string, subject: string): string {
+  const full = digest(JSON.stringify([issuer, subject]))
+  const legacy = join(storageDirectory, 'accounts', full)
+  return existsSync(legacy) ? legacy : join(storageDirectory, 'accounts', full.slice(0, 16))
+}
 const record = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
 const running = (pid: number): boolean => {
   try { process.kill(pid, 0); return true }
@@ -103,7 +118,7 @@ export class DesktopAccount {
   /** @returns issuer-and-subject-specific local home, never a username-derived path. */
   home(): string {
     if (!this.user) throw new Error('Sign in before opening the local runtime')
-    return join(this.config.storageDirectory, 'accounts', digest(JSON.stringify([this.user.issuer, this.user.subject])))
+    return accountHomeDirectory(this.config.storageDirectory, this.user.issuer, this.user.subject)
   }
 
   /** @returns true if an OS-encrypted saved credential passes live server verification. */
