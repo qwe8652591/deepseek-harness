@@ -828,7 +828,7 @@ describe('UiWorkspaceService', () => {
       workspaces: workspaceState([workspace('a', [sid('stale')])]),
       configureSessions: (sessions) => {
         sessions.create.mockRejectedValueOnce(new SessionCreateError(
-          new RemoteError('agent-preset/not-found', 'Unknown agent preset: claude', { agentPreset: 'claude' }), sid('stale'),
+          new RemoteError('agent-preset/not-found', 'Unknown agent preset: claude', { agentPreset: 'claude', available: [] }), sid('stale'),
         ))
       },
     })
