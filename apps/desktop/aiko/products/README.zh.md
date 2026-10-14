@@ -17,7 +17,9 @@ corepack pnpm --dir apps/desktop run package:win:x64:unsigned --product D:/relea
 
 Windows 签名构建使用 `package:win:x64`；macOS 在配置好签名和公证的 Mac 上使用 `package:mac:arm64` 或 `package:mac:x64`。`--build-version <semver>` 指定递增的应用发布版本。打包命令在准备完整运行时前验证归档身份与完整性。未签名构建的文件名带有 `-unsigned` 后缀，产品发布命令拒绝发布这类构建。
 
-输出分别位于 `apps/desktop/.desktop-build/products/<brand>/<target>/artifacts` 或 `unsigned-artifacts`。原生图标、应用 ID、协议、应用名、更新缓存和用户数据目录按品牌区分。内置插件从不可变的应用运行时解析，启动时不安装到用户目录。部署最后一层覆盖配置保留插件菜单、清单、配置和启停控制，页面隐藏包操作。Host 保持自带的包不变：只安装包名不属于自带包的本地插件包文件（由工作台应用中心从平台下载），拒绝 registry 和远程 spec。市场启用入口和 Code 的独立更新仍禁用。
+默认下载源较慢时，打包前在命令行设置 `ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/`，并在 `.env.windows` 写 `DSH_DESKTOP_NPM_REGISTRY=https://registry.npmmirror.com`；两者只改变构建下载 Electron 和运行时包的位置。验收时让产品目录的路径和真实安装一样长（例如放在 `%LOCALAPPDATA%Programs` 下），因为账号目录和插件依赖路径都要保持在 Windows 路径长度限制以内。
+
+输出分别位于 `apps/desktop/.desktop-build/products/<brand>/<target>/artifacts` 或 `unsigned-artifacts`。原生图标、应用 ID、协议、应用名、更新缓存和用户数据目录按品牌区分。内置插件从不可变的应用运行时解析，启动时不安装到用户目录。部署最后一层覆盖配置保留插件菜单、清单、配置和启停控制，页面隐藏包操作。Host 保持自带的包不变：只安装包名不属于自带包的本地插件包文件（由工作台应用中心从平台下载），拒绝 registry 和远程 spec。这些插件包离线安装，必须自带依赖。市场启用入口和 Code 的独立更新仍禁用。
 
 产品 Host 从声明所有内置插件的运行时清单解析模块，并使用操作系统分配的回环端口。不同品牌应用和开发版 Host 可以同时运行，无需共用固定监听端口。
 
