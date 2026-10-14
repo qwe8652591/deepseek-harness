@@ -1265,6 +1265,24 @@ it('installs and removes a local package file in a whole-product deployment with
   expect(readProfileManifest('test', dir).dependencies ?? {}).not.toHaveProperty('local-file-bundle')
 })
 
+it('installs local package files offline, so a dependency the file does not carry fails instead of downloading', async () => {
+  const pnpm = fileURLToPath(new URL('../../../../apps/desktop/node_modules/pnpm/bin/pnpm.mjs', import.meta.url))
+  const { manager, dir, profile } = await fixture('startup', false, undefined, { packageChanges: 'local-files' }, {
+    command: process.execPath, args: ['--expose-internals', pnpm], env: { PATH: '', ELECTRON_RUN_AS_NODE: '1' },
+  })
+  writeFileSync(profile.installAnchor, '{"name":"installation"}\n')
+  const manifest = readProfileManifest('test', dir)
+  delete manifest.dependencies
+  writeFileSync(join(dir, 'package.json'), JSON.stringify(manifest))
+  const tarball = join(profile.home, 'needs-network-1.0.0.tgz')
+  writeBundleTarball(tarball, { name: 'needs-network', version: '1.0.0', dependencies: { 'dsh-offline-probe-never-published': '1.0.0' } })
+  const installed = await manager.installBundle(tarball, { enabled: false })
+  expect(installed.error).toBeDefined()
+  expect(installed.packageResult?.exitCode).not.toBe(0)
+  expect(installed.packageResult?.output).toMatch(/offline/iu)
+  expect(readProfileManifest('test', dir).dependencies ?? {}).not.toHaveProperty('needs-network')
+})
+
 const MIRROR = 'https://registry.npmmirror.com/'
 const OFFICIAL = 'https://registry.npmjs.org/'
 

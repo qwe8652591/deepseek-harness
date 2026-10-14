@@ -565,7 +565,9 @@ export class PluginManager extends TypertRemoteService {
           if (stopped()) throw new InstallCancelledError()
           result.registries.push(registry)
           announce('installing', { registry, index: index + 1, total: plan.length })
-          run = await this.runPnpm(['add', spec, ...registryArguments(registry)], control.abort.signal, requestId)
+          // Whole-product installations take only package files that carry their dependencies: nothing resolves remotely.
+          const resolution = this.packageChanges === 'local-files' ? ['--offline'] : registryArguments(registry)
+          run = await this.runPnpm(['add', spec, ...resolution], control.abort.signal, requestId)
           result.packageResult = run
           if (stopped()) throw new InstallCancelledError()
           // A compatibility refusal is the package's own answer, so no other registry is asked.
@@ -683,7 +685,7 @@ export class PluginManager extends TypertRemoteService {
       })
       // pnpm re-resolves the remaining dependencies while removing, so it asks the registry installations ask first.
       const [registry = null] = registryPlan(undefined, await this.registries())
-      result.packageResult = await this.runPnpm(['remove', name, ...removalRegistryArguments(registry)])
+      result.packageResult = await this.runPnpm(['remove', name, ...this.packageChanges === 'local-files' ? ['--config.offline=true'] : removalRegistryArguments(registry)])
       if (result.packageResult.exitCode !== 0 || result.packageResult.timedOut === true) {
         throw new Error(result.packageResult.output)
       }
