@@ -15,7 +15,7 @@ async function directory() {
   roots.push(root)
   return root
 }
-const applications = ['aiko-dsh-workbench', 'aiko-dsh-tender', '@aiko-dsh-plugins/dsh-knowledge', 'aiko-dsh-code', 'aiko-dsh-market']
+const applications = ['aiko-dsh-workbench', 'aiko-dsh-market']
 function product(profile: 'aiko' | 'yunyao' = 'aiko'): DesktopProduct {
   return parseDesktopProduct({ schemaVersion: 1, profile, appId: `com.${profile}.dsh`, productName: profile,
     repository: 'aiko-dsh-plugins/deepseek-harness', channel: 'beta',
@@ -33,6 +33,14 @@ it('isolates brand and architecture feeds and refuses mixed product inputs', () 
   expect(desktopProductFeed(product('yunyao'), 'mac-arm64').channel).toBe('yunyao-beta-mac-arm64')
   expect(() => parseDesktopProduct({ ...product(), plugins: [...product().plugins, { name: 'yunyao-dsh-theme', version: '1.0.0' }] })).toThrow(/mixed-brand/)
   expect(() => desktopProductFeed(product(), 'linux-x64')).toThrow(/unsupported/)
+})
+
+it('refuses products that preinstall app-center application plugins', () => {
+  const official = product().bundles.slice(0, 3)
+  for (const name of ['aiko-dsh-tender', '@aiko-dsh-plugins/dsh-knowledge', 'aiko-dsh-code']) {
+    expect(() => parseDesktopProduct({ ...product(), bundles: [...official, ...applications, name, 'aiko-dsh-theme'] })).toThrow(/bundles must match/)
+    expect(() => parseDesktopProduct({ ...product(), plugins: [...product().plugins, { name, version: '1.0.0' }] })).toThrow(/incomplete or mixed-brand/)
+  }
 })
 
 it('verifies archive bytes before packaging and does not embed local build paths', async () => {
@@ -58,10 +66,10 @@ it('uses new installer plugins while preserving patches, sessions and recovery c
   await prepareProductProfile(product(), root)
   const initial = JSON.parse(await readFile(file, 'utf8')) as { dsh: { profile: { bundles: string[] } } }
   expect(initial.dsh.profile.bundles).toEqual(product().bundles)
-  initial.dsh.profile.bundles = initial.dsh.profile.bundles.filter(name => name !== 'aiko-dsh-code')
+  initial.dsh.profile.bundles = initial.dsh.profile.bundles.filter(name => name !== 'aiko-dsh-market')
   await writeFile(file, JSON.stringify(initial))
   await prepareProductProfile({ ...product(), plugins: product().plugins.map(plugin => ({ ...plugin, version: '1.1.0' })) }, root)
-  expect(await readFile(file, 'utf8')).not.toContain('aiko-dsh-code')
+  expect(await readFile(file, 'utf8')).not.toContain('aiko-dsh-market')
   expect(await readFile(join(root, '.desktop-product.json'), 'utf8')).toContain('1.1.0')
   expect(await readFile(join(root, 'sessions.jsonl'), 'utf8')).toBe('saved user work\n')
   expect(await readFile(join(root, 'cordis.patch.yml'), 'utf8')).toContain('kept')

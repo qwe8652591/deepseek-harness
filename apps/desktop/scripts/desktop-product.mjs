@@ -5,7 +5,8 @@ import { createHash } from 'node:crypto'
 import { valid } from 'semver'
 
 const themes = { aiko: 'aiko-dsh-theme', yunyao: 'yunyao-dsh-theme' }
-const applications = ['aiko-dsh-workbench', 'aiko-dsh-tender', '@aiko-dsh-plugins/dsh-knowledge', 'aiko-dsh-code', 'aiko-dsh-market']
+// Workbench embeds the knowledge foundation; Tender, Code and the knowledge apps install from its app center.
+const applications = ['aiko-dsh-workbench', 'aiko-dsh-market']
 const official = ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', '@deepseek-ai/dsh-experimental-agent-team-profile']
 const object = value => typeof value === 'object' && value !== null && !Array.isArray(value)
 
