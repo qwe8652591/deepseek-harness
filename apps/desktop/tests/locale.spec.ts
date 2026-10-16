@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { en, formatDesktopMessage, resolveDesktopLocale, resolveDesktopStartupLocale, zh } from '../src/locale.ts'
+import { brandDesktopLocale, en, formatDesktopMessage, resolveDesktopLocale, resolveDesktopStartupLocale, zh } from '../src/locale.ts'
 
 describe('desktop locale dictionaries', () => {
   it('ships the same key set in English and Chinese', () => {
@@ -22,6 +22,17 @@ describe('desktop locale dictionaries', () => {
     expect(resolveDesktopStartupLocale(null, ['ja-JP']).id).toBe('en')
     expect(resolveDesktopStartupLocale(null, []).id).toBe('en')
     expect(resolveDesktopStartupLocale('ja', ['zh-CN']).id).toBe('zh-CN')
+  })
+
+  it('names a branded product wherever the upstream copy names DeepSeek Harness', () => {
+    const upstream = resolveDesktopLocale('zh-CN')
+    expect(brandDesktopLocale(upstream, undefined)).toBe(upstream)
+    const branded = brandDesktopLocale(upstream, '工作台')
+    expect(branded.id).toBe('zh-CN')
+    expect(branded.messages).toMatchObject({ aboutMenu: '关于 工作台', aboutProduct: '工作台', quitTitle: '退出 工作台？',
+      openApplication: '打开 工作台', updateTitle: '工作台 更新', checkUpdatesMenu: zh.checkUpdatesMenu })
+    expect(Object.values(branded.messages).filter(message => message.includes('DeepSeek Harness'))).toEqual([])
+    expect(brandDesktopLocale(resolveDesktopLocale('en'), 'Workbench').messages.aboutMenu).toBe('About Workbench')
   })
 
 })

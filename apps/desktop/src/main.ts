@@ -34,7 +34,7 @@ import { installMicrophonePermissions } from './microphone-permissions.ts'
 import { DesktopBackendController } from './backend-controller.ts'
 import { DESKTOP_IPC, SCHEME, assertDesktopSender, type DesktopUpdateState } from './ipc.ts'
 import { readDeviceInfo } from './device-info.ts'
-import { desktopUpdateReadyConfirmation, formatDesktopMessage, resolveDesktopLocale, resolveDesktopStartupLocale } from './locale.ts'
+import { brandDesktopLocale, desktopUpdateReadyConfirmation, formatDesktopMessage, resolveDesktopLocale, resolveDesktopStartupLocale } from './locale.ts'
 import { claimDesktopSingleInstance } from './single-instance.ts'
 import { DesktopUpdateCoordinator } from './update-coordinator.ts'
 import { DesktopCommandManager } from './command-management.ts'
@@ -108,7 +108,7 @@ const rendererConsole = new RendererConsoleTail()
 app.setAppLogsPath()
 
 function currentDesktopLocale(): ReturnType<typeof resolveDesktopLocale> {
-  return resolveDesktopLocale(windowsLanguage ?? app.getLocale())
+  return brandDesktopLocale(resolveDesktopLocale(windowsLanguage ?? app.getLocale()), nativeBrand?.productName)
 }
 /** Quit without the task confirmation; the caller has already decided the application must stop. */
 function quitWithoutConfirmation(): void {
@@ -378,7 +378,9 @@ async function main(): Promise<void> {
   let updateStopFailure: DesktopHostUncleanExitError | undefined
   let updateState: DesktopUpdateState = { phase: 'idle' }
   const systemLanguages = app.getPreferredSystemLanguages()
-  let locale = resolveDesktopStartupLocale(null, systemLanguages)
+  const startupLocale = (preference: string | null): ReturnType<typeof resolveDesktopLocale> =>
+    brandDesktopLocale(resolveDesktopStartupLocale(preference, systemLanguages), nativeBrand?.productName)
+  let locale = startupLocale(null)
   windowsLanguage = locale.id
   let mandatoryPolicy: DesktopMandatoryUpdatePolicy | undefined
   let mandatoryUI: DesktopMandatoryUpdateWindow | undefined
@@ -797,7 +799,7 @@ async function main(): Promise<void> {
     const window = mainWindow
     if (window === undefined || event.sender !== window.webContents || event.senderFrame !== window.webContents.mainFrame
       || typeof next !== 'string') return
-    const current = resolveDesktopStartupLocale(next, systemLanguages)
+    const current = startupLocale(next)
     if (current.id === locale.id) return
     locale = current
     platformView.notifyLocaleChanged()
@@ -999,7 +1001,8 @@ async function main(): Promise<void> {
       : { label: currentDesktopLocale().messages.aboutMenu, role: 'about' },
     { type: 'separator' },
     { label: currentDesktopLocale().messages.checkUpdatesMenu, click: () => { void openUpdatePrompt(true) } },
-    ...process.platform === 'darwin' || process.platform === 'win32'
+    // The terminal `dsh` command belongs to upstream Desktop; branded products do not register it.
+    ...nativeBrand === undefined && (process.platform === 'darwin' || process.platform === 'win32')
       ? [{ label: currentDesktopLocale().messages.cliCommandMenu, click: () => { void commandManager.show() } }] : [],
     ...development ? [
       { type: 'separator' as const },
@@ -1248,7 +1251,7 @@ async function main(): Promise<void> {
     if (quitting || recovery.active) return
     const state = await readWelcomeState()
     if (isQuitting() || backend.state.phase !== 'ready') return
-    locale = resolveDesktopStartupLocale(state.localePreference, systemLanguages)
+    locale = startupLocale(state.localePreference)
     windowsLanguage = locale.id
     refreshApplicationMenu()
     if (aikoAccount === undefined && !enteredWorkspace && needsWelcome({ loggedIn: state.loggedIn, hasApiKey: state.hasApiKey })) {

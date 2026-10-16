@@ -357,6 +357,18 @@ export function resolveDesktopLocale(locale: string): DesktopLocale {
 }
 
 /**
+ * Name a branded product wherever the shipped copy names the upstream application.
+ * @param locale - Shipped dictionary.
+ * @param productName - Native brand product name; undefined keeps the upstream copy.
+ * @returns The same locale for upstream Desktop, otherwise a copy whose messages name the product.
+ */
+export function brandDesktopLocale(locale: DesktopLocale, productName: string | undefined): DesktopLocale {
+  if (productName === undefined) return locale
+  const entries = Object.entries(locale.messages).map(([key, message]) => [key, message.replaceAll('DeepSeek Harness', productName)])
+  return { id: locale.id, messages: Object.fromEntries(entries) as DesktopMessages }
+}
+
+/**
  * Choose a built-in dictionary from the shared preference, then ordered OS languages.
  * @param preference - explicit locale.preference, or null when no language was selected.
  * @param languages - operating-system languages in preference order.
