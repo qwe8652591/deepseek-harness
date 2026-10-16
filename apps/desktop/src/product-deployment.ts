@@ -22,7 +22,7 @@ export async function readPackagedProduct(runtime: string, brand: unknown): Prom
   // The update feed lives in exactly one place: a GitHub repository or the product's own release directory.
   const location = typeof value.repository === 'string' && value.releases === undefined ? { repository: value.repository }
     : typeof value.releases === 'string' && value.repository === undefined ? { releases: value.releases } : undefined
-  if (location === undefined) throw new Error('desktop product: invalid packaged identity')
+  if (location === undefined || value.platform !== undefined && typeof value.platform !== 'string') throw new Error('desktop product: invalid packaged identity')
   const plugins = await Promise.all(value.plugins.map(async (plugin: unknown) => {
     if (!record(plugin) || typeof plugin.name !== 'string' || !/^(?:@[a-z0-9-]+\/)?[a-z0-9-]+$/.test(plugin.name)
       || typeof plugin.version !== 'string') throw new Error('desktop product: invalid plugin identity')
@@ -35,7 +35,7 @@ export async function readPackagedProduct(runtime: string, brand: unknown): Prom
     || plugins.filter(plugin => plugin.name.endsWith('dsh-theme')).map(plugin => plugin.name).join() !== selectedTheme)
     throw new Error('desktop product: mixed-brand installation')
   return { schemaVersion: 1, profile: brand, appId: value.appId, productName: value.productName,
-    ...location,
+    ...location, ...typeof value.platform === 'string' ? { platform: value.platform } : {},
     channel: value.channel, bundles: value.bundles, plugins }
 }
 

@@ -31,7 +31,7 @@ On Windows x64, run `node apps/desktop/scripts/test-product-installer.mjs --prod
 
 ## Platform settings and retained data
 
-First launch asks for the platform origin. Saving opens the selected brand's sign-in page; closing either admission window explicitly exits the application. The optional authentication origin defaults to the platform origin. Remote origins require HTTPS; `http://127.0.0.1` is available for development. These values are public connection settings, not credentials. The existing platform must implement Desktop PKCE login and the capability API.
+First launch asks for the platform origin; a product manifest that sets `platform` (an HTTPS origin, `--platform` in the Workbench prepare command) fills it in, and a saved choice always wins. Saving opens the selected brand's sign-in page; closing either admission window explicitly exits the application. The optional authentication origin defaults to the platform origin. Remote origins require HTTPS; `http://127.0.0.1` is available for development. These values are public connection settings, not credentials. The existing platform must implement Desktop PKCE login and the capability API.
 
 After logout, **Platform settings** on the login page changes the addresses. A service-origin hash selects an independent encrypted account store; the verified issuer and subject select its work directory. Returning to a previous platform preserves its data. Application upgrades retain the brand's Electron user data, saved platform selection, account homes, conversations and user patches. Recovery-disabled bundles remain disabled. Aiko and Yunyao use separate user-data directories and can coexist.
 

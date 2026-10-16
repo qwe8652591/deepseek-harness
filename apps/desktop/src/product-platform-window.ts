@@ -35,7 +35,9 @@ export async function openProductPlatform(product: DesktopProduct): Promise<stri
   let rejectResult!: (error: Error) => void
   const result = new Promise<string>((resolve, reject) => { resolveResult = resolve; rejectResult = reject })
   void result.catch(() => undefined)
-  ipcMain.handle('product:platform:read', (event) => { assertSender(event); return { ...locale, productName: product.productName, profile: product.profile, platform: saved } })
+  // First run fills in the platform the installer names; a saved choice always wins and stays editable.
+  const suggested = product.platform === undefined ? undefined : { websiteOrigin: product.platform, gatewayOrigin: product.platform }
+  ipcMain.handle('product:platform:read', (event) => { assertSender(event); return { ...locale, productName: product.productName, profile: product.profile, platform: saved ?? suggested } })
   ipcMain.handle('product:platform:save', async (event, value: unknown) => {
     assertSender(event)
     if (saving) return { ok: false, message: locale.messages.platformSaving }

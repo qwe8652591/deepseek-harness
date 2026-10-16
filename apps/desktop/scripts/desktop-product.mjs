@@ -25,6 +25,18 @@ function releaseDirectory(value) {
 }
 
 /**
+ * Validate the suggested platform: an HTTPS origin without path, credentials, query or fragment.
+ * @param {unknown} value Candidate `platform` field.
+ * @returns {string} The validated origin.
+ */
+function platformOrigin(value) {
+  let url
+  try { url = typeof value === 'string' ? new URL(value) : undefined } catch { url = undefined } // invalid URL text is reported below
+  if (url === undefined || url.protocol !== 'https:' || url.origin !== value) throw new Error('desktop product: platform must be an HTTPS origin without a path')
+  return value
+}
+
+/**
  * Validate packaged public metadata without accepting build paths or credentials.
  * @param {unknown} value JSON read from the application resources.
  * @returns {import('./desktop-product.mjs').DesktopProduct} Public product configuration.
@@ -37,6 +49,7 @@ export function parseDesktopProduct(value) {
   if ((value.repository === undefined) === (value.releases === undefined)) throw new Error('desktop product: set exactly one of repository and releases')
   if (value.repository !== undefined && (typeof value.repository !== 'string' || !/^[A-Za-z0-9-]+\/[A-Za-z0-9_.-]+$/.test(value.repository))) throw new Error('desktop product: repository must be owner/repo')
   const location = value.repository !== undefined ? { repository: value.repository } : { releases: releaseDirectory(value.releases) }
+  const suggested = value.platform === undefined ? {} : { platform: platformOrigin(value.platform) }
   if (value.channel !== 'stable' && value.channel !== 'beta') throw new Error('desktop product: channel must be stable or beta')
   const expectedBundles = [...official, ...applications, themes[value.profile]]
   if (!Array.isArray(value.bundles) || JSON.stringify(value.bundles) !== JSON.stringify(expectedBundles)) throw new Error('desktop product: bundles must match the selected product profile')
@@ -44,7 +57,7 @@ export function parseDesktopProduct(value) {
   if (!Array.isArray(value.plugins) || value.plugins.some(plugin => !object(plugin) || typeof plugin.name !== 'string' || typeof plugin.version !== 'string' || valid(plugin.version) === null)
     || JSON.stringify(value.plugins.map(plugin => plugin.name).sort()) !== JSON.stringify(expected)) throw new Error('desktop product: incomplete or mixed-brand plugin set')
   return { schemaVersion: 1, profile: value.profile, appId: value.appId, productName: value.productName,
-    ...location, channel: value.channel, bundles: [...value.bundles],
+    ...location, ...suggested, channel: value.channel, bundles: [...value.bundles],
     plugins: value.plugins.map(({ name, version }) => ({ name, version })) }
 }
 
@@ -60,7 +73,7 @@ export function readDesktopProduct(env, verifyArchives = false) {
   if (!isAbsolute(file)) throw new Error('desktop product: DSH_DESKTOP_PRODUCT must be absolute')
   const value = JSON.parse(readFileSync(file, 'utf8'))
   const product = parseDesktopProduct(value)
-  const allowed = new Set(['schemaVersion', 'profile', 'appId', 'productName', 'repository', 'releases', 'channel', 'bundles', 'plugins', 'artwork'])
+  const allowed = new Set(['schemaVersion', 'profile', 'appId', 'productName', 'repository', 'releases', 'platform', 'channel', 'bundles', 'plugins', 'artwork'])
   if (Object.keys(value).some(key => !allowed.has(key))) throw new Error('desktop product: unexpected field; platform credentials do not belong in release inputs')
   const artwork = value.artwork
   if (!object(artwork) || artwork.version !== 1 || artwork.theme !== themes[product.profile] || artwork.productName !== product.productName

@@ -8,6 +8,8 @@ export interface DesktopProduct {
   readonly repository?: string
   /** Self-hosted HTTPS release directory ending in `/`; its `<profile>-<channel>/` subdirectory is the update feed. */
   readonly releases?: string
+  /** HTTPS platform origin filled into the first-run platform settings; users can still change it. */
+  readonly platform?: string
   readonly channel: 'stable' | 'beta'
   readonly bundles: readonly string[]
   readonly plugins: readonly { readonly name: string; readonly version: string }[]

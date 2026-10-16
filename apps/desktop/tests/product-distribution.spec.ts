@@ -49,6 +49,15 @@ it('selects a self-hosted HTTPS release directory instead of a GitHub repository
   expect(() => parseDesktopProduct(base)).toThrow(/exactly one/)
 })
 
+it('suggests the deployment platform on first run when the product names one', () => {
+  const suggested = parseDesktopProduct({ ...product('yunyao'), platform: 'https://platform.example.test:20124' })
+  expect(suggested.platform).toBe('https://platform.example.test:20124')
+  expect(product()).not.toHaveProperty('platform')
+  for (const value of ['http://platform.example.test', 'https://platform.example.test/', 'https://platform.example.test/path',
+    'https://user:secret@platform.example.test', 'https://platform.example.test?x=1', 'not a url'])
+    expect(() => parseDesktopProduct({ ...product(), platform: value })).toThrow(/platform/)
+})
+
 it('refuses products that preinstall app-center application plugins', () => {
   const official = product().bundles.slice(0, 3)
   for (const name of ['aiko-dsh-tender', '@aiko-dsh-plugins/dsh-knowledge', 'aiko-dsh-code']) {
@@ -104,6 +113,8 @@ it('refuses unowned installed packages and a runtime with different plugin bytes
   const { repository: _repository, ...hosted } = product()
   await writeFile(join(root, 'desktop-product.json'), JSON.stringify({ ...hosted, releases: 'https://downloads.example.test/dsh/releases/' }))
   expect(await readPackagedProduct(root, 'aiko')).toEqual({ ...hosted, releases: 'https://downloads.example.test/dsh/releases/' })
+  await writeFile(join(root, 'desktop-product.json'), JSON.stringify({ ...product(), platform: 'https://platform.example.test' }))
+  expect((await readPackagedProduct(root, 'aiko'))?.platform).toBe('https://platform.example.test')
   await writeFile(join(root, 'desktop-product.json'), JSON.stringify(product()))
   await writeFile(join(root, 'node_modules/aiko-dsh-workbench/package.json'), JSON.stringify({ name: 'aiko-dsh-workbench', version: '2.0.0' }))
   await expect(readPackagedProduct(root, 'aiko')).rejects.toThrow(/version mismatch/)
