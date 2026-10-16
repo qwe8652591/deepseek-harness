@@ -1,6 +1,6 @@
 /** Validate the assembled application, including native Office conversion outside ASAR. */
 import { basename, dirname, join, resolve } from 'node:path'
-import { cp, mkdtemp, rm } from 'node:fs/promises'
+import { cp, mkdtemp, realpath, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { parseArgs } from 'node:util'
 import { resolveDesktopBuildTarget, resolveDesktopTargetBuildPaths } from './desktop-build-paths.mjs'
@@ -23,7 +23,10 @@ const descriptor = await verifyDesktopRuntime(paths.dsh, readDesktopRuntime(path
   resolveDesktopPackageTarget(target))
 if (windows && !values.unsigned) await verifyWindowsCode(application)
 // Native Windows libraries resolve junctions and reject very long checkout paths; qualify at an installed-length path.
-const temporary = windows ? await mkdtemp(join(tmpdir(), 'dsh-smoke-')) : undefined
+// The temporary root is expanded to its long form: under an 8.3 short TEMP (GitHub Windows runners use `RUNNER~1`)
+// external plugins resolve the shared Cordis package through its long path and load a second instance.
+const temporaryRoot = windows ? await realpath(tmpdir()) : undefined
+const temporary = temporaryRoot === undefined ? undefined : await mkdtemp(join(temporaryRoot, 'dsh-smoke-'))
 const launch = temporary === undefined ? application : join(temporary, 'app')
 try {
   if (temporary !== undefined) await cp(application, launch, { recursive: true })
@@ -31,8 +34,8 @@ try {
   const executable = windows ? join(launch, productName + '.exe') : join(launch, 'MacOS', productName)
   await smokePreparedRuntime(join(resources, 'app.asar', 'dsh'), executable, join(resources, 'runtime'), descriptor)
 } finally {
-  if (temporary !== undefined) {
-    if (dirname(resolve(temporary)) !== resolve(tmpdir()) || !basename(temporary).startsWith('dsh-smoke-')) {
+  if (temporary !== undefined && temporaryRoot !== undefined) {
+    if (dirname(resolve(temporary)) !== resolve(temporaryRoot) || !basename(temporary).startsWith('dsh-smoke-')) {
       throw new Error('desktop smoke: cleanup path escaped the private temporary directory')
     }
     await rm(temporary, { recursive: true, force: true })

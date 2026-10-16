@@ -82,6 +82,10 @@ jobs:
             --product "$env:RUNNER_TEMP/product-inputs/yunyao.json" --build-version "${{ steps.version.outputs.version }}"
       - name: Qualify the packaged product
         working-directory: harness
+        # The runner's TEMP is an 8.3 short path (`RUNNER~1`); qualification profiles live under TEMP.
+        env:
+          TEMP: ${{ runner.temp }}
+          TMP: ${{ runner.temp }}
         run: |
           $PSNativeCommandUseErrorActionPreference = $true
           $artifacts = "$PWD/apps/desktop/.desktop-build/products/yunyao/win-x64/unsigned-artifacts"
