@@ -113,8 +113,17 @@ export function apply(ctx) {
     if (response.status !== 200 || !(await response.text()).includes('<html')) {
       throw new Error('desktop runtime: packaged frontend smoke failed')
     }
-    const pluginResponse = await fetch(new URL('/desktop-smoke', ready.url), { headers: { cookie } })
-    if (await pluginResponse.text() !== 'plugin route ready') throw new Error('desktop runtime: plugin HTTP route failed')
+    // The external plugin applies once its injected services (Office conversion, skills) start, which can
+    // follow Host readiness on a slower machine; poll its route for up to 120 seconds before failing.
+    let pluginStatus = 0, pluginText = ''
+    for (const deadline = Date.now() + 120_000; ;) {
+      const pluginResponse = await fetch(new URL('/desktop-smoke', ready.url), { headers: { cookie } })
+      pluginStatus = pluginResponse.status
+      pluginText = await pluginResponse.text()
+      if (pluginText === 'plugin route ready' || Date.now() >= deadline) break
+      await new Promise(resolve => setTimeout(resolve, 1000))
+    }
+    if (pluginText !== 'plugin route ready') throw new Error(`desktop runtime: plugin HTTP route failed (HTTP ${String(pluginStatus)}: ${pluginText.slice(0, 160)})`)
     for (const { extension } of inputs) {
       const converted = await fetch(new URL(`/desktop-smoke-office/${extension}`, ready.url), {
         headers: { cookie }, signal: AbortSignal.timeout(120_000),
