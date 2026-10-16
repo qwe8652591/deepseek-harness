@@ -145,6 +145,8 @@ export class DesktopHostProcess {
   })
   private exitPromise: Promise<void> | undefined
   private stderr = ''
+  /** Bounded tail of Host stderr. Plugin output can contain credentials, so only build-time checks print it. */
+  get stderrTail(): string { return this.stderr }
   private failureReported = false
   private stopping = false
   private shutdownCompleted = false
