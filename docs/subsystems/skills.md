@@ -91,7 +91,7 @@ type SkillSource = 'project-dsh' | 'project-agents' | 'runtime' | 'user-dsh' | '
 
 ## Summaries, candidates, and complete definitions
 
-`SkillSummary` is the registry's invocation-neutral summary shape. Consumers choose which entries and fields to render; the model session catalog uses only model-invocable `name` and `description`, never the body or absolute file path. `SkillInvocationPolicy` normalizes the two independent invocation controls into positive booleans, and every resolved summary, candidate, and definition carries it without turning arbitrary frontmatter into the domain model.
+`SkillSummary` is the registry's per-view summary shape. Consumers choose which entries and fields to render; the model session catalog uses only model-invocable `name` and `description`, never the body or absolute file path. `SkillInvocationPolicy` normalizes the two independent invocation controls into positive booleans, and every resolved summary, candidate, and definition carries it without turning arbitrary frontmatter into the domain model. A returned summary carries the policy resolved for the reading scope; the provider's own candidate keeps the policy its discovery reported.
 
 ```ts type-equiv
 /** Invocation controls shared by skill discovery consumers. */
@@ -104,7 +104,7 @@ interface SkillInvocationPolicy {
 ```
 
 ```ts type-equiv
-/** Invocation-neutral skill metadata returned by `ctx.skills.list()`. */
+/** Skill metadata returned by `ctx.skills.list()`, carrying that view's invocation policy. */
 interface SkillSummary {
   /** Absolute instruction file path when supplied by the provider; absent for virtual skills. */
   readonly path?: string
@@ -127,12 +127,12 @@ interface SkillSummary {
 
 `ctx.skills.list()` preserves all four policy combinations. `isModelInvocable(skill)` and `isUserInvocable(skill)` read the corresponding required field. A model-only skill sets `{ modelInvocable: true, userInvocable: false }`, a user-only skill sets `{ modelInvocable: false, userInvocable: true }`, and setting both fields to `false` keeps the skill available only through trusted `ctx.skills.get()` callers. The local provider reads the exact kebab-case frontmatter keys `disable-model-invocation` and `user-invocable`, defaults omitted fields to `true`, and projects every parsed skill into this normalized policy.
 
-`SkillCatalogSnapshot` distinguishes authoritative absence from transient provider failure or a catalog that kept changing during discovery. `skills` contains the sorted invocation-neutral summaries collected in that observation; `complete` is true only when every registered provider completed without a concurrent catalog revision. Incomplete snapshots are not cached, allowing each consumer to retain its last-good filtered catalog and retry.
+`SkillCatalogSnapshot` distinguishes authoritative absence from transient provider failure or a catalog that kept changing during discovery. `skills` contains the sorted summaries collected in that observation, each carrying the policy resolved for that view; `complete` is true only when every registered provider completed without a concurrent catalog revision. Incomplete snapshots are not cached, allowing each consumer to retain its last-good filtered catalog and retry.
 
 ```ts type-equiv
 /** One catalog observation plus whether discovery completed within a stable catalog revision. */
 interface SkillCatalogSnapshot {
-  /** Sorted invocation-neutral summaries collected in this observation. */
+  /** Sorted summaries, each carrying the invocation policy resolved for this view. */
   readonly skills: SkillSummary[]
   /** Whether every registered provider completed without a concurrent catalog revision. */
   readonly complete: boolean
@@ -191,6 +191,8 @@ Skill lookup is cwd-sensitive because providers may expose workspace-local skill
 
 Full definitions are not cached by the registry. Each `get()` calls the winning provider with the selected candidate, so the local provider rereads the current body. A definition whose name no longer matches that candidate is rejected and invalidates the exact provider for rediscovery.
 
+Every catalog and loaded-body read then resolves its invocation policy through the `skills/invocation` waterfall. The composed policy starts as the skill's own, and listeners registered in the reading scope replace it, so one session can narrow a policy — hide a skill from the model while it is in another working mode, for example — without changing what any other session sees. The resolved policy is validated exactly as a registration is and is authoritative for that read. Because it runs per read, after catalog selection and after definition loading, one catalog reports the policy each viewing scope is in now rather than the policy captured at discovery.
+
 ```ts type-equiv
 /** Caller context used for cwd-sensitive and abortable provider work. */
 interface SkillLookupOptions {
@@ -230,7 +232,7 @@ interface Config {
 
 Before each later model step, the consumer applies exact tool visibility and digests the exact rendered entries between the `<available_skills>` tags from a complete snapshot. It derives the comparison baseline from the same entries in the newest recognizable visible catalog message sourced by the plugin. A changed digest appends a durable full replacement through `agent.inject()`; deleting every skill appends an explicit empty replacement. Incomplete snapshots preserve the last-good model view. If compaction hides every historical catalog message, the next complete snapshot re-establishes the current catalog; an empty view with no prior catalog emits nothing. These catalog messages are session history, not World State.
 
-The model-facing `skill({ name })` tool validates the kebab-case name, finds the summary in the invocation-neutral catalog, rejects it before loading unless `isModelInvocable` permits access, then rereads the complete definition for the calling agent cwd and rechecks the policy before returning content. It reports an unresolved skill as unknown or no longer available and returns a tool result containing `<skill_content name="...">`, `<skill_resources>`, and `<skill_instructions>`. `resourceBase` resolves explicitly referenced scripts, references, and assets only as needed; the loaded result does not enumerate a skill directory. Body-only edits therefore change later tool calls without producing catalog messages or rewriting earlier tool results.
+The model-facing `skill({ name })` tool validates the kebab-case name, finds the summary in the catalog resolved for the calling scope, rejects it before loading unless `isModelInvocable` permits access, then rereads the complete definition for the calling agent cwd and rechecks the policy before returning content. It reports an unresolved skill as unknown or no longer available and returns a tool result containing `<skill_content name="...">`, `<skill_resources>`, and `<skill_instructions>`. `resourceBase` resolves explicitly referenced scripts, references, and assets only as needed; the loaded result does not enumerate a skill directory. Body-only edits therefore change later tool calls without producing catalog messages or rewriting earlier tool results.
 
 ## Browser Session catalog
 
@@ -267,7 +269,7 @@ Source: [`packages/api/session-controller/src/skill-catalog.ts`](../../packages/
 
 ### `ctx.skills` — `SkillRegistry`
 
-Layered registry of skill providers, the host+per-scope shape the tools registry established. A registration files into the layer of its calling context's scope (scopeOf): host rows and repository plugins land in the global layer, while a plugin mounted by an agent preset's standing composition lands in that preset's layer. A read merges the global layer with the viewing scope's chain — the nearest layer's entry wins a duplicate name outright, and the rank order decides duplicates only within one layer. It exposes sorted invocation-neutral summaries and loads full skill bodies on demand.
+Layered registry of skill providers, the host+per-scope shape the tools registry established. A registration files into the layer of its calling context's scope (scopeOf): host rows and repository plugins land in the global layer, while a plugin mounted by an agent preset's standing composition lands in that preset's layer. A read merges the global layer with the viewing scope's chain — the nearest layer's entry wins a duplicate name outright, and the rank order decides duplicates only within one layer. It exposes sorted summaries and loads full skill bodies on demand, resolving each read's invocation policy through the `skills/invocation` waterfall.
 
 ```ts cordis-catalog
 /**
@@ -295,21 +297,21 @@ registerProvider(create: (control: SkillProviderControl) => SkillProvider): () =
 register(skill: SkillRegistration): () => void
 
 /**
- * List invocation-neutral skill summaries for a workspace. Consumers apply
- * model or user invocation policy at their operational boundary. Lookup
- * options and provider candidates are readonly same-process values borrowed
- * throughout discovery.
+ * List skill summaries for a workspace, each carrying the invocation policy
+ * resolved for this view. Consumers apply model or user invocation policy at
+ * their operational boundary. Lookup options and provider candidates are
+ * readonly same-process values borrowed throughout discovery.
  * @param options - view options; `scope` selects the viewing agent's layers, `cwd` selects project roots, and `signal` cancels discovery.
  * @returns all sorted winning summaries.
  */
 async list(options: SkillViewOptions = {}): Promise<SkillSummary[]>
 
 /**
- * Observe the current invocation-neutral catalog and whether discovery completed within a stable revision.
+ * Observe the current catalog and whether discovery completed within a stable revision.
  * Incomplete observations are never cached, allowing consumers to retain last-good state and
  * retry on their next request boundary.
  * @param options - view options; `scope` selects the viewing agent's layers, `cwd` selects project roots, and `signal` cancels discovery.
- * @returns sorted summaries plus discovery-completeness state.
+ * @returns sorted summaries carrying the invocation policy resolved for this view, plus discovery-completeness state.
  */
 async snapshot(options: SkillViewOptions = {}): Promise<SkillCatalogSnapshot>
 
@@ -320,7 +322,7 @@ async snapshot(options: SkillViewOptions = {}): Promise<SkillCatalogSnapshot>
  * @param name - kebab-case skill name.
  * @param options - view options; `scope` selects the viewing agent's layers,
  *   `cwd` selects workspace-sensitive skills, and `signal` cancels work.
- * @returns the full skill, including body content, or `undefined`.
+ * @returns the full skill, including body content and the invocation policy resolved for this view, or `undefined`.
  */
 async get(name: string, options: SkillViewOptions = {}): Promise<SkillDefinition | undefined>
 ```
@@ -347,6 +349,34 @@ A skill provider, runtime contribution, or provider-backed catalog may have chan
  */
 'skills/change'(): void
 ```
+
+Source: [`packages/skill/skill/src/index.ts`](../../packages/skill/skill/src/index.ts)
+
+<a id="skillsinvocation--waterfall"></a>
+
+#### `skills/invocation` — waterfall
+
+View-time invocation policy for one skill, applied after discovery caching to every catalog and loaded-body read. Scope-filtered dispatch (`@deepseek-ai/dsh-scope`): a listener registered in an agent's scope sees only that agent's lookups, so one session can narrow a policy without changing what another session sees. The returned policy is authoritative for that read and is validated as a registration is.
+
+```ts cordis-catalog
+/**
+ * View-time invocation policy for one skill, applied after discovery
+ * caching to every catalog and loaded-body read. Scope-filtered dispatch
+ * (`@deepseek-ai/dsh-scope`): a listener registered in an agent's scope
+ * sees only that agent's lookups, so one session can narrow a policy
+ * without changing what another session sees. The returned policy is
+ * authoritative for that read and is validated as a registration is.
+ * @param policy - the policy composed so far, initially the skill's own.
+ * @param skill - summary of the skill under view carrying the composed
+ *   policy, so a listener can decide from the name without loading the body.
+ * @param options - the caller's view options, including the viewing scope.
+ * @param next - delegates to the remaining listeners.
+ * @mode waterfall
+ */
+'skills/invocation'(this: Scoped<SkillRegistry>, policy: SkillInvocationPolicy, skill: SkillSummary, options: SkillViewOptions, next: () => Promise<SkillInvocationPolicy>): Promise<SkillInvocationPolicy>
+```
+
+Types: [Scoped](scope.md)
 
 Source: [`packages/skill/skill/src/index.ts`](../../packages/skill/skill/src/index.ts)
 <!-- END GENERATED cordis-surface -->

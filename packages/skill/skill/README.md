@@ -61,6 +61,8 @@ An invocation policy on every skill decides which surfaces may advertise and loa
 | `{ modelInvocable: false, userInvocable: true }` | excluded | included |
 | `{ modelInvocable: false, userInvocable: false }` | excluded | excluded |
 
+- **Scope-resolved policy.** Every read returns each skill with the policy resolved for the reading scope through the `skills/invocation` waterfall. A listener registered in an agent's scope sees only that agent's reads, so one session can narrow a skill — hide it from the model while the session is in another mode, for example — without changing what any other session sees.
+
 ### Observable success and failures
 
 A skill that any provider reports appears in the merged catalog, and loading it by its exact kebab-case name returns the body; an invalid name returns no skill rather than throwing. A provider that fails discovery is logged and skipped, and the observation is reported incomplete so consumers keep their last-good catalog; an explicit incomplete observation still contributes its candidates. A malformed candidate fails fast — the registry validates names, descriptions, invocation booleans, and provider ownership before caching or returning anything.
@@ -97,6 +99,10 @@ A read (`list`/`snapshot`) collects each layer's candidates: runtime skills firs
 ### Loading and staleness
 
 `get()` selects the winning candidate, races the provider's load against the lookup's abort signal, and rechecks cancellation after selection or a cache hit. The returned definition must match the selected candidate's name; a mismatch invalidates the cached catalogs so the next snapshot rediscovers the provider's skills. Definitions are never cached — every load asks the provider for the current body.
+
+### View-time invocation
+
+Both reads resolve each winning skill's invocation policy through the `skills/invocation` waterfall: the composed policy starts as the skill's own and each listener registered in the reading scope replaces it. Scope-filtered dispatch gives a listener exactly the reads of the scope it registered in, so a plugin mounted for one agent can narrow a policy there while the global layer stays untouched. The waterfall runs per read, after the collect cache and after a definition load, so a listener's answer follows the state its scope is in now rather than the state at discovery. The returned policy is validated the way a registration is, and `get()` returns a per-view definition carrying it while every provider-owned value inside stays borrowed.
 
 ### Invalidation
 

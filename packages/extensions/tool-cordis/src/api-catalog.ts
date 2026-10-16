@@ -1683,6 +1683,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'Persisted and runtime outcomes.',
       },
       {
+        signature: '@Remote setBundleLocked(name: string, locked: boolean): Promise<ChangeResult>',
+        description: 'Lock a bundle off, or release it. A deployment\'s entitlement service calls this; a locked bundle stays installed, contributes no layer, and reports `locked` so no control can select it until the lock is released.',
+        parameters: [{ name: 'name', description: 'Bundle package name.' }, { name: 'locked', description: 'Whether the bundle is held off.' }],
+        returns: 'Persisted and runtime outcomes; releasing leaves the bundle off for the caller to select.',
+      },
+      {
         signature: '@Remote installBundle(spec: string, options?: InstallBundleOptions): Promise<ChangeResult>',
         description: 'Install a package using the same pnpm implementation as dsh plugin. GitHub repositories get a connection check bounded by githubConnectionTimeoutMs before pnpm starts; only network failures or timeouts stop installation, while pnpm owns authentication and transport fallback. A run that fails, is cancelled, or adds a package without a bundle patch restores `package.json` and `pnpm-lock.yaml` as they were; downloaded files can stay.',
         parameters: [{ name: 'spec', description: 'One package spec, including local paths relative to the invocation directory.' }, { name: 'options', description: 'Whether to activate the installed bundle (defaults to true), the request id a cancellation names, the pending build scripts to allow for this profile before pnpm runs, and the registry asked first.' }],
@@ -2621,7 +2627,7 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
   {
     key: 'skills',
     summary: 'Layered registry of skill providers, the host+per-scope shape the tools registry established.',
-    description: 'Layered registry of skill providers, the host+per-scope shape the tools registry established. A registration files into the layer of its calling context\'s scope (scopeOf): host rows and repository plugins land in the global layer, while a plugin mounted by an agent preset\'s standing composition lands in that preset\'s layer. A read merges the global layer with the viewing scope\'s chain — the nearest layer\'s entry wins a duplicate name outright, and the rank order decides duplicates only within one layer. It exposes sorted invocation-neutral summaries and loads full skill bodies on demand.',
+    description: 'Layered registry of skill providers, the host+per-scope shape the tools registry established. A registration files into the layer of its calling context\'s scope (scopeOf): host rows and repository plugins land in the global layer, while a plugin mounted by an agent preset\'s standing composition lands in that preset\'s layer. A read merges the global layer with the viewing scope\'s chain — the nearest layer\'s entry wins a duplicate name outright, and the rank order decides duplicates only within one layer. It exposes sorted summaries and loads full skill bodies on demand, resolving each read\'s invocation policy through the `skills/invocation` waterfall.',
     methods: [
       {
         signature: 'registerProvider(create: (control: SkillProviderControl) => SkillProvider): () => void',
@@ -2637,21 +2643,21 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
       },
       {
         signature: 'async list(options: SkillViewOptions = {}): Promise<SkillSummary[]>',
-        description: 'List invocation-neutral skill summaries for a workspace. Consumers apply model or user invocation policy at their operational boundary. Lookup options and provider candidates are readonly same-process values borrowed throughout discovery.',
+        description: 'List skill summaries for a workspace, each carrying the invocation policy resolved for this view. Consumers apply model or user invocation policy at their operational boundary. Lookup options and provider candidates are readonly same-process values borrowed throughout discovery.',
         parameters: [{ name: 'options', description: 'view options; `scope` selects the viewing agent\'s layers, `cwd` selects project roots, and `signal` cancels discovery.' }],
         returns: 'all sorted winning summaries.',
       },
       {
         signature: 'async snapshot(options: SkillViewOptions = {}): Promise<SkillCatalogSnapshot>',
-        description: 'Observe the current invocation-neutral catalog and whether discovery completed within a stable revision. Incomplete observations are never cached, allowing consumers to retain last-good state and retry on their next request boundary.',
+        description: 'Observe the current catalog and whether discovery completed within a stable revision. Incomplete observations are never cached, allowing consumers to retain last-good state and retry on their next request boundary.',
         parameters: [{ name: 'options', description: 'view options; `scope` selects the viewing agent\'s layers, `cwd` selects project roots, and `signal` cancels discovery.' }],
-        returns: 'sorted summaries plus discovery-completeness state.',
+        returns: 'sorted summaries carrying the invocation policy resolved for this view, plus discovery-completeness state.',
       },
       {
         signature: 'async get(name: string, options: SkillViewOptions = {}): Promise<SkillDefinition | undefined>',
         description: 'Load and validate the winning candidate, passing its opaque discovery locator back to the provider. Cancellation is rechecked after selection, including cache hits, and raced against loading so an uncooperative provider cannot hang the caller.',
         parameters: [{ name: 'name', description: 'kebab-case skill name.' }, { name: 'options', description: 'view options; `scope` selects the viewing agent\'s layers, `cwd` selects workspace-sensitive skills, and `signal` cancels work.' }],
-        returns: 'the full skill, including body content, or `undefined`.',
+        returns: 'the full skill, including body content and the invocation policy resolved for this view, or `undefined`.',
       },
     ],
   },
@@ -4228,6 +4234,14 @@ export const EVENT_API: readonly EventApiEntry[] = [
     summary: 'A skill provider, runtime contribution, or provider-backed catalog may have changed.',
     description: 'A skill provider, runtime contribution, or provider-backed catalog may have changed. This is an unfiltered invalidation notification; consumers refetch the catalog for their own lookup options. Listener failures are contained and cannot veto the registry mutation.',
     parameters: [],
+  },
+  {
+    name: 'skills/invocation',
+    mode: 'waterfall',
+    signature: '\'skills/invocation\'(this: Scoped<SkillRegistry>, policy: SkillInvocationPolicy, skill: SkillSummary, options: SkillViewOptions, next: () => Promise<SkillInvocationPolicy>): Promise<SkillInvocationPolicy>',
+    summary: 'View-time invocation policy for one skill, applied after discovery caching to every catalog and loaded-body read.',
+    description: 'View-time invocation policy for one skill, applied after discovery caching to every catalog and loaded-body read. Scope-filtered dispatch (`@deepseek-ai/dsh-scope`): a listener registered in an agent\'s scope sees only that agent\'s lookups, so one session can narrow a policy without changing what another session sees. The returned policy is authoritative for that read and is validated as a registration is.',
+    parameters: [{ name: 'policy', description: 'the policy composed so far, initially the skill\'s own.' }, { name: 'skill', description: 'summary of the skill under view carrying the composed policy, so a listener can decide from the name without loading the body.' }, { name: 'options', description: 'the caller\'s view options, including the viewing scope.' }, { name: 'next', description: 'delegates to the remaining listeners.' }],
   },
   {
     name: 'subagent/end',
@@ -6147,7 +6161,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'ReadOnlyReason',
-    declaration: 'export type ReadOnlyReason = \'management-required\' | \'unaddressable\';',
+    declaration: 'export type ReadOnlyReason = \'management-required\' | \'unaddressable\' | \'locked\';',
   },
   {
     name: 'ReadResultView',
@@ -7088,6 +7102,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'SkillRegistration',
     declaration: 'export type SkillRegistration = Omit<SkillDefinition, \'invocation\' | \'provider\'> & {\n    readonly invocation?: SkillInvocationPolicy;\n    readonly provider?: string;\n};',
+  },
+  {
+    name: 'SkillRegistry',
+    declaration: 'export class SkillRegistry extends Service {\n    static Config: Schema<Config>;\n    constructor(ctx: Context, config: Config = {});\n    registerProvider(create: (control: SkillProviderControl) => SkillProvider): () => void;\n    register(skill: SkillRegistration): () => void;\n    async list(options: SkillViewOptions = {}): Promise<SkillSummary[]>;\n    async snapshot(options: SkillViewOptions = {}): Promise<SkillCatalogSnapshot>;\n    async get(name: string, options: SkillViewOptions = {}): Promise<SkillDefinition | undefined>;\n}',
   },
   {
     name: 'SkillResourceBase',

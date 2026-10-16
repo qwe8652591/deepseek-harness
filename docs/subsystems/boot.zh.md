@@ -144,6 +144,15 @@ Manage profile files and apply their declared reload lifecycle.
 @Remote setBundleEnabled(name: string, enabled: boolean): Promise<ChangeResult>
 
 /**
+ * Lock a bundle off, or release it. A deployment's entitlement service calls this; a locked bundle stays installed,
+ * contributes no layer, and reports `locked` so no control can select it until the lock is released.
+ * @param name Bundle package name.
+ * @param locked Whether the bundle is held off.
+ * @returns Persisted and runtime outcomes; releasing leaves the bundle off for the caller to select.
+ */
+@Remote setBundleLocked(name: string, locked: boolean): Promise<ChangeResult>
+
+/**
  * Install a package using the same pnpm implementation as dsh plugin. GitHub
  * repositories get a connection check bounded by githubConnectionTimeoutMs before pnpm starts;
  * only network failures or timeouts stop installation, while pnpm owns authentication and transport fallback. A run

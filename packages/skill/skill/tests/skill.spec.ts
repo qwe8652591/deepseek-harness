@@ -462,7 +462,12 @@ describe('SkillRegistry registry', () => {
     const loaded = await ctx.skills.get('stable-skill')
     expect(received).toBe(candidate)
     expect(received?.locator).toBe(locator)
-    expect(loaded).toBe(definition)
+    // The registry returns a per-view definition so it can carry that read's
+    // resolved invocation policy; every provider-owned value inside is borrowed.
+    expect(loaded?.content).toBe(definition.content)
+    expect(loaded?.metadata).toBe(definition.metadata)
+    expect(loaded?.resourceBase).toBe(definition.resourceBase)
+    expect(loaded?.invocation).toBe(invocation)
   })
 
   it('preserves readonly runtime resource identities while adding the default provider', async () => {
@@ -1268,5 +1273,93 @@ describe('SkillRegistry scoped layers', () => {
     control?.invalidate()
     expect(await ctx.skills.list({ scope })).toEqual([])
     await preset.dispose()
+  })
+})
+
+describe('SkillRegistry invocation waterfall', () => {
+  it('narrows one scope policy and leaves every other view on the skill own policy', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SkillRegistry)
+    registerProvider(ctx, new MemoryProvider([memorySkill('office-pptx', 'Deck skill', 10)]))
+    const agent = createScope(ctx, { agent: 'ppt' })
+    agent.ctx.on('skills/invocation', async (_policy, skill, _options, next) => {
+      const inherited = await next()
+      return skill.name === 'office-pptx' ? { ...inherited, modelInvocable: false } : inherited
+    })
+    const scope = scopeOf(agent.ctx)
+
+    expect(await ctx.skills.snapshot({ scope })).toMatchObject({
+      complete: true,
+      skills: [{ name: 'office-pptx', description: 'Deck skill', invocation: { modelInvocable: false, userInvocable: true } }],
+    })
+    expect((await ctx.skills.get('office-pptx', { scope }))?.invocation).toEqual({ modelInvocable: false, userInvocable: true })
+    expect((await ctx.skills.list())[0]?.invocation).toEqual({ modelInvocable: true, userInvocable: true })
+    expect((await ctx.skills.get('office-pptx'))?.invocation).toEqual({ modelInvocable: true, userInvocable: true })
+    await agent.dispose()
+  })
+
+  it('re-resolves on every read so a listener follows current state under a cached catalog', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SkillRegistry)
+    const provider = new MemoryProvider([memorySkill('narrowed', 'Narrowed', 10)])
+    registerProvider(ctx, provider)
+    let narrowed = false
+    ctx.on('skills/invocation', async (_policy, skill, _options, next) => {
+      const inherited = await next()
+      return skill.name === 'narrowed' && narrowed ? { ...inherited, modelInvocable: false } : inherited
+    })
+
+    expect((await ctx.skills.list())[0]?.invocation.modelInvocable).toBe(true)
+    narrowed = true
+    expect((await ctx.skills.list())[0]?.invocation.modelInvocable).toBe(false)
+    expect((await ctx.skills.get('narrowed'))?.invocation.modelInvocable).toBe(false)
+    expect(provider.listCalls).toBe(1)
+  })
+
+  it('composes listeners through next and honours a listener that returns without delegating', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SkillRegistry)
+    registerProvider(ctx, new MemoryProvider([memorySkill('layered', 'Layered', 10)]))
+    const disposeOuter = ctx.on('skills/invocation', async (_policy, _skill, _options, next) => {
+      return { ...(await next()), userInvocable: false }
+    })
+    const disposeInner = ctx.on('skills/invocation', async (_policy, _skill, _options, next) => {
+      return { ...(await next()), modelInvocable: false }
+    })
+
+    expect((await ctx.skills.list())[0]?.invocation).toEqual({ modelInvocable: false, userInvocable: false })
+    disposeOuter()
+    disposeInner()
+    const never = vi.fn()
+    ctx.on('skills/invocation', async () => ({ modelInvocable: false, userInvocable: false }))
+    ctx.on('skills/invocation', never)
+    expect((await ctx.skills.list())[0]?.invocation).toEqual({ modelInvocable: false, userInvocable: false })
+    expect(never).not.toHaveBeenCalled()
+  })
+
+  it('rejects a policy a listener returns that a registration would not accept', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SkillRegistry)
+    registerProvider(ctx, new MemoryProvider([memorySkill('validated', 'Validated', 10)]))
+    ctx.on('skills/invocation', async () => ({ modelInvocable: true, userInvocable: 'true' } as never))
+
+    await expect(ctx.skills.list()).rejects.toThrow('skill "validated" invocation view with a non-boolean invocation.userInvocable')
+    await expect(ctx.skills.get('validated')).rejects
+      .toThrow('skill "validated" invocation view with a non-boolean invocation.userInvocable')
+  })
+
+  it('rechecks cancellation after a listener returns a policy', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SkillRegistry)
+    registerProvider(ctx, new MemoryProvider([memorySkill('cancelled', 'Cancelled', 10)]))
+    const controller = new AbortController()
+    const reason = new Error('cancelled while resolving invocation')
+    ctx.on('skills/invocation', async (_policy, _skill, _options, next) => {
+      const policy = await next()
+      controller.abort(reason)
+      return policy
+    })
+
+    await expect(ctx.skills.list({ signal: controller.signal })).rejects.toBe(reason)
   })
 })

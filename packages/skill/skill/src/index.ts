@@ -13,8 +13,8 @@
 import { Context, Service } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-llm'
 import { assertNever } from '@deepseek-ai/dsh-util-values'
-import { NamedEntries, ScopedLayers, scopeChainOf, scopeOf } from '@deepseek-ai/dsh-scope'
-import type { ScopeKey, ScopeLayer } from '@deepseek-ai/dsh-scope'
+import { NamedEntries, ScopedLayers, scopeChainOf, scopeOf, scopeTarget } from '@deepseek-ai/dsh-scope'
+import type { ScopeKey, ScopeLayer, Scoped } from '@deepseek-ai/dsh-scope'
 import z from '@deepseek-ai/schemastery'
 import type Schema from '@deepseek-ai/schemastery'
 
@@ -53,7 +53,7 @@ export interface SkillInvocationPolicy {
   readonly userInvocable: boolean
 }
 
-/** Invocation-neutral skill metadata returned by `ctx.skills.list()`. */
+/** Skill metadata returned by `ctx.skills.list()`, carrying that view's invocation policy. */
 export interface SkillSummary {
   /** Absolute instruction file path when supplied by the provider; absent for virtual skills. */
   readonly path?: string
@@ -229,7 +229,7 @@ export function escapeText(value: string): string {
 
 /** One catalog observation plus whether discovery completed within a stable catalog revision. */
 export interface SkillCatalogSnapshot {
-  /** Sorted invocation-neutral summaries collected in this observation. */
+  /** Sorted summaries, each carrying the invocation policy resolved for this view. */
   readonly skills: SkillSummary[]
   /** Whether every registered provider completed without a concurrent catalog revision. */
   readonly complete: boolean
@@ -294,6 +294,22 @@ declare module '@deepseek-ai/cordis' {
      * @mode emit
      */
     'skills/change'(): void
+
+    /**
+     * View-time invocation policy for one skill, applied after discovery
+     * caching to every catalog and loaded-body read. Scope-filtered dispatch
+     * (`@deepseek-ai/dsh-scope`): a listener registered in an agent's scope
+     * sees only that agent's lookups, so one session can narrow a policy
+     * without changing what another session sees. The returned policy is
+     * authoritative for that read and is validated as a registration is.
+     * @param policy - the policy composed so far, initially the skill's own.
+     * @param skill - summary of the skill under view carrying the composed
+     *   policy, so a listener can decide from the name without loading the body.
+     * @param options - the caller's view options, including the viewing scope.
+     * @param next - delegates to the remaining listeners.
+     * @mode waterfall
+     */
+    'skills/invocation'(this: Scoped<SkillRegistry>, policy: SkillInvocationPolicy, skill: SkillSummary, options: SkillViewOptions, next: () => Promise<SkillInvocationPolicy>): Promise<SkillInvocationPolicy>
   }
 }
 
@@ -350,8 +366,8 @@ class SkillLayer implements ScopeLayer {
  * composition lands in that preset's layer. A read merges the global layer
  * with the viewing scope's chain — the nearest layer's entry wins a duplicate
  * name outright, and the rank order decides duplicates only within one layer.
- * It exposes sorted invocation-neutral summaries and loads full skill bodies
- * on demand.
+ * It exposes sorted summaries and loads full skill bodies on demand, resolving
+ * each read's invocation policy through the `skills/invocation` waterfall.
  */
 export class SkillRegistry extends Service {
   static Config: Schema<Config> = z.object({
@@ -460,10 +476,10 @@ export class SkillRegistry extends Service {
   }
 
   /**
-   * List invocation-neutral skill summaries for a workspace. Consumers apply
-   * model or user invocation policy at their operational boundary. Lookup
-   * options and provider candidates are readonly same-process values borrowed
-   * throughout discovery.
+   * List skill summaries for a workspace, each carrying the invocation policy
+   * resolved for this view. Consumers apply model or user invocation policy at
+   * their operational boundary. Lookup options and provider candidates are
+   * readonly same-process values borrowed throughout discovery.
    * @param options - view options; `scope` selects the viewing agent's layers, `cwd` selects project roots, and `signal` cancels discovery.
    * @returns all sorted winning summaries.
    */
@@ -472,18 +488,20 @@ export class SkillRegistry extends Service {
   }
 
   /**
-   * Observe the current invocation-neutral catalog and whether discovery completed within a stable revision.
+   * Observe the current catalog and whether discovery completed within a stable revision.
    * Incomplete observations are never cached, allowing consumers to retain last-good state and
    * retry on their next request boundary.
    * @param options - view options; `scope` selects the viewing agent's layers, `cwd` selects project roots, and `signal` cancels discovery.
-   * @returns sorted summaries plus discovery-completeness state.
+   * @returns sorted summaries carrying the invocation policy resolved for this view, plus discovery-completeness state.
    */
   async snapshot(options: SkillViewOptions = {}): Promise<SkillCatalogSnapshot> {
     const collected = await this.collect(options)
+    const skills = await Promise.all(
+      [...collected.entries.values()]
+        .map(async entry => toSummary(await this.invocationView(entry.candidate, options))),
+    )
     return {
-      skills: [...collected.entries.values()]
-        .map(entry => toSummary(entry.candidate))
-        .sort(compareSkillSummary),
+      skills: skills.sort(compareSkillSummary),
       complete: collected.cacheable,
     }
   }
@@ -495,7 +513,7 @@ export class SkillRegistry extends Service {
    * @param name - kebab-case skill name.
    * @param options - view options; `scope` selects the viewing agent's layers,
    *   `cwd` selects workspace-sensitive skills, and `signal` cancels work.
-   * @returns the full skill, including body content, or `undefined`.
+   * @returns the full skill, including body content and the invocation policy resolved for this view, or `undefined`.
    */
   async get(name: string, options: SkillViewOptions = {}): Promise<SkillDefinition | undefined> {
     if (!isSkillName(name)) return undefined
@@ -513,7 +531,33 @@ export class SkillRegistry extends Service {
       this.invalidateEntry(match)
       return undefined
     }
-    return definition
+    return this.invocationView(definition, options)
+  }
+
+  /**
+   * Resolve the view-time invocation policy of one discovered skill through
+   * the `skills/invocation` waterfall. It runs per read, after collect
+   * caching, so a listener's answer follows the state the viewing scope is in
+   * now rather than the state at discovery.
+   * @param skill - the discovered candidate or loaded definition under view.
+   * @param options - the caller's view options, routed to listeners as the waterfall's scope.
+   * @returns the same skill with its invocation policy replaced by the resolved one.
+   */
+  private async invocationView<T extends SkillCandidate | SkillDefinition>(
+    skill: T,
+    options: SkillViewOptions,
+  ): Promise<T> {
+    const invocation = await this.ctx.waterfall(
+      scopeTarget(this, options.scope),
+      'skills/invocation',
+      skill.invocation,
+      toSummary(skill),
+      options,
+      () => Promise.resolve(skill.invocation),
+    )
+    throwIfAborted(options.signal)
+    validateInvocation(invocation, `skill "${skill.name}" invocation view`)
+    return { ...skill, invocation }
   }
 
   private async collect(options: SkillViewOptions): Promise<CollectResult> {
