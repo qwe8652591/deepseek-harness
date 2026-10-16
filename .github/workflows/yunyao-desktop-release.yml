@@ -28,11 +28,14 @@ jobs:
     if: github.repository == 'aiko-dsh-plugins/deepseek-harness-source'
     runs-on: windows-latest
     timeout-minutes: 150
+    # Build steps run in PowerShell: Git Bash's GNU tar reads `D:\…` as a remote host, and the build
+    # scripts call tar with Windows paths. Only the SFTP upload uses bash.
     defaults:
       run:
-        shell: bash
+        shell: pwsh
     steps:
       - name: Allow long paths
+        shell: bash
         run: git config --global core.longpaths true
       - uses: actions/checkout@v6
         with:
@@ -50,6 +53,7 @@ jobs:
           node-version: '22'
       - name: Release version
         id: version
+        shell: bash
         run: |
           version="${GITHUB_REF_NAME#yunyao-v}"
           if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then echo "stable releases need a plain version, got $version"; exit 1; fi
@@ -58,41 +62,47 @@ jobs:
       - name: Product inputs from the Workbench
         working-directory: workbench
         run: |
+          $PSNativeCommandUseErrorActionPreference = $true
           corepack pnpm install --frozen-lockfile
           corepack pnpm --dir modules/workdsh install --frozen-lockfile
-          node scripts/prepare-desktop-products.mjs --output "$RUNNER_TEMP/product-inputs" \
-            --releases "$RELEASES_URL" --platform "$PLATFORM_URL" --channel stable
+          node scripts/prepare-desktop-products.mjs --output "$env:RUNNER_TEMP/product-inputs" `
+            --releases "$env:RELEASES_URL" --platform "$env:PLATFORM_URL" --channel stable
       - name: Build DSH
         working-directory: harness
         run: |
+          $PSNativeCommandUseErrorActionPreference = $true
           corepack pnpm install --frozen-lockfile
           corepack pnpm run build
       - name: Package the unsigned Windows installer
         working-directory: harness
         run: |
-          printf '# Unsigned self-hosted product build: the product names its own release feed.\n' > apps/desktop/.env.windows
-          corepack pnpm --dir apps/desktop run package:win:x64:unsigned \
-            --product "$RUNNER_TEMP/product-inputs/yunyao.json" --build-version "${{ steps.version.outputs.version }}"
+          $PSNativeCommandUseErrorActionPreference = $true
+          Set-Content -Path apps/desktop/.env.windows -Value '# Unsigned self-hosted product build: the product names its own release feed.'
+          corepack pnpm --dir apps/desktop run package:win:x64:unsigned `
+            --product "$env:RUNNER_TEMP/product-inputs/yunyao.json" --build-version "${{ steps.version.outputs.version }}"
       - name: Qualify the packaged product
         working-directory: harness
         run: |
-          artifacts=apps/desktop/.desktop-build/products/yunyao/win-x64/unsigned-artifacts
+          $PSNativeCommandUseErrorActionPreference = $true
+          $artifacts = "$PWD/apps/desktop/.desktop-build/products/yunyao/win-x64/unsigned-artifacts"
           corepack pnpm exec tsx apps/desktop/scripts/test-product-host.ts --installed "$artifacts/win-unpacked"
-          node apps/desktop/scripts/test-product-admission.mjs --resources "$artifacts/win-unpacked/resources" \
+          node apps/desktop/scripts/test-product-admission.mjs --resources "$artifacts/win-unpacked/resources" `
             --main "$artifacts/win-unpacked/resources/app.asar/lib/main.js"
       - name: Stage release files
         working-directory: harness
         run: |
-          corepack pnpm --dir apps/desktop run publish:product \
-            --record "$PWD/apps/desktop/.desktop-build/products/yunyao/win-x64/unsigned-artifacts/win-x64-release.json" \
-            --output "$RUNNER_TEMP/staging"
-          printf 'workbench %s\nharness %s\n' "${{ steps.version.outputs.workbench }}" "$GITHUB_SHA" > "$RUNNER_TEMP/staging/sources.txt"
+          $PSNativeCommandUseErrorActionPreference = $true
+          corepack pnpm --dir apps/desktop run publish:product `
+            --record "$PWD/apps/desktop/.desktop-build/products/yunyao/win-x64/unsigned-artifacts/win-x64-release.json" `
+            --output "$env:RUNNER_TEMP/staging"
+          Set-Content -Path "$env:RUNNER_TEMP/staging/sources.txt" -Value "workbench ${{ steps.version.outputs.workbench }}", "harness $env:GITHUB_SHA"
       - uses: actions/upload-artifact@v4
         with:
           name: yunyao-${{ steps.version.outputs.version }}-win-x64
           path: ${{ runner.temp }}/staging
           retention-days: 30
       - name: Publish to the release server
+        shell: bash
         env:
           RELEASE_SSH_KEY: ${{ secrets.RELEASE_SSH_KEY }}
           RELEASE_KNOWN_HOSTS: ${{ secrets.RELEASE_KNOWN_HOSTS }}
