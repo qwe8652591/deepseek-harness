@@ -3,7 +3,7 @@ import { WINDOWS_TITLEBAR_HEIGHT } from '../src/windows-layout.ts'
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import type { IpcMainInvokeEvent } from 'electron'
 import { join } from 'node:path'
-import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import type { MenuItemConstructorOptions, MessageBoxOptions } from 'electron'
 import { DESKTOP_IPC, type DesktopUpdateState } from '../src/ipc.ts'
@@ -540,6 +540,28 @@ describe('desktop main startup', () => {
     ;(about!.click as () => void)()
     await vi.advanceTimersByTimeAsync(0)
     expect(console.error).toHaveBeenLastCalledWith(expect.objectContaining({ message: 'overlay unavailable' }))
+  })
+
+  it('names a branded product in the Windows application menu and About dialog without the dsh command', async () => {
+    vi.stubGlobal('process', { ...process, platform: 'win32' })
+    harness.app.isPackaged = false
+    vi.spyOn(harness.app, 'getLocale').mockReturnValue('zh-CN')
+    vi.spyOn(harness.app, 'getPreferredSystemLanguages').mockReturnValue(['zh-CN'])
+    const brand = mkdtempSync(join(tmpdir(), 'desktop-brand-'))
+    onTestFinished(() => { rmSync(brand, { recursive: true, force: true }) })
+    writeFileSync(join(brand, 'brand.json'), JSON.stringify({ version: 1, brand: 'yunyao', productName: '工作台' }))
+    writeFileSync(join(brand, 'icon.png'), '')
+    writeFileSync(join(brand, 'icon.ico'), '')
+    vi.stubEnv('DSH_DESKTOP_BRAND_RESOURCES', brand)
+    await readyForUpdate()
+    const submenu = applicationMenuItems()
+    expect(submenu[0]!.label).toBe('关于 工作台')
+    expect(submenu.map(item => item.label)).toContain(zh.checkUpdatesMenu)
+    expect(submenu.map(item => item.label)).not.toContain(zh.cliCommandMenu)
+    harness.dialog.showMessageBox.mockResolvedValueOnce({ response: 0 })
+    ;(submenu[0]!.click as () => void)()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(harness.dialog.showMessageBox).toHaveBeenLastCalledWith(expect.objectContaining({ title: '关于 工作台', message: '工作台' }))
   })
 
   it('shows one explained startup login before Host readiness and joins concurrent checks without reopening it', async () => {
