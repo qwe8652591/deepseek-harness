@@ -104,7 +104,8 @@ describe('installer preparation preserves application dependencies', () => {
         DSH_DESKTOP_UNSIGNED: '1',
       }, 'win32', 'x64')
       expect(config.publish).toEqual([{ provider: 'generic', url: 'https://downloads.example.test:20124/dsh/releases/yunyao-stable/', channel: 'yunyao-stable-win-x64' }])
-      expect(config.win.publisherName).toBeUndefined()
+      expect(config.win.signtoolOptions.publisherName).toBeUndefined()
+      expect(config.win.forceCodeSigning).toBe(false)
       expect(config.artifactName).toBe('yunyao-dsh-${version}-${os}-${arch}-unsigned.${ext}')
     } finally { rmSync(root, { recursive: true, force: true }) }
   })
