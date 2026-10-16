@@ -134,3 +134,13 @@ jobs:
             "rename \"releases/$channel_dir/.$channel_file.new\" \"releases/$channel_dir/$channel_file\"" | sftp_run
           curl -sf "$RELEASES_URL$channel_dir/$channel_file" | grep -qx "version: $VERSION"
           echo "Published $version_dir/$installer"
+      - name: Keep packaging evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: yunyao-packaging-evidence-${{ github.run_attempt }}
+          path: |
+            harness/apps/desktop/.desktop-build/packaging-runs
+            harness/apps/desktop/.desktop-build/qualification
+          if-no-files-found: ignore
+          retention-days: 7
