@@ -1,5 +1,6 @@
-# Build the Yunyao 「工作台」 Windows product from this checkout and the Workbench release branch,
-# qualify it, and publish it to the self-hosted release directory. Push a tag `yunyao-v<version>`.
+# Build the Yunyao 「工作台」 Windows x64 and Mac Apple silicon products from this checkout and the Workbench
+# release branch, qualify them, and publish them to the self-hosted release directory. Push a tag `yunyao-v<version>`.
+# Windows ships unsigned; the Mac build is signed with a Developer ID certificate and notarized.
 # Runs only in the private source repository; the release server accepts SFTP uploads from the
 # dedicated `dsh-release` account, whose key and host key are repository secrets.
 name: Yunyao desktop release
@@ -112,40 +113,135 @@ jobs:
         env:
           RELEASE_SSH_KEY: ${{ secrets.RELEASE_SSH_KEY }}
           RELEASE_KNOWN_HOSTS: ${{ secrets.RELEASE_KNOWN_HOSTS }}
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          set -euo pipefail
-          temp=$(cygpath -u "$RUNNER_TEMP")
-          staging="$temp/staging"
-          key="$temp/release-key" known="$temp/release-known-hosts"
-          trap 'rm -f "$key"' EXIT
-          printf '%s\n' "$RELEASE_SSH_KEY" > "$key" && chmod 600 "$key"
-          printf '%s\n' "$RELEASE_KNOWN_HOSTS" > "$known"
-          sftp_run() { sftp -i "$key" -o UserKnownHostsFile="$known" -o StrictHostKeyChecking=yes -o IdentitiesOnly=yes -o BatchMode=yes -P "$RELEASE_PORT" -b - "dsh-release@$RELEASE_HOST"; }
-          version_dir="yunyao-v$VERSION" channel_dir=yunyao-stable
-          installer=$(cd "$staging/$version_dir" && ls -- *.exe)
-          channel_file=$(cd "$staging/$channel_dir" && ls -- *.yml)
-          published=$(curl -s -o /dev/null -w '%{http_code}' -I "$RELEASES_URL$version_dir/$installer")
-          if [ "$published" != 404 ]; then echo "$version_dir/$installer is already published (HTTP $published)"; exit 1; fi
-          # Payloads first; a published version directory is never rewritten.
-          { echo "-mkdir releases/$version_dir"
-            for file in "$staging/$version_dir"/*; do echo "put \"$file\" \"releases/$version_dir/$(basename "$file")\""; done
-          } | sftp_run
-          expected=$(stat -c %s "$staging/$version_dir/$installer")
-          served=$(curl -sI "$RELEASES_URL$version_dir/$installer" | tr -d '\r' | awk 'tolower($1) == "content-length:" { print $2 }')
-          if [ "$served" != "$expected" ]; then echo "served installer has $served bytes, expected $expected"; exit 1; fi
-          # The channel file switches clients and the website to the new version, so it goes last.
-          printf '%s\n' "-mkdir releases/$channel_dir" \
-            "put \"$staging/$channel_dir/$channel_file\" \"releases/$channel_dir/.$channel_file.new\"" \
-            "rename \"releases/$channel_dir/.$channel_file.new\" \"releases/$channel_dir/$channel_file\"" | sftp_run
-          curl -sf "$RELEASES_URL$channel_dir/$channel_file" | grep -qx "version: $VERSION"
-          echo "Published $version_dir/$installer"
+        run: harness/apps/desktop/scripts/publish-self-hosted.sh "$(cygpath -u "$RUNNER_TEMP")/staging" "${{ steps.version.outputs.version }}"
       - name: Keep packaging evidence
         if: failure()
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: yunyao-packaging-evidence-${{ github.run_attempt }}
+          path: |
+            harness/apps/desktop/.desktop-build/packaging-runs
+            harness/apps/desktop/.desktop-build/qualification
+          if-no-files-found: ignore
+          retention-days: 7
+
+  macos:
+    if: github.repository == 'aiko-dsh-plugins/deepseek-harness-source'
+    runs-on: macos-15
+    timeout-minutes: 150
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: harness
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          repository: ${{ env.WORKBENCH_REPOSITORY }}
+          ref: ${{ env.WORKBENCH_REF }}
+          ssh-key: ${{ secrets.WORKBENCH_DEPLOY_KEY }}
+          path: workbench
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Release version
+        id: version
+        run: |
+          version="${GITHUB_REF_NAME#yunyao-v}"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then echo "stable releases need a plain version, got $version"; exit 1; fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "workbench=$(git -C workbench rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      # Artifacts cannot move between jobs while the Actions storage quota is full, so the Mac job prepares its own inputs.
+      - name: Product inputs from the Workbench
+        working-directory: workbench
+        run: |
+          corepack pnpm install --frozen-lockfile
+          corepack pnpm --dir modules/workdsh install --frozen-lockfile
+          node scripts/prepare-desktop-products.mjs --output "$RUNNER_TEMP/product-inputs" \
+            --releases "$RELEASES_URL" --platform "$PLATFORM_URL" --channel stable
+      - name: Build DSH
+        working-directory: harness
+        run: |
+          corepack pnpm install --frozen-lockfile
+          corepack pnpm run build
+      - name: Signing and notarization settings
+        working-directory: harness
+        env:
+          MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+          MACOS_TEAM_ID: ${{ secrets.MACOS_TEAM_ID }}
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: |
+          set -euo pipefail
+          umask 077
+          apple="$RUNNER_TEMP/apple"
+          mkdir -p "$apple"
+          printf '%s' "$MACOS_CERTIFICATE_P12" | base64 --decode > "$apple/developer-id.p12"
+          printf '%s\n' "$APPLE_API_KEY_P8" > "$apple/AuthKey.p8"
+          # dotenv values are quoted with a quote character the value does not contain; secrets never reach the log.
+          node - "$apple" <<'NODE'
+          const { writeFileSync } = require('node:fs')
+          const apple = process.argv[2]
+          const quote = (name, value) => {
+            if (value === undefined || value === '') throw new Error(`missing ${name}`)
+            const mark = !value.includes("'") ? "'" : !value.includes('"') ? '"' : undefined
+            if (mark === undefined || /[\r\n]/.test(value)) throw new Error(`${name} cannot be written to dotenv`)
+            return `${name}=${mark}${value}${mark}`
+          }
+          const env = process.env
+          writeFileSync('apps/desktop/.env.macos', [
+            '# Signed and notarized self-hosted product build; the product names its own release feed.',
+            quote('DSH_DESKTOP_MACOS_SIGNING_IDENTITY', env.MACOS_SIGNING_IDENTITY),
+            quote('DSH_DESKTOP_MACOS_TEAM_ID', env.MACOS_TEAM_ID),
+            quote('CSC_LINK', `${apple}/developer-id.p12`),
+            quote('CSC_KEY_PASSWORD', env.MACOS_CERTIFICATE_PASSWORD),
+            quote('APPLE_API_KEY', `${apple}/AuthKey.p8`),
+            quote('APPLE_API_KEY_ID', env.APPLE_API_KEY_ID),
+            quote('APPLE_API_ISSUER', env.APPLE_API_ISSUER),
+          ].join('\n') + '\n', { mode: 0o600 })
+          NODE
+      - name: Package the signed Mac installer
+        working-directory: harness
+        run: |
+          corepack pnpm --dir apps/desktop run package:mac:arm64 \
+            --product "$RUNNER_TEMP/product-inputs/yunyao.json" --build-version "${{ steps.version.outputs.version }}"
+      - name: Qualify the packaged product
+        working-directory: harness
+        run: |
+          set -euo pipefail
+          app="$PWD/apps/desktop/.desktop-build/products/yunyao/mac-arm64/artifacts/mac-arm64/$(node -p "require('$RUNNER_TEMP/product-inputs/yunyao.json').productName").app"
+          codesign --verify --deep --strict "$app"
+          spctl --assess --type execute --verbose "$app"
+          xcrun stapler validate "$app"
+          corepack pnpm exec tsx apps/desktop/scripts/test-product-host.ts --installed "$app/Contents"
+      - name: Stage release files
+        working-directory: harness
+        run: |
+          corepack pnpm --dir apps/desktop run publish:product \
+            --record "$PWD/apps/desktop/.desktop-build/products/yunyao/mac-arm64/artifacts/mac-arm64-release.json" \
+            --output "$RUNNER_TEMP/staging"
+          printf 'workbench %s\nharness %s\n' "${{ steps.version.outputs.workbench }}" "$GITHUB_SHA" > "$RUNNER_TEMP/staging/sources.txt"
+      - name: Publish to the release server
+        env:
+          RELEASE_SSH_KEY: ${{ secrets.RELEASE_SSH_KEY }}
+          RELEASE_KNOWN_HOSTS: ${{ secrets.RELEASE_KNOWN_HOSTS }}
+        run: harness/apps/desktop/scripts/publish-self-hosted.sh "$RUNNER_TEMP/staging" "${{ steps.version.outputs.version }}"
+      - name: Remove signing material
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/apple" harness/apps/desktop/.env.macos
+      - name: Keep packaging evidence
+        if: failure()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: yunyao-mac-packaging-evidence-${{ github.run_attempt }}
           path: |
             harness/apps/desktop/.desktop-build/packaging-runs
             harness/apps/desktop/.desktop-build/qualification

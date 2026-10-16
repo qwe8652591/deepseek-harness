@@ -15,8 +15,10 @@ import { parseDesktopProduct } from './desktop-product.mjs'
 
 const { values } = parseArgs({ options: { installed: { type: 'string' }, runtime: { type: 'string' }, ui: { type: 'boolean' } } })
 assert.ok(values.installed, 'Use --installed <application-directory> [--runtime <prepared-dsh-directory>]')
+// On macOS the application directory is the bundle's Contents directory, as in smoke-packaged-runtime.ts.
+const darwin = process.platform === 'darwin'
 const installed = resolve(values.installed)
-const resources = join(installed, 'resources')
+const resources = join(installed, darwin ? 'Resources' : 'resources')
 const runtime = values.runtime === undefined ? join(resources, 'app.asar/dsh') : resolve(values.runtime)
 const archive = values.runtime === undefined ? await readAsar(join(resources, 'app.asar')) : undefined
 const metadata = async (name: string): Promise<string> => archive === undefined
@@ -28,7 +30,8 @@ const version = manifest.version
 assert.equal(typeof electron, 'string')
 // Outside Electron this package exports its executable path, despite its main-process types.
 const rendererExecutable = electron as unknown as string
-const executable = join(installed, product.productName + (process.platform === 'win32' ? '.exe' : ''))
+const executable = darwin ? join(installed, 'MacOS', product.productName)
+  : join(installed, product.productName + (process.platform === 'win32' ? '.exe' : ''))
 const evidenceRoot = resolve(import.meta.dirname, '../.desktop-build/qualification')
 await mkdir(evidenceRoot, { recursive: true })
 const evidence = await mkdtemp(join(evidenceRoot, 'product-host-'))

@@ -117,3 +117,31 @@ it('keeps unsigned builds out of GitHub products and staged releases out of GitH
   const plan = await prepareProductRelease(f.recordFile)
   await expect(publishProductRelease(plan)).rejects.toThrow(/GitHub/)
 })
+
+it('stages a signed self-hosted Mac release whose channel names the dmg installer for downloads', async () => {
+  const { product } = (await fixture('yunyao', hosted)).record
+  const root = await mkdtemp(join(tmpdir(), 'dsh-product-release-mac-'))
+  roots.push(root)
+  const record = { schemaVersion: 1, signed: true, dirty: false, target: 'mac-arm64', version: '0.2.0-rc.3', product,
+    publicUrl: `${hosted}yunyao-beta/`, channel: 'yunyao-beta-mac-arm64' }
+  const zip = 'yunyao-dsh-0.2.0-rc.3-mac-arm64.zip', dmg = 'yunyao-dsh-0.2.0-rc.3-mac-arm64.dmg'
+  const zipBytes = 'zip fixture', dmgBytes = 'dmg installer fixture'
+  const sha = (bytes: string) => createHash('sha512').update(bytes).digest('base64')
+  await writeFile(join(root, 'mac-arm64-release.json'), JSON.stringify(record))
+  await writeFile(join(root, zip), zipBytes)
+  await writeFile(join(root, zip + '.blockmap'), 'blockmap fixture')
+  await writeFile(join(root, dmg), dmgBytes)
+  await writeFile(join(root, 'yunyao-beta-mac-arm64-mac.yml'), JSON.stringify({ version: record.version, path: zip, sha512: sha(zipBytes),
+    files: [{ url: zip, sha512: sha(zipBytes), size: Buffer.byteLength(zipBytes) }] }))
+  const plan = await prepareProductRelease(join(root, 'mac-arm64-release.json'))
+  expect(load(plan.metadata)).toMatchObject({
+    path: `${hosted}yunyao-v0.2.0-rc.3/${zip}`,
+    files: [{ url: `${hosted}yunyao-v0.2.0-rc.3/${zip}` }],
+    installer: { url: `${hosted}yunyao-v0.2.0-rc.3/${dmg}`, sha512: sha(dmgBytes), size: Buffer.byteLength(dmgBytes) },
+  })
+  const output = join(root, 'out')
+  expect(await stageProductRelease(plan, output, async () => undefined)).toEqual([
+    `yunyao-v0.2.0-rc.3/${zip}`, `yunyao-v0.2.0-rc.3/${zip}.blockmap`, `yunyao-v0.2.0-rc.3/${dmg}`, 'yunyao-v0.2.0-rc.3/mac-arm64-release.json',
+    'yunyao-beta/yunyao-beta-mac-arm64-mac.yml',
+  ])
+})

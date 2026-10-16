@@ -39,7 +39,7 @@ Windows 签名构建使用 `package:win:x64`；macOS 在配置好签名和公证
 
 构建 Desktop 后，分别为每个品牌执行 `node apps/desktop/scripts/test-product-admission.mjs --resources <packaged-application>/resources`。它使用独立应用数据，在 Electron 中执行真实启动入口，覆盖首次配置、从登录页修改平台、重新打开已保存配置和主动取消。添加 `--main <packaged-application>/resources/app.asar/lib/main.js` 可验证打包入口，而不是本地构建。测试将证据保留在 `.desktop-build/qualification`，不会登录远程账号。
 
-为每个已安装产品执行 `corepack pnpm exec tsx apps/desktop/scripts/test-product-host.ts --installed <application-directory>`。这项独立验证通过打包 Host 同时启动两个账号配置，检查每个已启用内置应用的客户端和所提供的脚本，并在正常关闭后重启其中一个配置。它从安装目录读取产品元数据，将证据保留在 `.desktop-build/qualification`，无需平台凭据。添加 `--ui` 可在隔离的 Electron 渲染器中验证插件菜单、组件详情、模块配置和知识库模块开关。测试提供本地账号中继夹具，验证 registry spec 和自带包名的安装被拒绝、自带的包不能卸载，并从本地文件安装、卸载一个夹具应用插件包。登录窗口验证与 Host 验证覆盖不同启动阶段，两者都必须通过。
+为每个已安装产品执行 `corepack pnpm exec tsx apps/desktop/scripts/test-product-host.ts --installed <application-directory>`；macOS 上应用目录是应用包的 `Contents` 目录。这项独立验证通过打包 Host 同时启动两个账号配置，检查每个已启用内置应用的客户端和所提供的脚本，并在正常关闭后重启其中一个配置。它从安装目录读取产品元数据，将证据保留在 `.desktop-build/qualification`，无需平台凭据。添加 `--ui` 可在隔离的 Electron 渲染器中验证插件菜单、组件详情、模块配置和知识库模块开关。测试提供本地账号中继夹具，验证 registry spec 和自带包名的安装被拒绝、自带的包不能卸载，并从本地文件安装、卸载一个夹具应用插件包。登录窗口验证与 Host 验证覆盖不同启动阶段，两者都必须通过。
 
 ## GitHub Release 发布
 
@@ -65,6 +65,6 @@ corepack pnpm --dir apps/desktop run publish:product --record <artifacts>/win-x6
 corepack pnpm --dir apps/desktop run publish:product --record <artifacts>/win-x64-release.json --output <staging-directory>
 ```
 
-命令做与 GitHub 发布相同的校验，读取已发布的通道文件以拒绝版本回退，拒绝已整理过的版本目录，并按上传顺序列出文件。先把版本目录复制到服务器，最后复制通道文件。禁止替换已发布版本目录里的文件。
+Mac 目标的通道文件另带 `installer`（`url`、`sha512`、`size`），指向版本目录里的 dmg；electron-updater 忽略这个字段，下载页据此提供 dmg。命令做与 GitHub 发布相同的校验，读取已发布的通道文件以拒绝版本回退，拒绝已整理过的版本目录，并按上传顺序列出文件。先把版本目录复制到服务器，最后复制通道文件。禁止替换已发布版本目录里的文件。
 
 Windows 生产发布需要配置的签名证书和令牌；macOS 需要签名和公证。本地 Electron 验证覆盖公开设置 IPC、分品牌 HTTP 更新源和无执行能力的测试文件下载。它不代表生产签名、Gatekeeper/SmartScreen 认可或真实更新安装已经验证。公开发布前应在已安装的签名版本上验证这些项目。
