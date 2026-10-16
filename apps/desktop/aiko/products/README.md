@@ -2,11 +2,11 @@
 
 English | [中文](README.zh.md)
 
-This reference covers branded installers with an embedded profile, application plugins and one theme. [Source deployment](../README.md) remains available for plugin development. Platform addresses are entered by the user; the installer fixes the brand and update repository.
+This reference covers branded installers with an embedded profile, application plugins and one theme. [Source deployment](../README.md) remains available for plugin development. Platform addresses are entered by the user; the installer fixes the brand and update location.
 
 ## Build inputs
 
-In the Workbench monorepo, run `corepack pnpm run prepare:desktop-products --output <new-directory> --channel beta`. The command builds and packs Workbench, the market and its catalog, and the Markdown editor, Visio and draw.io plugins, then writes `aiko.json`, `yunyao.json` and their SHA-512-pinned archives. The catalog is a passive market dependency. Kit is not included. Application plugins such as Tender, Code and the knowledge apps are not bundled; users install them from the Workbench app center. A profile contains only its selected theme.
+In the Workbench monorepo, run `corepack pnpm run prepare:desktop-products --output <new-directory> --channel beta`; add `--releases <https-directory/>` to publish to a self-hosted release directory instead of GitHub. The command builds and packs Workbench, the market and its catalog, and the Markdown editor, Visio and draw.io plugins, then writes `aiko.json`, `yunyao.json` and their SHA-512-pinned archives. The catalog is a passive market dependency. Kit is not included. Application plugins such as Tender, Code and the knowledge apps are not bundled; users install them from the Workbench app center. A profile contains only its selected theme.
 
 From this Host repository, copy `apps/desktop/.env.windows.example` to `.env.windows` and configure signing for production. An unsigned local build needs that file but no signing credentials. Run:
 
@@ -15,7 +15,7 @@ corepack pnpm --dir apps/desktop run package:win:x64:unsigned --product D:/relea
 corepack pnpm --dir apps/desktop run package:win:x64:unsigned --product D:/release-inputs/yunyao.json
 ```
 
-Signed Windows builds use `package:win:x64`; macOS uses `package:mac:arm64` or `package:mac:x64` on a Mac with signing and notarization configured. `--build-version <semver>` selects the increasing application release version. The package command verifies archive identity and integrity before preparing the complete runtime. Unsigned builds have an `-unsigned` filename suffix and cannot be published by the product release command.
+Signed Windows builds use `package:win:x64`; macOS uses `package:mac:arm64` or `package:mac:x64` on a Mac with signing and notarization configured. `--build-version <semver>` selects the increasing application release version. The package command verifies archive identity and integrity before preparing the complete runtime. Unsigned builds have an `-unsigned` filename suffix. The product release command publishes them only for a product with a self-hosted release directory; such builds keep their update feed and are verified by HTTPS and SHA-512 only, with no publisher signature.
 
 Where the default download hosts are slow, set `ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/` in the shell before packaging and `DSH_DESKTOP_NPM_REGISTRY=https://registry.npmmirror.com` in `.env.windows`; they change only where the build fetches Electron and runtime packages. Qualify a product from a directory whose path is as long as a real installation (for example under `%LOCALAPPDATA%Programs`), because account homes and plugin dependency paths must stay under the Windows path limit.
 
@@ -54,5 +54,17 @@ corepack pnpm --dir apps/desktop run publish:product --record <artifacts>/win-x6
 ```
 
 Add `--publish` to publish through authenticated `gh`. The publisher verifies the completed signed build, product identity, version, feed, payload size and SHA-512. It uploads payloads before replacing that architecture's channel metadata, refuses existing payload filenames and rejects channel rollback. Stable channels reject prereleases. Publish each target serially; do not run two writers against the same channel. Never edit published installer assets in place.
+
+## Self-hosted release publication
+
+A product whose manifest sets `releases` (an HTTPS directory URL ending in `/`) instead of `repository` reads its feed from `<releases><profile>-<channel>/`, for example `https://downloads.example.com/dsh/releases/yunyao-stable/yunyao-stable-win-x64.yml`. Payloads live in the immutable `<releases><profile>-v<version>/` directory, and the channel file names their absolute URLs. The server must serve that directory read-only over HTTPS; it receives no platform credentials.
+
+After a clean build, stage the release locally:
+
+```powershell
+corepack pnpm --dir apps/desktop run publish:product --record <artifacts>/win-x64-release.json --output <staging-directory>
+```
+
+The command applies the same verification as GitHub publication, reads the published channel file to refuse version rollback, refuses a version directory that is already staged, and prints the files in upload order. Copy the version directory to the server first and the channel file last. Never replace files inside a published version directory.
 
 Windows production requires the configured signing certificate and token; macOS requires signing and notarization. The local Electron qualification exercises public settings IPC, brand-specific HTTP feeds and downloads with inert bytes. It does not establish production signing, Gatekeeper/SmartScreen acceptance or installation of a real update. Qualify those on installed signed builds before public release.

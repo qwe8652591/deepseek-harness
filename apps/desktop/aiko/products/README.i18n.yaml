@@ -3,11 +3,11 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write apps/desktop/aiko/products/README.md
 /complete-aiko-and-yunyao-distributions:
-  en: bd51e437752bef58
-  zh: 7e362dd2d00fca3e
+  en: a60446a75e602bb2
+  zh: e46490e26b1b76a2
 /complete-aiko-and-yunyao-distributions/build-inputs:
-  en: fb235679326cef1f
-  zh: b07ff901d833203d
+  en: 662820e18db99ea0
+  zh: 87305807b4fddd1f
 /complete-aiko-and-yunyao-distributions/windows-installation-qualification:
   en: 051e6abbe5685a87
   zh: 832cb972505c0457
@@ -15,5 +15,8 @@
   en: 24fd9ca5c701abd9
   zh: 86c43409f283149d
 /complete-aiko-and-yunyao-distributions/github-release-publication:
-  en: e7aa5ad10b60dab9
-  zh: e10697108a00986e
+  en: d83d9825e5d25083
+  zh: 2a801e34a2483a82
+/complete-aiko-and-yunyao-distributions/self-hosted-release-publication:
+  en: dbbc3a556a48f89f
+  zh: 63261f7056ceb697

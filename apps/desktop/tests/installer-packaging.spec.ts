@@ -77,6 +77,38 @@ describe('installer preparation preserves application dependencies', () => {
     expect(config.artifactName).toBe('deepseek-harness-${version}-${os}-${arch}-unsigned.${ext}')
   })
 
+  it('gives unsigned self-hosted products an update feed without a publisher to verify', async () => {
+    const { mkdtempSync, writeFileSync, rmSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    const { createHash } = await import('node:crypto')
+    const root = mkdtempSync(join(tmpdir(), 'dsh-hosted-product-'))
+    try {
+      const applications = ['aiko-dsh-workbench', 'aiko-dsh-market', 'aiko-dsh-md-editor', 'aiko-dsh-visio', 'aiko-dsh-drawio']
+      writeFileSync(join(root, 'plugin.tgz'), 'archive')
+      const integrity = 'sha512-' + createHash('sha512').update('archive').digest('base64')
+      const productFile = join(root, 'yunyao.json')
+      writeFileSync(productFile, JSON.stringify({ schemaVersion: 1, profile: 'yunyao', appId: 'com.yunyao.dsh', productName: '工作台',
+        releases: 'https://downloads.example.test:20124/dsh/releases/', channel: 'stable',
+        bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', '@deepseek-ai/dsh-experimental-agent-team-profile', ...applications, 'yunyao-dsh-theme'],
+        plugins: [...applications, 'yunyao-dsh-theme', 'aiko-dsh-plugin-catalog'].map(name => ({ name, version: '1.0.0', file: 'plugin.tgz', integrity })),
+        artwork: { version: 1, theme: 'yunyao-dsh-theme', productName: '工作台', image: 'data:image/png;base64,YQ==' },
+      }))
+      const { createElectronBuilderConfig } = await import('../scripts/electron-builder-config.mjs')
+      const config = createElectronBuilderConfig({
+        DSH_DESKTOP_APP_ID: 'com.yunyao.dsh',
+        DSH_DESKTOP_PRODUCT: productFile,
+        DSH_DESKTOP_MANDATORY_UPDATE_TEST_ORIGIN: 'https://policy.example.com',
+        DSH_DESKTOP_MANDATORY_UPDATE_CONFIG: JSON.stringify({ allowedAuthOrigins: ['https://login.example.com'] }),
+        DSH_DESKTOP_TARGET_PLATFORM: 'win32',
+        DSH_DESKTOP_TARGET_ARCH: 'x64',
+        DSH_DESKTOP_UNSIGNED: '1',
+      }, 'win32', 'x64')
+      expect(config.publish).toEqual([{ provider: 'generic', url: 'https://downloads.example.test:20124/dsh/releases/yunyao-stable/', channel: 'yunyao-stable-win-x64' }])
+      expect(config.win.publisherName).toBeUndefined()
+      expect(config.artifactName).toBe('yunyao-dsh-${version}-${os}-${arch}-unsigned.${ext}')
+    } finally { rmSync(root, { recursive: true, force: true }) }
+  })
+
   it('packages every preload entry point the shell loads', async () => {
     const { readdirSync, readFileSync } = await import('node:fs')
     const sourceDirectory = new URL('../src/', import.meta.url)

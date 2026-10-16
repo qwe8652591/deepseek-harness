@@ -134,10 +134,19 @@ function packageVersion(path: string, label: string): string {
   return manifest.version
 }
 
-function writeReleaseRecord(
+/**
+ * Write the completion record that release upload and product publication require.
+ * @param target - Packaged desktop target.
+ * @param environment - Packaging environment, including any product manifest.
+ * @param artifactsRoot - Directory that holds this build's artifacts.
+ * @param signed - Whether the artifacts carry release signatures; product publication accepts unsigned
+ *   artifacts only for a product that publishes to its own release directory.
+ */
+export function writeReleaseRecord(
   target: DesktopPackageTarget,
   environment: NodeJS.ProcessEnv,
   artifactsRoot: string,
+  signed: boolean,
 ): void {
   const desktopVersion = packageVersion(join(APP_ROOT, 'package.json'), 'desktop package')
   const dshVersion = packageVersion(join(REPOSITORY_ROOT, 'package.json'), 'dsh package')
@@ -156,7 +165,7 @@ function writeReleaseRecord(
     version: buildVersion,
     environment: update.environment,
     publicUrl: update.publicUrl,
-    ...product === undefined ? {} : { product: parseDesktopProduct(product), channel: update.channel, signed: true },
+    ...product === undefined ? {} : { product: parseDesktopProduct(product), channel: update.channel, signed },
     // Upload reads this to tag the commit a production release was packaged from.
     ...packaged === undefined ? {} : { commit: packaged.commit, dirty: packaged.dirty },
   }, null, 2)}\n`)
@@ -415,8 +424,11 @@ export async function packageTarget(
   const mac = target.platform === 'darwin' ? resolveMacOSPackageSettings(environment) : undefined
   const packArguments = mac === undefined ? [] : ['--concurrency', String(mac.packConcurrency)]
   const buildPaths = desktopTargetBuildPaths(target.name, environment)
-  const releaseRecordPath = join(buildPaths.artifacts, desktopBuildRecordFilename(target.name))
-  if (!invocation.prepareOnly && !invocation.unsigned) {
+  // Unsigned builds stay out of release upload, except products that publish to their own release directory.
+  const recordsRelease = !invocation.unsigned || readDesktopProduct(environment)?.releases !== undefined
+  const artifactsRoot = invocation.unsigned ? buildPaths.unsignedArtifacts : buildPaths.artifacts
+  const releaseRecordPath = join(artifactsRoot, desktopBuildRecordFilename(target.name))
+  if (!invocation.prepareOnly && recordsRelease) {
     rmSync(releaseRecordPath, { force: true })
     rmSync(`${releaseRecordPath}.tmp`, { force: true })
   }
@@ -509,7 +521,7 @@ export async function packageTarget(
     await signedStage('artifacts', () => execute(desktopElectronBuilderArguments(target, invocation.directory), electronBuilderEnv))
     await execute(['exec', 'tsx', 'scripts/smoke-packaged-runtime.ts', ...(invocation.unsigned ? ['--unsigned'] : [])], targetEnv)
   }
-  if (!invocation.directory && !invocation.unsigned) writeReleaseRecord(target, electronBuilderEnv, buildPaths.artifacts)
+  if (!invocation.directory && recordsRelease) writeReleaseRecord(target, electronBuilderEnv, artifactsRoot, !invocation.unsigned)
   if (journal) recordPackagingEvent(journal, { type: 'artifacts', directory: buildPaths.artifacts })
 }
 

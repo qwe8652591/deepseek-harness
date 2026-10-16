@@ -135,7 +135,7 @@ export function resolveDesktopAutoUpdateConfig(env, platform, arch) {
   const product = readDesktopProduct(env)
   if (product !== undefined) {
     const feed = desktopProductFeed(product, target)
-    return { environment: 'production', target, origin: 'https://github.com', publicUrl: feed.publicUrl,
+    return { environment: 'production', target, origin: new URL(feed.publicUrl).origin, publicUrl: feed.publicUrl,
       channel: feed.channel, keyPrefix: '', binaryKeyPrefix: '' }
   }
   const environment = resolveDesktopAutoUpdateEnvironment(env)

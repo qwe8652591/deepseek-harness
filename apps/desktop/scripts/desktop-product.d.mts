@@ -4,7 +4,10 @@ export interface DesktopProduct {
   readonly profile: 'aiko' | 'yunyao'
   readonly appId: string
   readonly productName: string
-  readonly repository: string
+  /** GitHub `owner/repo` whose releases carry the update feed; exactly one of `repository` and `releases` is set. */
+  readonly repository?: string
+  /** Self-hosted HTTPS release directory ending in `/`; its `<profile>-<channel>/` subdirectory is the update feed. */
+  readonly releases?: string
   readonly channel: 'stable' | 'beta'
   readonly bundles: readonly string[]
   readonly plugins: readonly { readonly name: string; readonly version: string }[]
@@ -28,7 +31,7 @@ export function parseDesktopProduct(value: unknown): DesktopProduct
  */
 export function readDesktopProduct(env: NodeJS.ProcessEnv, verifyArchives?: boolean): DesktopProductBuild | undefined
 /**
- * Resolve a brand, channel and target-specific GitHub feed.
+ * Resolve a brand, channel and target-specific feed on GitHub or the product's own release server.
  * @param product Validated public product identity.
  * @param target Desktop platform and architecture name.
  * @returns Public feed directory, channel filename prefix and release tag.

@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-10-16-self-hosted-product-releases.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-10-16-self-hosted-product-releases.md
+/agent-note-self-hosted-product-releases:
+  en: 48278a07a276ee86
+  zh: 980da97e72aab25f
+/agent-note-self-hosted-product-releases/problem:
+  en: f5ad371f996d4942
+  zh: 0be6c372fe86142d
+/agent-note-self-hosted-product-releases/decision:
+  en: cd07a414bd827057
+  zh: cad4a11d236dc6ae
+/agent-note-self-hosted-product-releases/alternatives-considered:
+  en: 809f23edc623f815
+  zh: dac1a30d4833af73
+/agent-note-self-hosted-product-releases/consequences:
+  en: 89dfdf363712e3b1
+  zh: a2e4ed5fc9ee4b4a

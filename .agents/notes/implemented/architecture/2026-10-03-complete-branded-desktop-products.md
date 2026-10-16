@@ -10,7 +10,7 @@ Application installers and independently upgraded business plugins can carry dif
 
 ## Decision
 
-The product build manifest binds one brand profile to hashed plugin archives, native artwork and a GitHub repository/channel. The installer embeds that complete runtime and its final management policy. Profiles resolve packaged modules without copying them into account directories or creating links into ASAR. Editable platform origins select separate credential directories; installation identity and update destinations are not platform settings.
+The product build manifest binds one brand profile to hashed plugin archives, native artwork and a channel in either a GitHub repository or a [self-hosted release directory](2026-10-16-self-hosted-product-releases.md). The installer embeds that complete runtime and its final management policy. Profiles resolve packaged modules without copying them into account directories or creating links into ASAR. Editable platform origins select separate credential directories; installation identity and update destinations are not platform settings.
 
 Version releases contain immutable binaries. Separate brand/channel releases contain per-target metadata pointing at those binaries. Publication validates the signed completion record and checksums before uploading binaries, then advances metadata. A clean checkout is required for publication. [Product distribution](../../../../apps/desktop/aiko/products/README.md) owns the operator procedure.
 

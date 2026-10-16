@@ -1,3 +1,7 @@
+import { createHash } from 'node:crypto'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   desktopElectronBuilderArguments,
@@ -6,6 +10,7 @@ import {
   resolveDesktopPackageTarget,
   withoutDesktopUploadCredentials,
   withoutWindowsSigningEnvironment,
+  writeReleaseRecord,
 } from '../scripts/package-target.ts'
 
 describe('desktop package target', () => {
@@ -138,5 +143,28 @@ describe('desktop package target', () => {
       DOWNLOAD_PROD_COS_BUCKET: 'production-download-bucket',
       DSH_DESKTOP_AUTO_UPDATE_ENV: 'production',
     })
+  })
+
+  it('records whether a product build is signed so only self-hosted feeds publish unsigned installers', () => {
+    const root = mkdtempSync(join(tmpdir(), 'dsh-release-record-'))
+    try {
+      const applications = ['aiko-dsh-workbench', 'aiko-dsh-market', 'aiko-dsh-md-editor', 'aiko-dsh-visio', 'aiko-dsh-drawio']
+      writeFileSync(join(root, 'plugin.tgz'), 'archive')
+      const integrity = 'sha512-' + createHash('sha512').update('archive').digest('base64')
+      const productFile = join(root, 'yunyao.json')
+      writeFileSync(productFile, JSON.stringify({ schemaVersion: 1, profile: 'yunyao', appId: 'com.yunyao.dsh', productName: '工作台',
+        releases: 'https://downloads.example.test/dsh/releases/', channel: 'stable',
+        bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', '@deepseek-ai/dsh-experimental-agent-team-profile', ...applications, 'yunyao-dsh-theme'],
+        plugins: [...applications, 'yunyao-dsh-theme', 'aiko-dsh-plugin-catalog'].map(name => ({ name, version: '1.0.0', file: 'plugin.tgz', integrity })),
+        artwork: { version: 1, theme: 'yunyao-dsh-theme', productName: '工作台', image: 'data:image/png;base64,YQ==' },
+      }))
+      const environment = { DSH_DESKTOP_PRODUCT: productFile, DSH_DESKTOP_BUILD_VERSION: '0.2.0',
+        DSH_DESKTOP_BUILD_COMMIT: 'a'.repeat(40), DSH_DESKTOP_BUILD_DIRTY: '0' }
+      writeReleaseRecord(resolveDesktopPackageTarget('win-x64', 'win32', 'x64'), environment, root, false)
+      expect(JSON.parse(readFileSync(join(root, 'win-x64-release.json'), 'utf8'))).toMatchObject({
+        target: 'win-x64', version: '0.2.0', signed: false, dirty: false, channel: 'yunyao-stable-win-x64',
+        publicUrl: 'https://downloads.example.test/dsh/releases/yunyao-stable/',
+      })
+    } finally { rmSync(root, { recursive: true, force: true }) }
   })
 })

@@ -1,30 +1,30 @@
 import { createHash } from 'node:crypto'
-import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises'
+import { mkdtemp, mkdir, readdir, readFile, writeFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { load } from 'js-yaml'
 import { afterEach, expect, it, vi } from 'vitest'
-import { prepareProductRelease, publishProductRelease } from '../scripts/publish-product.ts'
+import { prepareProductRelease, publishProductRelease, stageProductRelease } from '../scripts/publish-product.ts'
 
 const gh = vi.hoisted(() => vi.fn())
 vi.mock('node:child_process', () => ({ execFileSync: gh }))
 
 const roots: string[] = []
 afterEach(async () => { gh.mockReset(); for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true }) })
-async function fixture(brand = 'aiko') {
+async function fixture(brand = 'aiko', releases?: string) {
   const root = await mkdtemp(join(tmpdir(), 'dsh-product-release-'))
   roots.push(root)
   const applications = ['aiko-dsh-workbench', 'aiko-dsh-market', 'aiko-dsh-md-editor', 'aiko-dsh-visio', 'aiko-dsh-drawio']
   const product = { schemaVersion: 1, profile: brand, appId: `com.${brand}.dsh`, productName: brand,
-    repository: 'aiko-dsh-plugins/deepseek-harness', channel: 'beta',
+    ...releases === undefined ? { repository: 'aiko-dsh-plugins/deepseek-harness' } : { releases }, channel: 'beta',
     bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', '@deepseek-ai/dsh-experimental-agent-team-profile', ...applications, `${brand}-dsh-theme`],
     plugins: [...applications, `${brand}-dsh-theme`, 'aiko-dsh-plugin-catalog'].map(name => ({ name, version: '1.0.0' })),
   }
-  const record = { schemaVersion: 1, signed: true, dirty: false, target: 'win-x64', version: '0.2.0-rc.3', product,
-    publicUrl: `https://github.com/${product.repository}/releases/download/${brand}-beta/`, channel: `${brand}-beta-win-x64`,
+  const record = { schemaVersion: 1, signed: releases === undefined, dirty: false, target: 'win-x64', version: '0.2.0-rc.3', product,
+    publicUrl: `${releases ?? 'https://github.com/aiko-dsh-plugins/deepseek-harness/releases/download/'}${brand}-beta/`, channel: `${brand}-beta-win-x64`,
   }
   const recordFile = join(root, 'win-x64-release.json')
-  const name = `${brand}-dsh-${record.version}-win-x64.exe`
+  const name = `${brand}-dsh-${record.version}-win-x64${releases === undefined ? '' : '-unsigned'}.exe`
   const bytes = 'installer test fixture', sha512 = createHash('sha512').update(bytes).digest('base64')
   const metadata = { version: record.version, path: name, sha512, files: [{ url: name, sha512, size: Buffer.byteLength(bytes) }] }
   const metadataFile = join(root, `${record.channel}.yml`)
@@ -81,4 +81,39 @@ it('leaves the public channel unchanged when payload upload fails', async () => 
   })
   await expect(publishProductRelease(plan)).rejects.toThrow('upload failed')
   expect(gh.mock.calls.some(call => (call[1] as string[]).includes(plan.channelTag))).toBe(false)
+})
+
+const hosted = 'https://downloads.example.test:20124/dsh/releases/'
+
+it('publishes unsigned self-hosted payloads under the server version directory', async () => {
+  const f = await fixture('yunyao', hosted)
+  const plan = await prepareProductRelease(f.recordFile)
+  expect(load(plan.metadata)).toMatchObject({ path: `${hosted}yunyao-v0.2.0-rc.3/${f.name}`, files: [{ url: `${hosted}yunyao-v0.2.0-rc.3/${f.name}` }] })
+  const output = join(f.root, 'out')
+  const read = vi.fn(async () => undefined)
+  expect(await stageProductRelease(plan, output, read)).toEqual([
+    `yunyao-v0.2.0-rc.3/${f.name}`, `yunyao-v0.2.0-rc.3/${f.name}.blockmap`, 'yunyao-v0.2.0-rc.3/win-x64-release.json', 'yunyao-beta/yunyao-beta-win-x64.yml',
+  ])
+  expect(read).toHaveBeenCalledWith(`${hosted}yunyao-beta/yunyao-beta-win-x64.yml`)
+  expect((await readdir(join(output, 'yunyao-v0.2.0-rc.3'))).sort()).toEqual([f.name, f.name + '.blockmap', 'win-x64-release.json'].sort())
+  expect(await readFile(join(output, 'yunyao-beta', 'yunyao-beta-win-x64.yml'), 'utf8')).toBe(plan.metadata)
+  await expect(stageProductRelease(plan, output, read)).rejects.toThrow(/already staged/)
+})
+
+it('refuses a self-hosted channel that already carries the same or a newer version', async () => {
+  const plan = await prepareProductRelease((await fixture('yunyao', hosted)).recordFile)
+  const root = await mkdtemp(join(tmpdir(), 'dsh-product-stage-'))
+  roots.push(root)
+  for (const version of ['0.2.0-rc.3', '0.2.0'])
+    await expect(stageProductRelease(plan, join(root, version), async () => `version: ${version}`)).rejects.toThrow(/must increase/)
+  await mkdir(join(root, 'empty'))
+  expect(await stageProductRelease(plan, join(root, 'empty'), async () => 'version: 0.2.0-rc.2')).toHaveLength(4)
+})
+
+it('keeps unsigned builds out of GitHub products and staged releases out of GitHub products', async () => {
+  const f = await fixture('yunyao', hosted)
+  const github = await prepareProductRelease((await fixture()).recordFile)
+  await expect(stageProductRelease(github, join(f.root, 'out'), async () => undefined)).rejects.toThrow(/self-hosted/)
+  const plan = await prepareProductRelease(f.recordFile)
+  await expect(publishProductRelease(plan)).rejects.toThrow(/GitHub/)
 })

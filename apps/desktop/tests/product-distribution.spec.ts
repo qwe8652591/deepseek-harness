@@ -35,6 +35,20 @@ it('isolates brand and architecture feeds and refuses mixed product inputs', () 
   expect(() => desktopProductFeed(product(), 'linux-x64')).toThrow(/unsupported/)
 })
 
+it('selects a self-hosted HTTPS release directory instead of a GitHub repository', () => {
+  const { repository: _repository, ...base } = product('yunyao')
+  const releases = 'https://downloads.example.test:20124/dsh/releases/'
+  const hosted = parseDesktopProduct({ ...base, releases })
+  expect(hosted.releases).toBe(releases)
+  expect(hosted).not.toHaveProperty('repository')
+  expect(desktopProductFeed(hosted, 'win-x64')).toEqual({ publicUrl: releases + 'yunyao-beta/', channel: 'yunyao-beta-win-x64', tag: 'yunyao-beta' })
+  for (const value of ['http://downloads.example.test/dsh/releases/', 'https://downloads.example.test/dsh/releases',
+    'https://user:secret@downloads.example.test/dsh/', 'https://downloads.example.test/dsh/?token=x/', 'https://downloads.example.test/dsh/#x/'])
+    expect(() => parseDesktopProduct({ ...base, releases: value })).toThrow(/releases/)
+  expect(() => parseDesktopProduct({ ...product(), releases })).toThrow(/exactly one/)
+  expect(() => parseDesktopProduct(base)).toThrow(/exactly one/)
+})
+
 it('refuses products that preinstall app-center application plugins', () => {
   const official = product().bundles.slice(0, 3)
   for (const name of ['aiko-dsh-tender', '@aiko-dsh-plugins/dsh-knowledge', 'aiko-dsh-code']) {
@@ -87,6 +101,10 @@ it('refuses unowned installed packages and a runtime with different plugin bytes
   await expect(prepareProductProfile(product(), root)).rejects.toThrow(/unmanaged/)
   await writeFile(join(root, 'desktop-product.json'), JSON.stringify(product()))
   expect(await readPackagedProduct(root, 'aiko')).toEqual(product())
+  const { repository: _repository, ...hosted } = product()
+  await writeFile(join(root, 'desktop-product.json'), JSON.stringify({ ...hosted, releases: 'https://downloads.example.test/dsh/releases/' }))
+  expect(await readPackagedProduct(root, 'aiko')).toEqual({ ...hosted, releases: 'https://downloads.example.test/dsh/releases/' })
+  await writeFile(join(root, 'desktop-product.json'), JSON.stringify(product()))
   await writeFile(join(root, 'node_modules/aiko-dsh-workbench/package.json'), JSON.stringify({ name: 'aiko-dsh-workbench', version: '2.0.0' }))
   await expect(readPackagedProduct(root, 'aiko')).rejects.toThrow(/version mismatch/)
   await writeProductPolicy(root, product())

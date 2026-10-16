@@ -1,7 +1,10 @@
-/** Validate complete product releases and publish immutable payloads before their channel pointer. */
+/**
+ * Validate complete product releases and publish immutable payloads before their channel pointer:
+ * to GitHub releases, or staged as files for the product's own release directory.
+ */
 import { createHash } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
-import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { copyFile, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, join, resolve } from 'node:path'
 import { parseArgs } from 'node:util'
@@ -25,16 +28,18 @@ export interface ProductReleasePlan {
 }
 
 /**
- * Refuse incomplete, unsigned or cross-brand artifacts before any GitHub mutation.
+ * Refuse incomplete, unsigned or cross-brand artifacts before any publication. Unsigned artifacts are accepted
+ * only for a product that publishes to its own release directory.
  * @param recordFile Completion record produced by a successful signed package command.
  * @returns Payload files and metadata whose URLs name an immutable version release.
  */
 export async function prepareProductRelease(recordFile: string): Promise<ProductReleasePlan> {
   const record: unknown = JSON.parse(await readFile(recordFile, 'utf8'))
-  if (!object(record) || record.schemaVersion !== 1 || record.signed !== true || record.dirty !== false
+  if (!object(record) || record.schemaVersion !== 1 || typeof record.signed !== 'boolean' || record.dirty !== false
     || typeof record.version !== 'string' || valid(record.version) === null || typeof record.target !== 'string')
     throw new Error('product release: a signed, clean build completion record is required')
   const product = parseDesktopProduct(record.product)
+  if (!record.signed && product.releases === undefined) throw new Error('product release: a signed, clean build completion record is required')
   if (product.channel === 'stable' && prerelease(record.version) !== null) throw new Error('product release: prerelease cannot use the stable channel')
   const feed = desktopProductFeed(product, record.target)
   if (record.publicUrl !== feed.publicUrl || record.channel !== feed.channel) throw new Error('product release: update destination mismatch')
@@ -46,7 +51,7 @@ export async function prepareProductRelease(recordFile: string): Promise<Product
     throw new Error('product release: invalid update metadata')
   const file: unknown = value.files[0]
   const prefix = `${product.profile}-dsh-${record.version}-${record.target}`
-  const filename = `${prefix}.${platform === 'darwin' ? 'zip' : 'exe'}`
+  const filename = `${prefix}${record.signed ? '' : '-unsigned'}.${platform === 'darwin' ? 'zip' : 'exe'}`
   if (!object(file) || file.url !== filename || typeof file.sha512 !== 'string' || typeof file.size !== 'number'
     || value.path !== undefined && value.path !== filename || value.sha512 !== undefined && value.sha512 !== file.sha512)
     throw new Error('product release: updater payload does not match this brand, version and target')
@@ -56,7 +61,7 @@ export async function prepareProductRelease(recordFile: string): Promise<Product
   const artifacts = [payload, payload + '.blockmap', ...(platform === 'darwin' ? [join(root, prefix + '.dmg')] : []), recordFile]
   for (const path of artifacts) if (!(await stat(path)).isFile() || (await stat(path)).size === 0) throw new Error('product release: missing artifact ' + basename(path))
   const versionTag = `${product.profile}-v${record.version}`
-  const url = `https://github.com/${product.repository}/releases/download/${versionTag}/${filename}`
+  const url = `${product.releases ?? `https://github.com/${product.repository}/releases/download/`}${versionTag}/${filename}`
   const metadata = dump({ ...value, files: [{ ...file, url }], ...(value.path === undefined ? {} : { path: url }) })
   return { product, version: record.version, target: record.target, versionTag,
     channelTag: feed.tag, metadataFilename, metadata, artifacts }
@@ -69,6 +74,7 @@ export async function prepareProductRelease(recordFile: string): Promise<Product
  * @returns Resolves after GitHub accepts the channel metadata.
  */
 export async function publishProductRelease(plan: ProductReleasePlan): Promise<void> {
+  if (plan.product.repository === undefined) throw new Error('product release: this product publishes to its own release directory, not GitHub')
   const gh = (args: string[]): string => execFileSync('gh', args, { encoding: 'utf8', windowsHide: true })
   const repo = ['--repo', plan.product.repository]
   const releases: unknown = JSON.parse(gh(['api', `repos/${plan.product.repository}/releases?per_page=100`]))
@@ -99,10 +105,58 @@ export async function publishProductRelease(plan: ProductReleasePlan): Promise<v
   } finally { await rm(scratch, { recursive: true, force: true }) }
 }
 
+/**
+ * Read a published channel file from the product's release directory.
+ * @param url Public URL of the channel metadata.
+ * @returns The file text, or undefined when the channel has no metadata yet.
+ */
+async function readPublishedChannel(url: string): Promise<string | undefined> {
+  const response = await fetch(url, { signal: AbortSignal.timeout(30000) })
+  if (response.status === 404) return undefined
+  if (!response.ok) throw new Error(`product release: reading ${url} returned HTTP ${response.status}`)
+  return response.text()
+}
+
+/**
+ * Lay out a self-hosted release for copying into the product's release directory: the immutable
+ * `<profile>-v<version>/` payload directory and the replaceable `<profile>-<channel>/` metadata file.
+ * Copy the files to the server in the returned order, so the channel file changes only after its payload exists.
+ * @param plan Verified build and payload metadata for a product with `releases`.
+ * @param output Local directory; the version directory must not exist in it yet.
+ * @param readChannel Reads the currently published channel metadata, or undefined when there is none.
+ * @returns Paths relative to `output`, payload files first and the channel file last.
+ */
+export async function stageProductRelease(plan: ProductReleasePlan, output: string,
+  readChannel: (url: string) => Promise<string | undefined> = readPublishedChannel): Promise<string[]> {
+  const releases = plan.product.releases
+  if (releases === undefined) throw new Error('product release: staging requires a self-hosted releases directory')
+  const published = await readChannel(`${releases}${plan.channelTag}/${plan.metadataFilename}`)
+  if (published !== undefined) {
+    const previous: unknown = load(published)
+    if (!object(previous) || typeof previous.version !== 'string' || !valid(previous.version) || !gt(plan.version, previous.version))
+      throw new Error('product release: channel version must increase')
+  }
+  const versionDirectory = join(output, plan.versionTag)
+  await mkdir(output, { recursive: true })
+  try { await mkdir(versionDirectory) } catch (error) {
+    if (object(error) && error.code === 'EEXIST') throw new Error(`product release: ${plan.versionTag} is already staged in ${output}`)
+    throw error
+  }
+  const staged: string[] = []
+  for (const artifact of plan.artifacts) {
+    await copyFile(artifact, join(versionDirectory, basename(artifact)))
+    staged.push(`${plan.versionTag}/${basename(artifact)}`)
+  }
+  await mkdir(join(output, plan.channelTag), { recursive: true })
+  await writeFile(join(output, plan.channelTag, plan.metadataFilename), plan.metadata)
+  return [...staged, `${plan.channelTag}/${plan.metadataFilename}`]
+}
+
 if (process.argv[1] !== undefined && resolve(process.argv[1]) === import.meta.filename) {
-  const { values } = parseArgs({ options: { record: { type: 'string' }, publish: { type: 'boolean', default: false } } })
-  if (!values.record) throw new Error('Use --record <target-release.json>; add --publish only after reviewing the plan')
+  const { values } = parseArgs({ options: { record: { type: 'string' }, publish: { type: 'boolean', default: false }, output: { type: 'string' } } })
+  if (!values.record) throw new Error('Use --record <target-release.json>; add --publish (GitHub) or --output <dir> (self-hosted) only after reviewing the plan')
   const plan = await prepareProductRelease(resolve(values.record))
   process.stdout.write(JSON.stringify(plan, null, 2) + '\n')
   if (values.publish) await publishProductRelease(plan)
+  if (values.output) process.stdout.write((await stageProductRelease(plan, resolve(values.output))).join('\n') + '\n')
 }

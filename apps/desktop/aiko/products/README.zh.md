@@ -2,11 +2,11 @@
 
 [English](README.md) | 中文
 
-本文介绍内置 profile、应用插件和单一主题的品牌安装包。[源码部署](../README.zh.md)继续用于插件开发。平台地址由用户填写；品牌和更新仓库由安装包确定。
+本文介绍内置 profile、应用插件和单一主题的品牌安装包。[源码部署](../README.zh.md)继续用于插件开发。平台地址由用户填写；品牌和更新位置由安装包确定。
 
 ## 构建输入
 
-在工作台单仓库执行 `corepack pnpm run prepare:desktop-products --output <new-directory> --channel beta`。命令构建并打包工作台、市场及其目录模块，以及 Markdown 编辑器、Visio 和 draw.io 三个内部插件，然后输出 `aiko.json`、`yunyao.json` 及通过 SHA-512 固定的归档。目录模块是市场的被动依赖。Kit 不包含在内。标书、Code 和知识库应用等应用插件不打进安装包，用户在工作台应用中心安装。每个 profile 只包含所选主题。
+在工作台单仓库执行 `corepack pnpm run prepare:desktop-products --output <new-directory> --channel beta`；加 `--releases <https-directory/>` 时发布到自建的发布目录而不是 GitHub。命令构建并打包工作台、市场及其目录模块，以及 Markdown 编辑器、Visio 和 draw.io 三个内部插件，然后输出 `aiko.json`、`yunyao.json` 及通过 SHA-512 固定的归档。目录模块是市场的被动依赖。Kit 不包含在内。标书、Code 和知识库应用等应用插件不打进安装包，用户在工作台应用中心安装。每个 profile 只包含所选主题。
 
 在 Host 仓库中，将 `apps/desktop/.env.windows.example` 复制为 `.env.windows` 并配置生产签名。未签名本地构建需要该文件，但无需签名凭据。执行：
 
@@ -15,7 +15,7 @@ corepack pnpm --dir apps/desktop run package:win:x64:unsigned --product D:/relea
 corepack pnpm --dir apps/desktop run package:win:x64:unsigned --product D:/release-inputs/yunyao.json
 ```
 
-Windows 签名构建使用 `package:win:x64`；macOS 在配置好签名和公证的 Mac 上使用 `package:mac:arm64` 或 `package:mac:x64`。`--build-version <semver>` 指定递增的应用发布版本。打包命令在准备完整运行时前验证归档身份与完整性。未签名构建的文件名带有 `-unsigned` 后缀，产品发布命令拒绝发布这类构建。
+Windows 签名构建使用 `package:win:x64`；macOS 在配置好签名和公证的 Mac 上使用 `package:mac:arm64` 或 `package:mac:x64`。`--build-version <semver>` 指定递增的应用发布版本。打包命令在准备完整运行时前验证归档身份与完整性。未签名构建的文件名带有 `-unsigned` 后缀。产品发布命令只在产品使用自建发布目录时发布这类构建；它们保留更新源，只靠 HTTPS 和 SHA-512 校验，没有发布者签名。
 
 默认下载源较慢时，打包前在命令行设置 `ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/`，并在 `.env.windows` 写 `DSH_DESKTOP_NPM_REGISTRY=https://registry.npmmirror.com`；两者只改变构建下载 Electron 和运行时包的位置。验收时让产品目录的路径和真实安装一样长（例如放在 `%LOCALAPPDATA%Programs` 下），因为账号目录和插件依赖路径都要保持在 Windows 路径长度限制以内。
 
@@ -54,5 +54,17 @@ corepack pnpm --dir apps/desktop run publish:product --record <artifacts>/win-x6
 ```
 
 添加 `--publish` 后通过已认证的 `gh` 发布。发布器验证已完成的签名构建、产品身份、版本、更新源、文件大小和 SHA-512。它先上传文件，再替换对应架构的通道元数据，拒绝已存在的文件名和通道版本回退。稳定通道拒绝预发布版本。各目标应串行发布，不要让两个进程同时写入同一通道。禁止原地修改已发布安装包。
+
+## 自建发布目录
+
+产品清单设置 `releases`（以 `/` 结尾的 HTTPS 目录地址）而不是 `repository` 时，从 `<releases><profile>-<channel>/` 读取更新源，例如 `https://downloads.example.com/dsh/releases/yunyao-stable/yunyao-stable-win-x64.yml`。安装包放在不可变的 `<releases><profile>-v<version>/` 目录里，通道文件写它们的完整地址。服务器只需用 HTTPS 只读提供这个目录，不接收平台凭据。
+
+干净构建完成后，先在本地整理发布文件：
+
+```powershell
+corepack pnpm --dir apps/desktop run publish:product --record <artifacts>/win-x64-release.json --output <staging-directory>
+```
+
+命令做与 GitHub 发布相同的校验，读取已发布的通道文件以拒绝版本回退，拒绝已整理过的版本目录，并按上传顺序列出文件。先把版本目录复制到服务器，最后复制通道文件。禁止替换已发布版本目录里的文件。
 
 Windows 生产发布需要配置的签名证书和令牌；macOS 需要签名和公证。本地 Electron 验证覆盖公开设置 IPC、分品牌 HTTP 更新源和无执行能力的测试文件下载。它不代表生产签名、Gatekeeper/SmartScreen 认可或真实更新安装已经验证。公开发布前应在已安装的签名版本上验证这些项目。
