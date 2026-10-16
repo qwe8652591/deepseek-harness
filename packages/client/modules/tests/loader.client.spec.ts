@@ -832,6 +832,18 @@ describe('style claiming', () => {
     expect(foreign.getAttribute('data-plugin')).toBe('other')
   })
 
+  it('leaves untagged style tags appended before materialization unclaimed', async () => {
+    const earlier = document.createElement('style')
+    document.head.appendChild(earlier)
+    const b = bench([row('a')], { a: () => ({}) })
+    await b.loader.import('a', '', {})
+    removeOwnedStyles('a')
+    expect(b.loader.loadCache.get('a')?.styles).toEqual([])
+    expect(earlier.isConnected).toBe(true)
+    expect(earlier.hasAttribute('data-plugin')).toBe(false)
+    earlier.remove()
+  })
+
   it('materialization without a document skips the style inventory', async () => {
     const b = bench([row('a')], { a: () => ({}) })
     vi.stubGlobal('document', undefined)

@@ -64,14 +64,27 @@ function chunkUrl(row: BootModuleRow, fileName: string, rev: string): string {
 }
 
 /**
+ * Untagged <style> tags present before a factory runs. Plugins may append
+ * untagged tags from effects at any time; those belong to their own fiber
+ * teardown, so only tags absent from this snapshot are claimed.
+ * @returns The untagged tags currently in the document.
+ */
+const untaggedStyles = (): ReadonlySet<Element> =>
+  typeof document === 'undefined' ? new Set() : new Set(document.querySelectorAll('style:not([data-plugin])'))
+
+/**
  * Claim and inventory the <style> tags a factory injected during
  * materialization: preset-emitted tags arrive pre-tagged with data-plugin;
- * any untagged tag is claimed for the materializing plugin (HMR bookkeeping).
+ * an untagged tag the factory appended is claimed for the materializing
+ * plugin (HMR bookkeeping).
+ * @param id - Materializing plugin id.
+ * @param before - Untagged tags present before the factory ran; never claimed.
+ * @returns The owned css ids.
  */
-const claimStyles = (id: string): string[] => {
+const claimStyles = (id: string, before: ReadonlySet<Element>): string[] => {
   if (typeof document === 'undefined') return []
   for (const el of document.querySelectorAll('style:not([data-plugin])')) {
-    el.setAttribute('data-plugin', id)
+    if (!before.has(el)) el.setAttribute('data-plugin', id)
   }
   const owned: string[] = []
   for (const el of document.querySelectorAll(`style[data-plugin=${JSON.stringify(id)}]`)) {
@@ -302,8 +315,9 @@ export class ClientModuleSystem implements ClientModuleLoader {
     this.materializing.add(id)
     try {
       const edges = new Set<string>()
+      const before = untaggedStyles()
       const exports = registered.factory(this.makeRequire(ownerId, edges))
-      const record: ClientModuleRecord = { id, exports, styles: claimStyles(ownerId), edges }
+      const record: ClientModuleRecord = { id, exports, styles: claimStyles(ownerId, before), edges }
       this.loadCache.set(id, record)
       return record
     } catch (error) {
