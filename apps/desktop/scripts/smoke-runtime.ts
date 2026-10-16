@@ -56,7 +56,9 @@ import { Context } from '@deepseek-ai/cordis'
 import { inspect, promisify } from 'node:util'
 import { execFile } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
+console.log('desktop runtime smoke plugin: module loaded')
 export function apply(ctx) {
+  console.log('desktop runtime smoke plugin: applying')
   if (!(ctx instanceof Context)) throw new Error('desktop runtime: external plugin loaded another Cordis instance')
   ctx.effect(() => ctx.webServer.register({ kind: 'exact', path: '/desktop-smoke',
     handler(_request, response) { response.end('plugin route ready') } }))
@@ -123,7 +125,9 @@ export function apply(ctx) {
       if (pluginText === 'plugin route ready' || Date.now() >= deadline) break
       await new Promise(resolve => setTimeout(resolve, 1000))
     }
-    if (pluginText !== 'plugin route ready') throw new Error(`desktop runtime: plugin HTTP route failed (HTTP ${String(pluginStatus)}: ${pluginText.slice(0, 160)})`)
+    if (pluginText !== 'plugin route ready') {
+      throw new Error(`desktop runtime: plugin HTTP route failed (HTTP ${String(pluginStatus)}: ${pluginText.slice(0, 160)}); Host stderr:\n${host.stderrTail.slice(-16_000)}`)
+    }
     for (const { extension } of inputs) {
       const converted = await fetch(new URL(`/desktop-smoke-office/${extension}`, ready.url), {
         headers: { cookie }, signal: AbortSignal.timeout(120_000),

@@ -96,7 +96,9 @@ jobs:
             --record "$PWD/apps/desktop/.desktop-build/products/yunyao/win-x64/unsigned-artifacts/win-x64-release.json" `
             --output "$env:RUNNER_TEMP/staging"
           Set-Content -Path "$env:RUNNER_TEMP/staging/sources.txt" -Value "workbench ${{ steps.version.outputs.workbench }}", "harness $env:GITHUB_SHA"
+      # The release server keeps the published files; a full Actions artifact quota must not block publication.
       - uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: yunyao-${{ steps.version.outputs.version }}-win-x64
           path: ${{ runner.temp }}/staging
@@ -136,6 +138,7 @@ jobs:
           echo "Published $version_dir/$installer"
       - name: Keep packaging evidence
         if: failure()
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: yunyao-packaging-evidence-${{ github.run_attempt }}
