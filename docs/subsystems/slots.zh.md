@@ -6,7 +6,7 @@ Slots 是 Web Client 的类型化 React 组合系统。[`dsh-client-ui-slots`](.
 
 本文记录 slot 的所有权、组件输入、扩展 API 与当前层级。外围的启动、Remote、Client model 与 Conversation 数据通路见 [Web Client 架构](web-client.zh.md)。
 
-`plugins.bundle.config` 以 npm 包名为 key，提供 Bundle 详情配置。`plugins.bundle.activation` 在用户显式启用后渲染可选引导，由拥有者提供关闭引导和打开该 Bundle 详情的回调。`conversation.input.activity` 提供模型选择器与发送按钮之间的单个活动控件，可展开工具栏并在卸载时释放展开状态。
+`plugins.bundle.config` 以 npm 包名为 key，提供 Bundle 详情配置。`plugins.bundle.activation` 在用户显式启用后渲染可选引导，由拥有者提供关闭引导和打开该 Bundle 详情的回调。`conversation.input.activity` 提供模型选择器与发送按钮之间的单个活动控件，可展开工具栏并在卸载时释放展开状态。`conversation.hero.modeActions` 在 hero 工作区行上放置产品模式控件，`conversation.hero.dock` 放置插件在还没有会话时排在输入框下方的条目；两者在会话绑定后都能拿到当前的会话与输入区。`conversation.input.accessory` 把单个控件放在草稿旁边而不是上方，无占用时整块收起。`conversation.chat.userMessageFooter` 在不再有更早历史可分页时渲染在首条用户消息下方，或在该条消息的待定回显下方渲染，直到持久节点到达。
 
 ## 声明与生命周期
 
@@ -150,6 +150,7 @@ root
 │     │     │     ├─ tool.call.images
 │     │     │     └─ tool.view.cordis
 │     │     ├─ conversation.message.images
+│     │     ├─ conversation.chat.userMessageFooter
 │     │     └─ conversation.trajectory.images
 │     ├─ conversation.header
 │     │  ├─ conversation.header.leading
@@ -163,6 +164,7 @@ root
 │     │  └─ conversation.plan-review.actions
 │     ├─ conversation.composer.bar
 │     │  ├─ conversation.input.attachments
+│     │  ├─ conversation.input.accessory
 │     │  ├─ conversation.input.permission
 │     │  ├─ conversation.input.plan
 │     │  └─ conversation.input.model
@@ -174,7 +176,9 @@ root
 │     ├─ conversation.hero.brand.mark
 │     ├─ conversation.hero.workspace
 │     │  └─ conversation.hero.workspace.directoryFlow
-│     └─ conversation.hero.agentPreset
+│     ├─ conversation.hero.agentPreset
+│     ├─ conversation.hero.modeActions
+│     └─ conversation.hero.dock
 ├─ rightbar
 │  └─ rightbar.session
 │     ├─ sidebar.right.pane.tab

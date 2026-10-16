@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
 import { workspaceDisplayTitle } from '@deepseek-ai/dsh-api-workspace-controller/default-workspace'
@@ -83,8 +83,12 @@ export function ConversationContent(props: ConversationContentProps) {
     }
   }, [pendingWorkspaceId, sessionWorkspace?.workspaceId, workspaces.phase, pendingWorkspace])
 
-  const zone: InputZone | undefined =
-    session === undefined || inputState === undefined ? undefined : { session, input: inputState }
+  // The composer bar is memoized and takes this zone as an owner prop, so its
+  // identity has to survive renders that left both snapshots alone.
+  const zone: InputZone | undefined = useMemo(
+    () => (session === undefined || inputState === undefined ? undefined : { session, input: inputState }),
+    [session, inputState],
+  )
 
   // The chip is a selector; label resolution walks the flow top-down:
   //   1. a just-picked workspace (pending) → its title;
@@ -130,6 +134,9 @@ export function ConversationContent(props: ConversationContentProps) {
         onClose: () => { setPickerOpen(false) },
       })}
       {renderSlot('conversation.hero.agentPreset', {})}
+      <div className={css.heroModeCluster}>
+        {renderSlot('conversation.hero.modeActions', zone ?? {})}
+      </div>
     </div>
   )
 
@@ -145,6 +152,7 @@ export function ConversationContent(props: ConversationContentProps) {
   const blocked = !inert && composerBlock !== undefined
   const inputBar = renderSlot('conversation.composer.bar', {
     variant: hero ? 'hero' : 'composer',
+    extensionZone: zone,
     ...(inert
       ? {
         disabled: true,
@@ -166,6 +174,7 @@ export function ConversationContent(props: ConversationContentProps) {
       {hero && heroWorkspaceRow}
       {zone !== undefined && renderSlot('conversation.input.dock', zone)}
       {inputBar}
+      {sessionId === undefined ? renderSlot('conversation.hero.dock', zone ?? {}) : null}
     </div>
   )
 

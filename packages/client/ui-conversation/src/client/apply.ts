@@ -318,6 +318,8 @@ export function apply(ctx: Context, config: Config = Config({})): void {
       'conversation.hero.brand.mark': { kind: 'single', scope: 'root' },
       'conversation.hero.workspace': { kind: 'single', scope: 'root' },
       'conversation.hero.agentPreset': { kind: 'single', scope: 'session-maybe' },
+      'conversation.hero.modeActions': { kind: 'list', scope: 'session-maybe' },
+      'conversation.hero.dock': { kind: 'list', scope: 'session-maybe' },
     },
     slots: {
       views: { scope: 'session' },
@@ -423,6 +425,7 @@ export function apply(ctx: Context, config: Config = Config({})): void {
     children: {
       'conversation.input.attachments': { kind: 'single', scope: 'session-maybe' },
       'conversation.input.overlay': { kind: 'list', scope: 'session' },
+      'conversation.input.accessory': { kind: 'list', scope: 'session' },
       'conversation.input.permission': { kind: 'single', scope: 'session' },
       'conversation.input.left': { kind: 'list', scope: 'session' },
       'conversation.input.plan': { kind: 'single', scope: 'session' },

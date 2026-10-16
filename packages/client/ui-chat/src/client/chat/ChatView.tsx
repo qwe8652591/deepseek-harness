@@ -56,14 +56,49 @@ function observedInputs(
 
 type PendingInput = PendingSubmission | InboxState['next-step'][number]
 
+/** The one message that hosts the opening footer, or neither before it is known. */
+interface OpeningMessageTarget {
+  readonly leadingUserKey: string | null
+  readonly leadingPendingId: string | null
+}
+
+/**
+ * The opening user message hosts the footer only once older history is fully
+ * loaded. A pending transcript echo hosts it until that durable node arrives.
+ * @param hasMore - whether older history remains paged out.
+ * @param order - durable chat node keys, oldest first.
+ * @param kindAt - kind lookup for one node key, as the Node store reports it.
+ * @param pendingInputs - visible echoes and steering rows.
+ * @returns the single host key, or neither when the opening is not loaded yet.
+ */
+function openingUserMessageTarget(
+  hasMore: boolean,
+  order: readonly string[],
+  kindAt: (key: string) => string | undefined,
+  pendingInputs: readonly PendingInput[],
+): OpeningMessageTarget {
+  if (hasMore) return { leadingUserKey: null, leadingPendingId: null }
+  for (const key of order) {
+    if (kindAt(key) === 'user') return { leadingUserKey: key, leadingPendingId: null }
+  }
+  const pending = pendingInputs.find((item): item is PendingSubmission => (
+    'requestId' in item && item.placement !== 'steering'
+  ))
+  return { leadingUserKey: null, leadingPendingId: pending?.requestId ?? null }
+}
+
 type ChatNodeListProps = Omit<ComponentProps<typeof ChatNodeSeat>, 'nodeKey' | 'groupPart'> & {
   readonly entries: readonly RenderEntry[]
   readonly useChatGroup: ChatViewSlotProps['useChatGroup']
   readonly pendingInputs: readonly PendingInput[]
   readonly lastInputTurn: number | undefined
+  /** Opening transcript echo hosting the footer until its durable node arrives. */
+  readonly leadingPendingId?: string | null
 }
 
-const ChatNodeList = memo(function ChatNodeList({ entries, useChatGroup, pendingInputs, lastInputTurn, ...seatProps }: ChatNodeListProps) {
+const ChatNodeList = memo(function ChatNodeList({
+  entries, useChatGroup, pendingInputs, lastInputTurn, leadingPendingId = null, ...seatProps
+}: ChatNodeListProps) {
   const rows = entries.map((entry) => {
     switch (entry.kind) {
       case 'node':
@@ -77,6 +112,7 @@ const ChatNodeList = memo(function ChatNodeList({ entries, useChatGroup, pending
   })
   const pendingRows = pendingInputs.map(item => 'requestId' in item ? (
     <PendingSubmissionBubble key={item.requestId} submission={item}
+      footer={item.requestId === leadingPendingId ? seatProps.messageFooter : null}
       renderMessageImages={seatProps.renderMessageImages} t={seatProps.t} />
   ) : (
     <PendingSteeringBubble key={item.id} content={item.content}
@@ -206,6 +242,13 @@ export function ChatView({
     })
     return [...pending, ...local.values()]
   }, [inboxSteering, pendingSubmissions, visibleSubmissions])
+  const openingTarget = useMemo(
+    () => openingUserMessageTarget(hasMore, order, key => nodeStore.get(key)?.kind, pendingInputs),
+    [hasMore, order, nodeStore, pendingInputs],
+  )
+  const openingFooter = openingTarget.leadingUserKey !== null || openingTarget.leadingPendingId !== null
+    ? renderSlot('conversation.chat.userMessageFooter', { leading: true })
+    : null
   const renderMessageImages = useCallback<RenderMessageImages>(
     owner => renderSlot('conversation.message.images', { ...owner, loadImage }),
     [loadImage, renderSlot],
@@ -258,6 +301,9 @@ export function ChatView({
                 entries={entries}
                 pendingInputs={pendingInputs}
                 lastInputTurn={lastInputTurn}
+                leadingUserKey={openingTarget.leadingUserKey}
+                leadingPendingId={openingTarget.leadingPendingId}
+                messageFooter={openingFooter}
                 nodeStore={nodeStore}
                 useChatGroup={useChatGroup}
                 useChatNode={useChatNode}

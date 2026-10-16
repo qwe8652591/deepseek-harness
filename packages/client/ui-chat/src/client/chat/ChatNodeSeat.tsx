@@ -12,6 +12,8 @@ import css from './ChatView.module.css'
 
 interface ChatNodeSeatProps extends ChatNodeOwnerProps {
   readonly nodeKey: string
+  /** Key of the loaded conversation's opening user node; only that seat takes the footer. */
+  readonly leadingUserKey?: string | null
   /** A replaced Builder must rebind keyed hooks even when references and keys survive. */
   readonly nodeStore: ChatNodeStore
   readonly useChatNode: ChatViewSlotProps['useChatNode']
@@ -45,7 +47,8 @@ function turnOf(node: ChatNode | undefined): number | undefined {
 export const ChatNodeSeat = memo(function ChatNodeSeat({
   nodeKey, groupPart, useChatNode, useChatNodeProcess, usePresentation,
   cwd, openFile, openSkill, inspectCall, forkAt,
-  loadImage, renderMessageImages, fileMentions, useStore, actions, renderSlot, t,
+  loadImage, renderMessageImages, fileMentions, useStore, actions, renderSlot,
+  leadingUserKey = null, messageFooter = null, t,
 }: ChatNodeSeatProps) {
   const node = useChatNode(nodeKey)
   const routedNode = node as ChatNode | undefined
@@ -133,9 +136,11 @@ export const ChatNodeSeat = memo(function ChatNodeSeat({
       renderMessageImages,
       fileMentions,
       turnProcess,
+      ...nodeKey === leadingUserKey && messageFooter != null ? { messageFooter } : {},
     }, [
     node, groupPart, cwd, openFile, openSkill, inspectCall, forkAt,
     loadImage, renderMessageImages, fileMentions, turnProcess,
+    nodeKey, leadingUserKey, messageFooter,
   ])
   if (routedNode === undefined || owner === null) return null
   // Runtime dispatch owns the correlation: every Node's discriminant is the

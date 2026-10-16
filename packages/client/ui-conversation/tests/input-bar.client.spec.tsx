@@ -91,6 +91,10 @@ interface BenchOptions {
   placeholder?: string
   t?: InputBarProps['t']
   accessory?: React.ReactNode
+  /** What the `conversation.input.accessory` seat contributes (absent = nobody). */
+  accessorySlot?: React.ReactNode
+  /** Hand the bar a live Session-and-input zone, as the Conversation shell does. */
+  extensionZone?: boolean
   overlay?: React.ReactNode
   leftItems?: React.ReactNode
   rightItems?: React.ReactNode
@@ -161,6 +165,7 @@ function bench(over?: BenchOptions) {
   const renderSlot = ((key: string, owner: object) => {
     slotCalls.push({ key, owner })
     if (key === 'conversation.input.overlay') return over?.overlay ?? null
+    if (key === 'conversation.input.accessory') return over?.accessorySlot ?? null
     if (key === 'conversation.input.left') return over?.leftItems ?? null
     if (key === 'conversation.input.right') return over?.rightItems ?? null
     if (key === 'conversation.composer.dock') return over?.footer ?? null
@@ -220,6 +225,9 @@ function bench(over?: BenchOptions) {
     ...(over?.onRequestWorkspace !== undefined ? { onRequestWorkspace: over.onRequestWorkspace } : {}),
     ...(over?.placeholder !== undefined ? { placeholder: over.placeholder } : {}),
     ...(over?.accessory !== undefined ? { accessory: over.accessory } : {}),
+    ...(over?.extensionZone === true
+      ? { extensionZone: { session: session.getSnapshot(), input: shell.state.getSnapshot() } }
+      : {}),
   }
   const view = render(<InputBar {...props} />)
   const textarea = view.container.querySelector<HTMLDivElement>('[data-composer-input]')!
@@ -1644,10 +1652,35 @@ describe('strips and variants', () => {
     expect(view.queryByRole('alert')).toBeNull()
   })
 
-  it('hero variant adds the hero class and accessory row renders', () => {
+  it('hero variant adds the hero class and the accessory renders beside the draft', () => {
     const { view } = bench({ variant: 'hero', accessory: <i data-testid="acc" /> })
-    expect(view.getByTestId('acc')).toBeTruthy()
+    const seat = view.getByTestId('acc').parentElement!
+    expect(seat.className).toContain('accessory')
+    expect(seat.parentElement!.className).toContain('promptRow')
     expect(view.container.querySelector('[class*="hero"]')).not.toBeNull()
+  })
+
+  it('fills the accessory from the conversation.input.accessory seat', () => {
+    const { view } = bench({ accessorySlot: <i data-testid="seat" />, extensionZone: true })
+    const seat = view.getByTestId('seat').parentElement!
+    expect(seat.className).toContain('accessory')
+    expect(seat.parentElement!.className).toContain('promptRow')
+  })
+
+  it('an explicit accessory beats the seat, which is then never asked', () => {
+    const { view, slotCalls } = bench({
+      accessory: <i data-testid="acc" />,
+      accessorySlot: <i data-testid="seat" />,
+    })
+    expect(view.getByTestId('acc')).toBeTruthy()
+    expect(view.queryByTestId('seat')).toBeNull()
+    expect(slotCalls.some(call => call.key === 'conversation.input.accessory')).toBe(false)
+  })
+
+  it('hands the composer dock the live Session and input zone', () => {
+    const { slotCalls } = bench({ footer: <i data-testid="foot" />, extensionZone: true })
+    const dock = slotCalls.find(call => call.key === 'conversation.composer.dock')
+    expect(dock?.owner).toMatchObject({ session: { running: false }, input: { draft: '' } })
   })
 
   it('renders overlay, left/right, and footer slots at their layout positions', () => {
@@ -1656,6 +1689,7 @@ describe('strips and variants', () => {
       leftItems: <i data-testid="li" />,
       rightItems: <i data-testid="ri" />,
       footer: <i data-testid="foot" />,
+      extensionZone: true,
     })
     expect(view.getByTestId('ov')).toBeTruthy()
     expect(view.getByTestId('li')).toBeTruthy()
@@ -1666,14 +1700,14 @@ describe('strips and variants', () => {
 
 describe('command launcher chrome and control seats', () => {
   it('renders the command launcher and dispatches every empty control seat', () => {
-    const { view, slotCalls } = bench()
+    const { view, slotCalls } = bench({ extensionZone: true })
     expect(view.getByLabelText('添加文件或调用指令')).toBeTruthy()
     // Capability absent (no permission slot entry): the chip renders nothing.
     expect(view.queryByLabelText(/^访问模式/)).toBeNull()
     // Every seat dispatched, nothing rendered (render passes may repeat; the
     // seat set is the contract).
     expect([...new Set(slotCalls.map(c => c.key))]).toEqual([
-      'conversation.input.overlay', 'conversation.input.attachments',
+      'conversation.input.overlay', 'conversation.input.attachments', 'conversation.input.accessory',
       'conversation.input.permission', 'conversation.input.plan', 'conversation.input.left',
       'conversation.input.right', 'conversation.input.model', 'conversation.input.activity',
       'conversation.composer.dock',

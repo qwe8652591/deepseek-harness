@@ -105,6 +105,8 @@ Chat 通过 `uiConversation.groups` 注册过程 Group Definition。React 通过
 
 Chat 节点 slot 为推理与工具注入绑定重置来源的 `useDisclosure` 钩子。中间 renderer 只透传、不订阅，每次调用拥有独立展开状态。来源回调保留接收对象及稳定引用。外层轮次实际隐藏过程成员时，所在节点重置这些开合状态，不替换组件 key，也不改变钩子引用。展示模式切换保留展开状态。
 
+`conversation.chat.userMessageFooter` 渲染在首条用户消息下方：不再有更早历史可分页时是第一条用户行，之后是代替它、直到持久节点到达的待定回显。`hasMore` 为真时先不渲染，避免滚动加载进来的前缀挪动这个位置。占用者收到 `leading: true`。
+
 过程行的文字与图标在所有工作过程展示模式下共用一种颜色：默认 tertiary、悬停 secondary，错误与警告文字保留语义色。前置图标、折叠箭头及其容器随正文字号增量缩放。
 
 -----

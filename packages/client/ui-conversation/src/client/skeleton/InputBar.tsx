@@ -49,7 +49,7 @@ export const InputBar = memo(function InputBar({
   renderSlot, useBusyEnter, useFileUploads, useNotices, useLexicon, useMenuLauncher, useStopShortcut,
   useProjection, sessionId, variant, disabled: inert = false, blocked,
   workspacePickerOpen = false, onRequestWorkspace,
-  placeholder, accessory,
+  placeholder, accessory, extensionZone,
 }: InputBarProps) {
   const input = useInput(s => s)
   const notice = useNotices(s => s)
@@ -382,7 +382,6 @@ export const InputBar = memo(function InputBar({
         {sessionId !== undefined && (
           <div className={css.overlayAnchor}>{renderSlot('conversation.input.overlay', {})}</div>
         )}
-        {accessory !== undefined && <div className={css.accessory}>{accessory}</div>}
         {renderSlot('conversation.input.attachments', {
           attachments,
           canAcceptDrop,
@@ -400,21 +399,28 @@ export const InputBar = memo(function InputBar({
             thing that scrolls. Chips are decorator portals inside the same
             surface, so wrapping, caret geometry, and scrolling are the
             browser's own. */}
-        <DraftEditor
-          classNames={css}
-          editor={editor}
-          scrollRef={scrollRef}
-          editable={editable}
-          editorDisabled={editorDisabled}
-          phase={input?.phase ?? 'inert'}
-          placeholderText={placeholderText}
-          ariaLabel={workspaceTrigger ? t('hero.chooseWorkspace') : placeholderText}
-          workspaceTrigger={workspaceTrigger}
-          workspacePickerOpen={workspacePickerOpen}
-          onWorkspaceKeyDown={onWorkspaceKeyDown}
-          hint={hint}
-          showPlaceholder={draft === '' && attachments.length === 0 && !claimActive}
-        />
+        <div className={css.promptRow}>
+          <div className={css.accessory}>
+            {accessory ?? (sessionId === undefined || extensionZone === undefined
+              ? null
+              : renderSlot('conversation.input.accessory', extensionZone))}
+          </div>
+          <DraftEditor
+            classNames={css}
+            editor={editor}
+            scrollRef={scrollRef}
+            editable={editable}
+            editorDisabled={editorDisabled}
+            phase={input?.phase ?? 'inert'}
+            placeholderText={placeholderText}
+            ariaLabel={workspaceTrigger ? t('hero.chooseWorkspace') : placeholderText}
+            workspaceTrigger={workspaceTrigger}
+            workspacePickerOpen={workspacePickerOpen}
+            onWorkspaceKeyDown={onWorkspaceKeyDown}
+            hint={hint}
+            showPlaceholder={draft === '' && attachments.length === 0 && !claimActive}
+          />
+        </div>
         <div ref={rowRef} className={css.row}>
           <div className={css.tools} hidden={activity}>
             <Tooltip label={t('input.commands')} side="top" delayMs={500}>
@@ -497,8 +503,8 @@ export const InputBar = memo(function InputBar({
         </div>
       </div>
       <div className={css.dock}>
-        {variant === 'composer' && input !== undefined && sessionId !== undefined
-          ? renderSlot('conversation.composer.dock', {})
+        {input !== undefined && sessionId !== undefined && extensionZone !== undefined
+          ? renderSlot('conversation.composer.dock', extensionZone)
           : null}
         {activity ? null : <ContextMeter useProjection={useProjection} t={t} />}
       </div>

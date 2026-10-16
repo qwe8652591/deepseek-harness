@@ -6,7 +6,7 @@ Slots are the Web Client's typed React composition system. [`dsh-client-ui-slots
 
 This page documents slot ownership, component inputs, extension APIs, and the shipped hierarchy. The surrounding boot, Remote, Client model, and Conversation paths are in [Web Client architecture](web-client.md).
 
-`plugins.bundle.config` supplies bundle detail configuration, keyed by npm package name. `plugins.bundle.activation` renders optional guidance after user-requested enablement, with owner callbacks to dismiss or open that bundle’s details. `conversation.input.activity` supplies one action between the model selector and Send, with toolbar expansion released on unmount.
+`plugins.bundle.config` supplies bundle detail configuration, keyed by npm package name. `plugins.bundle.activation` renders optional guidance after user-requested enablement, with owner callbacks to dismiss or open that bundle’s details. `conversation.input.activity` supplies one action between the model selector and Send, with toolbar expansion released on unmount. `conversation.hero.modeActions` stages product-mode controls on the hero Workspace row, and `conversation.hero.dock` the entries a plugin places below the input before any Session exists; both receive the live Session and input zone while one is bound. `conversation.input.accessory` seats one control beside the draft instead of above it, and collapses when nothing occupies it. `conversation.chat.userMessageFooter` renders under the opening User message once no older history is paged out, or under that message’s pending transcript echo until the durable Node arrives.
 
 ## Declaration and lifecycle
 
@@ -150,6 +150,7 @@ root
 │     │     │     ├─ tool.call.images
 │     │     │     └─ tool.view.cordis
 │     │     ├─ conversation.message.images
+│     │     ├─ conversation.chat.userMessageFooter
 │     │     └─ conversation.trajectory.images
 │     ├─ conversation.header
 │     │  ├─ conversation.header.leading
@@ -163,6 +164,7 @@ root
 │     │  └─ conversation.plan-review.actions
 │     ├─ conversation.composer.bar
 │     │  ├─ conversation.input.attachments
+│     │  ├─ conversation.input.accessory
 │     │  ├─ conversation.input.permission
 │     │  ├─ conversation.input.plan
 │     │  └─ conversation.input.model
@@ -174,7 +176,9 @@ root
 │     ├─ conversation.hero.brand.mark
 │     ├─ conversation.hero.workspace
 │     │  └─ conversation.hero.workspace.directoryFlow
-│     └─ conversation.hero.agentPreset
+│     ├─ conversation.hero.agentPreset
+│     ├─ conversation.hero.modeActions
+│     └─ conversation.hero.dock
 ├─ rightbar
 │  └─ rightbar.session
 │     ├─ sidebar.right.pane.tab

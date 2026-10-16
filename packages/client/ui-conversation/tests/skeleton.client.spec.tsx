@@ -405,6 +405,9 @@ describe('ConversationRoot resident composer', () => {
     expect(b.slotCalls).not.toContain('conversation.session.header')
     expect(b.view.queryByRole('tablist')).toBeNull()
     expect(b.view.queryByTestId('view-conversation.session.header.corner')).toBeNull()
+    // Before a Session exists the entries a plugin stages below the input take
+    // the hero seat, not the composer's.
+    expect(b.slotCalls).toContain('conversation.hero.dock')
   })
 
   it('does not redispatch composer child slots for an unrelated Session publication', () => {
@@ -683,6 +686,10 @@ describe('ConversationRoot resident composer', () => {
     // The agent-preset chip sits in the same row, for the same reason: both
     // choices are only open before the first message.
     expect(b.slotCalls).toContain('conversation.hero.agentPreset')
+    // Product-mode controls ride the same row, and a Session that already
+    // exists keeps the composer's dock rather than the hero one.
+    expect(b.slotCalls).toContain('conversation.hero.modeActions')
+    expect(b.slotCalls).not.toContain('conversation.hero.dock')
   })
 
   it('prompt failure renders the promptError strip (ordinary failure, no transaction UI)', () => {

@@ -105,6 +105,8 @@ Each group owns local `useDisclosure` state that survives mode changes while its
 
 The Chat-node slot injects a reset-bound `useDisclosure` Hook for reasoning and tools. Intermediate renderers forward it without subscribing; each invocation owns independent open state. Source callbacks retain their receiver and stable identity. When an enclosing Turn actually hides a process member, its seat resets those disclosures without replacing component keys or changing the Hook reference. Display-mode changes preserve their open state.
 
+`conversation.chat.userMessageFooter` renders beneath the opening User message: the first user row once no older history is paged out, or the pending transcript echo standing in for it until the durable Node arrives. Withholding it while `hasMore` holds keeps a scrolled-in prefix from moving the seat. Its occupant receives `leading: true`.
+
 Process rows share one text and icon color in every Work details mode: tertiary at rest and secondary on hover, while error and warning text keeps its semantic color. Leading icons, disclosure chevrons, and their boxes scale with the content font-size delta.
 
 -----

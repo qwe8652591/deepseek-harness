@@ -191,12 +191,18 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
     'conversation.hero.brand.mark': { kind: 'single'; scope: 'root'; owner: HeroBrandMarkOwnerProps }
     /** Agent-preset control staged for a New Session. */
     'conversation.hero.agentPreset': { kind: 'single'; scope: 'session-maybe'; owner: HeroAgentPresetOwnerProps }
+    /** Product-mode controls beside the blank-session agent preset. */
+    'conversation.hero.modeActions': { kind: 'list'; scope: 'session-maybe'; owner: MaybeInputZone }
+    /** Entries below the new-conversation input before a Session exists. */
+    'conversation.hero.dock': { kind: 'list'; scope: 'session-maybe'; owner: MaybeInputZone }
     /** Full-width entries above the composer card. */
     'conversation.input.dock': { kind: 'list'; scope: 'session'; owner: InputZone }
     /** Floating entries rendered inside the resident composer card. */
     'conversation.input.overlay': { kind: 'list'; scope: 'session' }
     /** Ambient entries below the composer card. */
-    'conversation.composer.dock': { kind: 'list'; scope: 'session' }
+    'conversation.composer.dock': { kind: 'list'; scope: 'session'; owner: InputZone }
+    /** Compact control seated beside the draft rather than above it. */
+    'conversation.input.accessory': { kind: 'list'; scope: 'session'; owner: InputZone }
     /** Compact controls at the left of the composer tool row. */
     'conversation.input.left': { kind: 'list'; scope: 'session' }
     /** Compact controls before the composer submit action. */
@@ -236,6 +242,8 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
         'conversation.hero.brand.mark': { kind: 'single'; scope: 'root' }
         'conversation.hero.workspace': { kind: 'single'; scope: 'root' }
         'conversation.hero.agentPreset': { kind: 'single'; scope: 'session-maybe' }
+        'conversation.hero.modeActions': { kind: 'list'; scope: 'session-maybe' }
+        'conversation.hero.dock': { kind: 'list'; scope: 'session-maybe' }
       }
       inject: ConversationInjected
       locale: 'conversation'
@@ -310,6 +318,13 @@ export interface InputZone {
   readonly input: InputState
 }
 
+/**
+ * Owner values for a seat the shell reaches before it has both. The hero seats
+ * render while no Session is selected, so an occupant decides what to show when
+ * the shell has no Session or input state to hand it.
+ */
+export type MaybeInputZone = Partial<InputZone>
+
 /** Conversation View entries obtain their data from registered standard hooks. */
 export interface ConvViewOwnerProps {
   /** Open a tool call's inspector when an inspection target is available. */
@@ -369,8 +384,13 @@ export interface ComposerBarOwnerProps {
   /** Open the Workspace picker from the inert composer surface. */
   onRequestWorkspace?: () => void
   placeholder?: string
-  /** Optional content rendered above the composer surface. */
+  /** Optional compact content rendered before the editable prompt. */
   accessory?: ReactNode
+  /**
+   * Point-in-time Session and input state for composer extension entries. The
+   * bar is session-maybe, so it forwards what it has (absent before a Session).
+   */
+  extensionZone?: InputZone | undefined
 }
 
 /** Package-private operations injected into the resident composer bar. */
@@ -423,6 +443,7 @@ export type ComposerBarProps =
   PropsRuntime<'conversation.composer.bar'>
   & PropsRenderSlots<
     | 'conversation.input.attachments' | 'conversation.input.overlay'
+    | 'conversation.input.accessory'
     | 'conversation.input.permission'
     | 'conversation.input.left' | 'conversation.input.plan'
     | 'conversation.input.right' | 'conversation.input.model' | 'conversation.input.activity'

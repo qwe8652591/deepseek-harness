@@ -142,6 +142,8 @@ The selector must be a pure function of the owner currency. Its non-null return 
 
 `conversation.input.activity` hosts one control between the model selector and Send. Its `onActiveChange` callback expands that control across the toolbar and hides ordinary accessory controls and the context meter while preserving the editor and submit action. Closing the activity restores those controls with context details closed. The empty hero dock remains collapsed when it has no content. The occupant releases expansion on unmount and owns any activity-specific feedback.
 
+`conversation.input.accessory` seats one control beside the draft in the row the editor already occupies, so a mode control costs the composer card no extra row; the seat collapses when nothing occupies it, and an explicit `accessory` element wins over it. `conversation.hero.modeActions` occupies the hero Workspace row and `conversation.hero.dock` the band below the input, which renders only while no Session is selected. Both hero seats receive the live Session and input zone whenever one is bound.
+
 <a id="model-experience"></a>
 ## Model Experience
 

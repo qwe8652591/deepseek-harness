@@ -161,7 +161,7 @@ function TurnMaxTokensItem({ t }: {
 /** Right-aligned bubble shared by user and steering rows. */
 function UserStyleBubble({
   content, renderMessageImages, actions, pending = false, echo = false, referenceLabels = [], skillNames = [],
-  previewAttachments, references, t,
+  previewAttachments, references, footer = null, t,
 }: {
   content: readonly unknown[]
   renderMessageImages: ChatNodeOwnerProps['renderMessageImages']
@@ -178,13 +178,16 @@ function UserStyleBubble({
   /** Local submission-echo attachments replacing the content-derived attachment sequence. */
   previewAttachments?: readonly PresentedAttachment[]
   references?: Pick<ChatNodeOwnerProps, 'openFile' | 'openSkill'>
+  /** Opening user-message footer; a footer alone still renders the bubble. */
+  footer?: ReactNode
   t: ChatViewSlotProps['t']
 }): ReactNode {
   const { text, attachments: contentAttachments, rest } = contentParts(content)
   const attachments = previewAttachments ?? contentAttachments
   const compactImages = attachments.length > 1
   const truncated = (total: number): string => t('json.truncated', { total })
-  const showBubble = text !== '' || rest.length > 0
+  const hasBody = text !== '' || rest.length > 0
+  const showBubble = hasBody || footer != null
   return (
     <div
       className={css.userRow}
@@ -219,8 +222,9 @@ function UserStyleBubble({
           </div>
         )}
         {showBubble && <div className={css.bubble}>
-          {projectUserText(text, referenceLabels, skillNames, 'skill', references)}
+          {hasBody ? projectUserText(text, referenceLabels, skillNames, 'skill', references) : null}
           {rest.map((block, i) => <JsonBlock key={i} label={t('message.extraBlock')} payload={block} truncatedLabel={truncated} />)}
+          {footer}
         </div>}
         {referenceLabels.length > 0 && (
           <div className={css.referenceSummary}>
@@ -270,9 +274,10 @@ export function PendingSteeringBubble({ content, renderMessageImages, t }: {
  * @param props - the session snapshot's pending submission and render seats.
  * @returns the echoed user bubble.
  */
-export function PendingSubmissionBubble({ submission, renderMessageImages, t }: {
+export function PendingSubmissionBubble({ submission, renderMessageImages, footer = null, t }: {
   submission: PendingSubmission
   renderMessageImages: ChatNodeOwnerProps['renderMessageImages']
+  footer?: ReactNode
   t: ChatViewSlotProps['t']
 }): ReactNode {
   const content = useMemo(
@@ -302,6 +307,7 @@ export function PendingSubmissionBubble({ submission, renderMessageImages, t }: 
       renderMessageImages={renderMessageImages}
       pending={submission.placement === 'steering'}
       echo
+      footer={footer}
       t={t}
       actions={text => (
         <MessageIconActions
@@ -318,7 +324,7 @@ export function PendingSubmissionBubble({ submission, renderMessageImages, t }: 
 
 /** User and admitted-steering keyed Chat renderer. */
 export const UserMessageNodeView = memo(function UserMessageNodeView({
-  node, renderMessageImages, openFile, openSkill, t,
+  node, renderMessageImages, openFile, openSkill, messageFooter = null, t,
 }: ChatNodeViewProps<'user' | 'steering'>) {
   const data = node.data
   return (
@@ -326,6 +332,7 @@ export const UserMessageNodeView = memo(function UserMessageNodeView({
       content={data.content}
       references={{ openFile, openSkill }}
       renderMessageImages={renderMessageImages}
+      footer={messageFooter}
       {...data.referenceLabels === undefined ? {} : { referenceLabels: data.referenceLabels }}
       {...data.skillNames === undefined ? {} : { skillNames: data.skillNames }}
       t={t}

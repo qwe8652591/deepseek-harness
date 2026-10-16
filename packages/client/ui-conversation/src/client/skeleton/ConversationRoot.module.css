@@ -529,6 +529,63 @@ button.crumb:hover {
   padding: 0 16px 0 20px;
 }
 
+/* Product-mode controls on the workspace row. The seat owns its occupants'
+   presentation: a mode control arrives as a bare toggle, or one its plugin
+   styled as a pill, and this descendant selector outranks that plugin class so
+   the row keeps one control height and one rhythm. */
+.heroModeCluster {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+  width: max-content;
+  max-width: 100%;
+}
+
+.heroModeCluster button {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  gap: 6px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+  cursor: pointer;
+  transition: background-color .12s ease, color .12s ease, transform .12s ease;
+}
+
+.heroModeCluster button:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+.heroModeCluster button[data-selected='true'] {
+  background: color-mix(in srgb, var(--dsw-alias-state-business-primary) 10%, transparent);
+  color: var(--dsw-alias-state-business-primary);
+}
+
+.heroModeCluster button:active:not(:disabled) {
+  transform: scale(.98);
+}
+
+.heroModeCluster button:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .heroModeCluster button {
+    transition: none;
+  }
+}
+
 /* Hero: the composer sits inside the session scroll body; center there so
    the tree seat matches active (sticky footer) without a Root remount. */
 .root[data-phase='hero'] .scrollBody,

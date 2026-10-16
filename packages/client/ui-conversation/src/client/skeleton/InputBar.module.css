@@ -107,6 +107,32 @@
   color: var(--dsw-alias-state-business-primary);
 }
 
+/* The prompt line: the compact accessory seat sits beside the draft rather
+   than above it, so a mode control costs the card no extra row. The accessory
+   collapses entirely when nothing occupies it, leaving the draft's own
+   padding as the only left inset. */
+.promptRow {
+  display: flex;
+  align-items: flex-start;
+  width: 100%;
+  min-width: 0;
+}
+
+.promptRow > .accessory {
+  flex: none;
+  padding: 4px 0 0 12px;
+}
+
+.promptRow > .accessory:empty,
+.promptRow > .accessory:has(> [data-slot]:only-child:empty) {
+  display: none;
+}
+
+.promptRow > .scroll {
+  flex: 1;
+  min-width: 0;
+}
+
 .accessory {
   display: flex;
   align-items: center;

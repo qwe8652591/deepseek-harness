@@ -1,4 +1,5 @@
 /** Chat-owned Slot declarations and composed component props. */
+import type { ReactNode } from 'react'
 import type { MessageId } from '@deepseek-ai/dsh-llm/brand'
 import type { SessionId, SessionSeq } from '@deepseek-ai/dsh-session/types'
 import type {
@@ -177,6 +178,12 @@ export interface ChatNodeOwnerProps {
   fileMentions: (owner: TurnTailOwnerProps) => MarkdownFileMentions | undefined
   /** Turn-process state when this Node belongs to a projected Turn. */
   turnProcess?: TurnProcessOwnerProps | undefined
+  /**
+   * Render seat for the opening user message's footer. The seat supplies it
+   * only to the loaded conversation's first user node, and only once older
+   * history is fully loaded.
+   */
+  messageFooter?: ReactNode | undefined
 }
 
 /** Shared presentation state for one Turn-process answer generation. */
@@ -259,10 +266,16 @@ export interface ChatViewInjected {
   fileMentions: (owner: TurnTailOwnerProps) => MarkdownFileMentions | undefined
 }
 
+/** Owner currency of the opening user-message footer. */
+export interface UserMessageFooterOwnerProps {
+  /** True only for the loaded conversation's first user message. */
+  readonly leading: true
+}
+
 /** Full Chat view props. */
 export type ChatViewSlotProps =
   PropsRuntime<'conversation.view'>
-  & PropsRenderSlots<'conversation.chat.node' | 'conversation.message.images'>
+  & PropsRenderSlots<'conversation.chat.node' | 'conversation.message.images' | 'conversation.chat.userMessageFooter'>
   & PropsStore<ChatStore>
   & InjectFace<ChatViewInjected>
   & PropsLocale<'chat'>
@@ -301,6 +314,12 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      * registration replaces the shipped gallery; without one, images are omitted.
      */
     'conversation.message.images': { kind: 'single'; scope: 'session'; owner: MessageImagesOwnerProps }
+    /**
+     * Ordered contributions under the loaded conversation's first user message.
+     * The host renders nothing when older history is still paged out, and mounts
+     * the same slot on the opening echo until the durable user node arrives.
+     */
+    'conversation.chat.userMessageFooter': { kind: 'list'; scope: 'session'; owner: UserMessageFooterOwnerProps }
     /**
      * Command row keyed by the command name. The component receives the folded
      * command lifecycle and linked compaction when present. Reusing a key

@@ -142,6 +142,8 @@ selector 必须是 owner currency 的纯函数。非 null 返回值作为 `match
 
 `conversation.input.activity` 在模型选择器与发送按钮之间承载一个控件。其 `onActiveChange` 回调将控件展开至整条工具栏并隐藏普通辅助控件和上下文用量按钮，同时保留编辑器与提交按钮。关闭活动后恢复这些控件，上下文详情保持关闭。首页输入框下方没有内容时，该区域保持收起。占用者在卸载时释放展开状态，并拥有活动专属反馈。
 
+`conversation.input.accessory` 把单个控件放在草稿旁边、即编辑器本来就占用的那一行，因此模式控件不会给输入卡片多加一行；没有占用时该位置收起，显式传入的 `accessory` 元素优先于它。`conversation.hero.modeActions` 占据首页工作区行，`conversation.hero.dock` 占据输入框下方那条区域——后者只在未选择会话时渲染。两个首页位置在会话绑定后都能拿到当前的会话与输入区。
+
 <a id="model-experience"></a>
 ## 模型体验
 

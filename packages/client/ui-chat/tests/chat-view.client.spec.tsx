@@ -1780,6 +1780,52 @@ describe('ChatView', () => {
     expect(renderedFlowKinds(view.container)).toEqual(['user', 'turn-process'])
   })
 
+  it('mounts the opening footer on the first user message, and only once history is loaded', () => {
+    const h = makeHarness({
+      nodes: [user(1, 'first'), assistant(3, 'reply', 1, 1), user(4, 'second')],
+      hasMore: true,
+    })
+    const baseRenderSlot = h.props.renderSlot
+    const renderSlot = ((key: string, owner: object, opts?: { fallback?: React.ReactNode }) => (
+      key === 'conversation.chat.userMessageFooter'
+        ? <i data-testid="opening-footer" data-leading={String((owner as { leading?: boolean }).leading)} />
+        : baseRenderSlot(key as never, owner as never, opts as never)
+    )) as ChatViewSlotProps['renderSlot']
+    const view = render(<h.ChatView {...{ ...h.props, renderSlot }} />)
+    // Older history is still paged out, so the opening is not the first message yet.
+    expect(view.queryByTestId('opening-footer')).toBeNull()
+
+    act(() => { h.set({ hasMore: false }) })
+    const footer = view.getByTestId('opening-footer')
+    expect(footer.getAttribute('data-leading')).toBe('true')
+    const opening = view.getByText('first').closest('[data-chat-node-key]')!
+    expect(opening.contains(footer)).toBe(true)
+    expect(view.getByText('second').closest('[data-chat-node-key]')!.contains(footer)).toBe(false)
+  })
+
+  it('mounts the opening footer on the pending echo until its durable node arrives', () => {
+    const h = makeHarness({}, { pendingSubmissions: [{
+      requestId: 'footer-opening' as never, placement: 'transcript', time: 1_000, text: 'first words', attachments: [],
+    }] })
+    const baseRenderSlot = h.props.renderSlot
+    const renderSlot = ((key: string, owner: object, opts?: { fallback?: React.ReactNode }) => (
+      key === 'conversation.chat.userMessageFooter'
+        ? <i data-testid="opening-footer" />
+        : baseRenderSlot(key as never, owner as never, opts as never)
+    )) as ChatViewSlotProps['renderSlot']
+    const view = render(<h.ChatView {...{ ...h.props, renderSlot }} />)
+    const echo = view.getByText('first words').closest('[data-submission-echo]')!
+    expect(echo.contains(view.getByTestId('opening-footer'))).toBe(true)
+
+    const admitted: UserMessageNode & { turn: number } = {
+      ...user(2, 'first words'), turn: 1, source: { kind: 'user', rpcId: 'footer-opening' },
+    }
+    act(() => { h.setChat({ nodes: [admitted] }) })
+    expect(view.getAllByText('first words')).toHaveLength(1)
+    expect(view.getByText('first words').closest('[data-chat-node-key]')!.contains(view.getByTestId('opening-footer')))
+      .toBe(true)
+  })
+
   it.each(['ABC', 'ACB', 'BAC', 'BCA', 'CAB', 'CBA'])(
     'uses the first local opening echo until Host admission identifies the input (%s)', (hostOrder) => {
       const pending: SessionSnapshot['pendingSubmissions'] = ['A', 'B', 'C'].map(text => ({
