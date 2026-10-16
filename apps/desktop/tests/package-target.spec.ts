@@ -148,7 +148,7 @@ describe('desktop package target', () => {
   it('records whether a product build is signed so only self-hosted feeds publish unsigned installers', () => {
     const root = mkdtempSync(join(tmpdir(), 'dsh-release-record-'))
     try {
-      const applications = ['aiko-dsh-workbench', 'aiko-dsh-market', 'aiko-dsh-md-editor', 'aiko-dsh-visio', 'aiko-dsh-drawio']
+      const applications = ['aiko-dsh-workbench', 'aiko-dsh-market', 'aiko-dsh-md-editor', 'aiko-dsh-visio', 'aiko-dsh-drawio', 'aiko-dsh-ppt', 'aiko-dsh-image-generation']
       writeFileSync(join(root, 'plugin.tgz'), 'archive')
       const integrity = 'sha512-' + createHash('sha512').update('archive').digest('base64')
       const productFile = join(root, 'yunyao.json')
