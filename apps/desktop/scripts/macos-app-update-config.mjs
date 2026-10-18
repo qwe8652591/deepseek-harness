@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { dump, load } from 'js-yaml'
 
 const CONFIG_FILENAME = 'app-update.yml'
-const CHANNEL = 'nightly'
+import { resolveDesktopUpdateChannel } from './desktop-auto-update-environment.mjs'
 
 function object(value, label) {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
@@ -24,7 +24,7 @@ function nonEmptyString(value, label) {
 /**
  * Resolve the one generic macOS feed from the final electron-builder configuration.
  * @param {unknown} publish - Final electron-builder publish setting.
- * @returns {{ publicUrl: string }} Resolved feed used by the packaged App.
+ * @returns {{ publicUrl: string, channel?: string }} Resolved feed used by the packaged App.
  */
 export function resolveMacOSAppUpdateFeed(publish) {
   if (!Array.isArray(publish) || publish.length !== 1) {
@@ -32,22 +32,22 @@ export function resolveMacOSAppUpdateFeed(publish) {
   }
   const provider = object(publish[0], 'publish provider')
   if (provider.provider !== 'generic' || typeof provider.channel !== 'string' || !/^[a-z][a-z0-9-]*$/.test(provider.channel)) {
-    throw new Error('desktop macOS update config: publish provider must be generic Nightly')
+    throw new Error('desktop macOS update config: publish provider must be generic with nightly, latest or a product channel')
   }
-  return { publicUrl: nonEmptyString(provider.url, 'publish provider URL'), ...(provider.channel === CHANNEL ? {} : { channel: provider.channel }) }
+  return { publicUrl: nonEmptyString(provider.url, 'publish provider URL'), channel: provider.channel }
 }
 
 /**
  * Create the electron-updater configuration embedded before code signing.
- * @param {{ publicUrl: string }} update - Resolved update feed.
+ * @param {{ publicUrl: string, channel?: string }} update - Resolved update feed.
  * @param {string} updaterCacheDirName - electron-builder application cache directory.
- * @returns {{ provider: 'generic', url: string, channel: 'nightly', updaterCacheDirName: string }} Packaged updater fields.
+ * @returns {{ provider: 'generic', url: string, channel: string, updaterCacheDirName: string }} Packaged updater fields.
  */
 export function createMacOSAppUpdateConfig(update, updaterCacheDirName) {
   return {
     provider: 'generic',
     url: nonEmptyString(update.publicUrl, 'public URL'),
-    channel: update.channel ?? CHANNEL,
+    channel: update.channel ?? resolveDesktopUpdateChannel({}),
     updaterCacheDirName: nonEmptyString(updaterCacheDirName, 'updater cache directory'),
   }
 }
@@ -55,7 +55,7 @@ export function createMacOSAppUpdateConfig(update, updaterCacheDirName) {
 /**
  * Write the updater configuration into an assembled App before signing.
  * @param {string} resourcesDir - App Contents/Resources directory.
- * @param {{ publicUrl: string }} update - Resolved update feed.
+ * @param {{ publicUrl: string, channel?: string }} update - Resolved update feed.
  * @param {string} updaterCacheDirName - electron-builder application cache directory.
  * @returns {Promise<void>} Resolves after the configuration is durable.
  */
@@ -67,7 +67,7 @@ export async function writeMacOSAppUpdateConfig(resourcesDir, update, updaterCac
 /**
  * Verify the updater configuration inside an assembled macOS App.
  * @param {string} appPath - Application bundle path.
- * @param {{ publicUrl: string }} update - Expected update feed.
+ * @param {{ publicUrl: string, channel?: string }} update - Expected update feed.
  * @param {string | undefined} updaterCacheDirName - Exact cache directory when known.
  * @returns {Promise<void>} Resolves when the packaged configuration matches the release destination.
  */
@@ -81,7 +81,7 @@ export async function verifyMacOSAppUpdateConfig(appPath, update, updaterCacheDi
     throw new Error(`desktop macOS update config: cannot read ${path}: ${error instanceof Error ? error.message : String(error)}`)
   }
   const config = object(parsed, CONFIG_FILENAME)
-  if (config.provider !== 'generic' || config.url !== update.publicUrl || config.channel !== (update.channel ?? CHANNEL)) {
+  if (config.provider !== 'generic' || config.url !== update.publicUrl || config.channel !== (update.channel ?? resolveDesktopUpdateChannel({}))) {
     throw new Error(`desktop macOS update config: ${path} does not match ${update.publicUrl}`)
   }
   const actualCacheDirName = nonEmptyString(config.updaterCacheDirName, `${CONFIG_FILENAME}.updaterCacheDirName`)

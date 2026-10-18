@@ -45,6 +45,7 @@ export class DesktopUpdateCoordinator {
    * @param updater - Process-owned Electron updater, replaceable at the network/platform test boundary.
    * @param enabled - Whether this process has a packaged update source.
    * @param currentVersion - Actual installed application version.
+   * @param channel - Installed package channel; omitted test/local callers retain nightly.
    * @param downloadResult - Once per completed download attempt, including platform preparation failures.
    * @param packaged - Whether Electron is running an installed application rather than a source checkout.
    * @param channel - Update channel fixed by the installed product, never by a user-supplied platform URL.
@@ -57,7 +58,7 @@ export class DesktopUpdateCoordinator {
     private readonly currentVersion: () => string = () => app.getVersion(),
     private readonly downloadResult?: (success: boolean, reason?: string) => void,
     private readonly packaged: () => boolean = () => app.isPackaged,
-    channel = 'nightly',
+    private readonly channel: string = 'nightly',
   ) {
     if (updater === autoUpdater) {
       // electron-updater omits this internal transport property from its public declarations.
@@ -71,7 +72,7 @@ export class DesktopUpdateCoordinator {
     this.updater.autoDownload = false
     this.updater.autoInstallOnAppQuit = false
     this.updater.channel = channel
-    this.updater.allowPrerelease = true
+    this.updater.allowPrerelease = channel === 'nightly'
     // Selecting a channel can enable downgrade in electron-updater.
     this.updater.allowDowngrade = false
     this.updater.on('download-progress', this.onProgress)
@@ -194,6 +195,7 @@ export class DesktopUpdateCoordinator {
       if (result === null) throw new Error('desktop update: no check result was returned')
       const version = result.updateInfo.version
       if (valid(version) === null) throw new Error('desktop update: feed version is invalid')
+      if (this.channel === 'latest' && version.includes('-')) throw new Error('desktop update: latest feed contains a prerelease')
       this.candidate = result.isUpdateAvailable && gt(version, this.currentVersion()) ? version : undefined
       return this.setState(this.candidate === undefined ? { phase: 'idle' } : { phase: 'available', version })
     } catch (error) {
