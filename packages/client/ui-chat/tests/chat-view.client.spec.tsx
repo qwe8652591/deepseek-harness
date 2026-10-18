@@ -263,6 +263,7 @@ declare const flowDispatch: ChatViewSlotProps['renderSlot']
 type NodeRenderer = typeof nodeDispatch<'conversation.chat.node'>
 type FlowRenderer = typeof flowDispatch<'conversation.chat.flow'>
 type ImageRenderer = (owner: MessageImagesOwnerProps) => React.ReactNode
+type FooterRenderer = (owner: { readonly leading: true }) => React.ReactNode
 type HarnessStandardProps = ChatViewSlotProps & PropsRenderFactories
 
 function isImageOwner(owner: object): owner is MessageImagesOwnerProps {
@@ -423,6 +424,7 @@ function makeHarness(
   const usePerformanceUsage = bindSnapshotSelector(performanceUsage)
   let nodeSlotOverride: NodeRenderer | undefined
   let imageSlotOverride: ImageRenderer | undefined
+  let footerSlotOverride: FooterRenderer | undefined
   const renderImages = (name: string, owner: object, options?: { fallback?: React.ReactNode }) => {
     if ((name !== 'conversation.chat.user.images' && name !== 'conversation.chat.message.images') || !isImageOwner(owner)) {
       throw new Error(`Unexpected Chat image Slot: ${name}`)
@@ -444,6 +446,7 @@ function makeHarness(
     if (key === 'conversation.chat.node') {
       return renderNodeSlot(key, owner as RoutedChatNodeOwner, opts as Parameters<NodeRenderer>[2])
     }
+    if (key === 'conversation.chat.userMessageFooter') return footerSlotOverride?.(owner as { leading: true }) ?? null
     throw new Error(`Undeclared flow child: ${key}`)
   }
   const renderFactorySlot: PropsRenderFactories['renderFactorySlot'] = (name, owner) => {
@@ -548,6 +551,7 @@ function makeHarness(
     setCollapseTiming: (timing: CollapseTiming) => { collapseTiming.set(timing) },
     setNodeRenderer: (renderer: NodeRenderer) => { nodeSlotOverride = renderer },
     setImageRenderer: (renderer: ImageRenderer) => { imageSlotOverride = renderer },
+    setFooterRenderer: (renderer: FooterRenderer) => { footerSlotOverride = renderer },
   }
 }
 
@@ -2004,6 +2008,38 @@ describe('ChatView', () => {
     expect(view.getAllByText('same frame')).toHaveLength(1)
     expect(view.container.querySelector('[data-submission-echo]')).toBeNull()
     expect(renderedFlowKinds(view.container)).toEqual(['user', 'turn-process'])
+  })
+
+  it('mounts the opening footer on the first user message, and only once history is loaded', () => {
+    const h = makeHarness({ nodes: [user(1, 'first'), assistant(3, 'reply', 1, 1), user(4, 'second')] }, { hasMore: true })
+    h.setFooterRenderer(owner => <i data-testid="opening-footer" data-leading={String(owner.leading)} />)
+    const view = render(<h.ChatView {...h.props} />)
+    // Older history is still paged out, so the opening is not the first message yet.
+    expect(view.queryByTestId('opening-footer')).toBeNull()
+
+    act(() => { h.setSession({ hasMore: false }) })
+    const footer = view.getByTestId('opening-footer')
+    expect(footer.getAttribute('data-leading')).toBe('true')
+    expect(view.getByText('first').closest('[data-chat-node-key]')!.contains(footer)).toBe(true)
+    expect(view.getByText('second').closest('[data-chat-node-key]')!.contains(footer)).toBe(false)
+  })
+
+  it('mounts the opening footer on the pending echo until its durable node arrives', () => {
+    const h = makeHarness({}, { pendingSubmissions: [{
+      requestId: 'footer-opening' as never, placement: 'transcript', time: 1_000, text: 'first words', attachments: [],
+    }] })
+    h.setFooterRenderer(() => <i data-testid="opening-footer" />)
+    const view = render(<h.ChatView {...h.props} />)
+    const echo = view.getByText('first words').closest('[data-submission-echo]')!
+    expect(echo.contains(view.getByTestId('opening-footer'))).toBe(true)
+
+    const admitted: UserMessageNode & { turn: number } = {
+      ...user(2, 'first words'), turn: 1, source: { kind: 'user', rpcId: 'footer-opening' },
+    }
+    act(() => { h.setChat({ nodes: [admitted] }) })
+    expect(view.getAllByText('first words')).toHaveLength(1)
+    expect(view.getByText('first words').closest('[data-chat-node-key]')!.contains(view.getByTestId('opening-footer')))
+      .toBe(true)
   })
 
   it('matches echoes past an input Node whose payload carries no message source', () => {

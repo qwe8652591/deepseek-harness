@@ -163,7 +163,7 @@ function TurnMaxTokensItem({ t }: {
 /** Right-aligned bubble shared by user and steering rows. */
 function UserStyleBubble({
   content, loadImage, renderFactorySlot, actions, pending = false, echo = false, referenceLabels, skillNames,
-  previewAttachments, facts: inputFacts = EMPTY_TEXT_FACTS, interactive = false,
+  previewAttachments, facts: inputFacts = EMPTY_TEXT_FACTS, interactive = false, footer = null,
 }: {
   content: readonly unknown[]
   renderFactorySlot: PropsRenderFactories['renderFactorySlot']
@@ -181,7 +181,7 @@ function UserStyleBubble({
   previewAttachments?: readonly UserContentAttachment[]
   /** Inputs used by text transforms, separate from row and rendering props. */
   facts?: Readonly<Partial<UserTextFacts>>
-} & Pick<ChatNodeOwnerProps, 'loadImage'> & Pick<UserContentInput, 'interactive'>): ReactNode {
+} & Pick<ChatNodeOwnerProps, 'loadImage'> & Pick<UserContentInput, 'interactive' | 'footer'>): ReactNode {
   const parts = useMemo(() => contentParts(content), [content])
   const prepared = useMemo<UserContentData>(() => ({
     text: parts.text,
@@ -205,6 +205,7 @@ function UserStyleBubble({
         loadImage,
         facts,
         interactive,
+        ...footer == null ? {} : { footer },
       })}
       {actions?.(prepared.text)}
     </div>
@@ -248,8 +249,10 @@ export function PendingSteeringBubble({ content, loadImage, renderFactorySlot, t
  * @param props - the pending submission, authorized image loader, and render seats.
  * @returns the echoed user bubble.
  */
-export function PendingSubmissionBubble({ submission, loadImage, renderFactorySlot, t }: {
+export function PendingSubmissionBubble({ submission, loadImage, renderFactorySlot, footer = null, t }: {
   submission: PendingSubmission
+  /** Opening user-message footer while this echo stands in for the first user Node. */
+  footer?: ReactNode
   renderFactorySlot: PropsRenderFactories['renderFactorySlot']
   t: ChatViewSlotProps['t']
 } & Pick<ChatNodeOwnerProps, 'loadImage'>): ReactNode {
@@ -281,6 +284,7 @@ export function PendingSubmissionBubble({ submission, loadImage, renderFactorySl
       loadImage={loadImage}
       pending={submission.placement === 'steering'}
       echo
+      footer={footer}
       actions={text => (
         <MessageIconActions
           text={text}
@@ -296,13 +300,14 @@ export function PendingSubmissionBubble({ submission, loadImage, renderFactorySl
 
 /** User and admitted-steering keyed Chat renderer. */
 export const UserMessageNodeView = memo(function UserMessageNodeView({
-  node, renderFactorySlot, loadImage, t,
+  node, renderFactorySlot, loadImage, messageFooter = null, t,
 }: ChatNodeViewProps<'user' | 'steering'>) {
   const data = node.data
   return (
     <UserStyleBubble
       content={data.content}
       interactive
+      footer={messageFooter}
       renderFactorySlot={renderFactorySlot}
       loadImage={loadImage}
       {...data.referenceLabels === undefined ? {} : { referenceLabels: data.referenceLabels }}

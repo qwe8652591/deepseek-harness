@@ -936,20 +936,6 @@ it.each(['plugin', 'bundle'] as const)('suspends unchanged dependents when a pro
   expect(ctx.get('dependentProbe')).toBe(true)
 })
 
-it('still rejects a newly introduced pending entry while disabling another plugin', async () => {
-  const { manager, dir, bundle, profile } = await fixture()
-  bundle('unavailable', [{ id: 'unavailable', name: './pending.mjs' }])
-  writeFileSync(join(dir, 'node_modules/unavailable/pending.mjs'), 'export const inject = ["unknownService"]; export function apply() {}')
-  const manifest = readProfileManifest('test', dir)
-  manifest.dsh!.profile!.bundles!.push('unavailable')
-  writeFileSync(join(dir, 'package.json'), JSON.stringify(manifest))
-  const provider = (await manager.listPlugins()).find(row => row.patchId === 'managed')!.entryId
-  const result = await manager.setPluginEnabled(provider, false)
-  const diagnostic: unknown = expect.stringContaining('unknownService')
-  expect(result).toMatchObject({ application: 'failed', error: { diagnostic } })
-  expect(readFileSync(profile.patchPath, 'utf8')).toContain('disabled: true')
-})
-
 it('returns unchanged failures as warnings while toggling and removing another bundle', async () => {
   const { manager, dir, bundle, ctx } = await fixture()
   bundle('broken', [

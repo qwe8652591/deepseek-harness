@@ -1,5 +1,5 @@
 /** Chat-owned Slot declarations and composed component props. */
-import type { RefObject } from 'react'
+import type { ReactNode, RefObject } from 'react'
 import type { MessageId } from '@deepseek-ai/dsh-llm/brand'
 import type { SessionId, SessionSeq } from '@deepseek-ai/dsh-session/types'
 import type { PendingSubmission } from '@deepseek-ai/dsh-api-session-controller/client'
@@ -220,6 +220,11 @@ export interface ChatNodeOwnerProps {
   fileMentions: (owner: TurnTailOwnerProps) => MarkdownFileMentions | undefined
   /** Turn-process state when this Node belongs to a projected Turn. */
   turnProcess?: TurnProcessOwnerProps | undefined
+  /**
+   * Render seat for the opening user message's footer. The flow supplies it
+   * only to that message's seat; every other Node receives none.
+   */
+  messageFooter?: ReactNode | undefined
 }
 
 /** One attachment in the original user-message display order. */
@@ -243,6 +248,8 @@ export interface UserContentInput extends Pick<ChatNodeOwnerProps, 'loadImage'>,
   readonly content: UserContentData
   /** Transform inputs passed unchanged to UserText, separate from summary and rendering props. */
   readonly facts: Readonly<Partial<UserTextFacts>>
+  /** Opening user-message footer rendered inside the bubble; a footer alone still renders the bubble. */
+  readonly footer?: ReactNode
 }
 
 /** Shared presentation state for one Turn-process answer generation. */
@@ -337,10 +344,16 @@ export interface ChatFlowOwnerProps extends Pick<ChatNodeOwnerProps,
   readonly deferCollapse: boolean
 }
 
+/** Owner currency of the opening user-message footer. */
+export interface UserMessageFooterOwnerProps {
+  /** True only for the loaded conversation's first user message. */
+  readonly leading: true
+}
+
 /** Full props of the Chat-owned flow renderer. */
 export type ChatFlowSlotProps =
   PropsRuntime<'conversation.chat.flow'>
-  & PropsRenderSlots<'conversation.chat.node'>
+  & PropsRenderSlots<'conversation.chat.node' | 'conversation.chat.userMessageFooter'>
   & PropsRenderFactories
   & PropsStore<ChatStore>
   & InjectFace<ChatFlowDataInjected>
@@ -415,6 +428,12 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
     'conversation.chat.message.images': { kind: 'single'; scope: 'session'; owner: MessageImagesOwnerProps }
     /** User-message images, including pending and local-echo previews, independently replaceable from output images. */
     'conversation.chat.user.images': { kind: 'single'; scope: 'session'; owner: MessageImagesOwnerProps }
+    /**
+     * Ordered contributions under the loaded conversation's first user message.
+     * The host renders nothing when older history is still paged out, and mounts
+     * the same slot on the opening echo until the durable user node arrives.
+     */
+    'conversation.chat.userMessageFooter': { kind: 'list'; scope: 'session'; owner: UserMessageFooterOwnerProps }
     /**
      * Command row keyed by the command name. The component receives the folded
      * command lifecycle and linked compaction when present. Reusing a key

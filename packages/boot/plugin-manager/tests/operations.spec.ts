@@ -224,7 +224,7 @@ it('rejects an incompatible local package file before pnpm runs and leaves both 
   const outcome = await runProfilePnpm(context, ['add', tarball], { execution: 'service', outputBytes: 8192 })
   expect(outcome.exitCode).toBe(1)
   expect(outcome.incompatible).toEqual([
-    { name: 'plugin', version: '1.0.0', runtimeVersion: getDshRuntimeVersion(), peers: { '@deepseek-ai/dsh': '999.0.0' } },
+    { name: 'plugin', version: '1.0.0', runtimeVersion: getDshRuntimeVersion(), requirements: { '@deepseek-ai/dsh': '999.0.0' } },
   ])
   expect(outcome.output).toContain('nothing was installed')
   // The file was read from disk, so no pnpm invocation exists to install anything.

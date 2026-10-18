@@ -1,12 +1,46 @@
 /** Ordered Chat rows, local echoes, and running status share the flow slot's parent. */
-import { memo } from 'react'
+import { memo, useMemo } from 'react'
+import type { PendingSubmission } from '@deepseek-ai/dsh-api-session-controller/client'
 import { assertNever } from '@deepseek-ai/dsh-util-values'
-import type { ChatFlowSlotProps } from '../contract/slots.ts'
+import type { ChatFlowOwnerProps, ChatFlowSlotProps } from '../contract/slots.ts'
 import { ChatNodeSeat } from './ChatNodeSeat.tsx'
 import { ChatGroupSeat } from './ChatGroupSeat.tsx'
 import { PendingSteeringBubble, PendingSubmissionBubble } from './MessageItem.tsx'
 import { chatRenderKey } from './render-entry.ts'
 import { RunningStatus } from './RunningStatus.tsx'
+
+/** The one message that hosts the opening footer, or neither before it is known. */
+interface OpeningMessageTarget {
+  readonly leadingUserKey: string | null
+  readonly leadingPendingId: string | null
+}
+
+const NO_OPENING: OpeningMessageTarget = { leadingUserKey: null, leadingPendingId: null }
+
+/**
+ * The opening user message hosts the footer only once older history is fully
+ * loaded. A pending transcript echo hosts it until that durable node arrives.
+ * @param hasMore - whether older history remains paged out.
+ * @param order - durable chat node keys, oldest first.
+ * @param kindAt - kind lookup for one node key, as the Node store reports it.
+ * @param pendingInputs - visible echoes and steering rows.
+ * @returns the single host key, or neither when the opening is not loaded yet.
+ */
+function openingUserMessageTarget(
+  hasMore: boolean,
+  order: readonly string[],
+  kindAt: (key: string) => string | undefined,
+  pendingInputs: ChatFlowOwnerProps['pendingInputs'],
+): OpeningMessageTarget {
+  if (hasMore) return NO_OPENING
+  for (const key of order) {
+    if (kindAt(key) === 'user') return { leadingUserKey: key, leadingPendingId: null }
+  }
+  const pending = pendingInputs.find((item): item is PendingSubmission => (
+    'requestId' in item && item.placement !== 'steering'
+  ))
+  return { leadingUserKey: null, leadingPendingId: pending?.requestId ?? null }
+}
 
 /** Render the flow without adding a DOM parent or changing keyed row positions. */
 export const ChatFlow = memo(function ChatFlow({
@@ -17,6 +51,8 @@ export const ChatFlow = memo(function ChatFlow({
 }: ChatFlowSlotProps) {
   const nodeStore = useChat(snapshot => snapshot.nodes)
   const running = useSession(snapshot => snapshot.running)
+  const hasMore = useSession(snapshot => snapshot.hasMore)
+  const order = useChat(snapshot => snapshot.order)
   const latestTurnAnchor = useChat(snapshot => snapshot.navigation.items().at(-1)?.anchorKey)
   const runningStartTime = useChatNode(latestTurnAnchor ?? '', (node) => {
     const location = node?.location
@@ -24,10 +60,20 @@ export const ChatFlow = memo(function ChatFlow({
       ? location.turn.status === 'open' ? location.turn.start?.time : undefined
       : undefined
   })
+  const opening = useMemo(
+    () => openingUserMessageTarget(hasMore, order, key => nodeStore.get(key)?.kind, pendingInputs),
+    [hasMore, order, nodeStore, pendingInputs],
+  )
+  const hasOpening = opening.leadingUserKey !== null || opening.leadingPendingId !== null
+  const messageFooter = useMemo(
+    () => hasOpening ? renderSlot('conversation.chat.userMessageFooter', { leading: true }) : null,
+    [hasOpening, renderSlot],
+  )
   const seatProps = {
     nodeStore, useChatNode, useChatNodeBottom, useChatNodeProcess, usePresentation,
     useStore, actions, renderSlot, t, useGroupAction, deferCollapse,
     cwd, openFile, inspectCall, forkAt, loadImage, fileMentions,
+    leadingUserKey: opening.leadingUserKey, messageFooter,
   }
   const rows = entries.map((entry) => {
     switch (entry.kind) {
@@ -43,6 +89,7 @@ export const ChatFlow = memo(function ChatFlow({
   })
   const pendingRows = pendingInputs.map(item => 'requestId' in item ? (
     <PendingSubmissionBubble key={item.requestId} submission={item}
+      footer={item.requestId === opening.leadingPendingId ? messageFooter : null}
       loadImage={loadImage} renderFactorySlot={renderFactorySlot} t={t} />
   ) : (
     <PendingSteeringBubble key={item.id} content={item.content}

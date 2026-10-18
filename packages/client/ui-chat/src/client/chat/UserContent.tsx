@@ -12,12 +12,15 @@ const EMPTY_LABELS: readonly string[] = []
  * @param props - prepared content, facts, authorized image loader, and framework Factory/locale seats.
  * @returns the content stack using the existing user-message layout.
  */
-export function UserContent({ content, loadImage, facts, interactive = false, ellipsis = false, renderSlot, renderFactorySlot, t }:
+export function UserContent({
+  content, loadImage, facts, interactive = false, ellipsis = false, footer = null, renderSlot, renderFactorySlot, t,
+}:
 FactoryComponentPropsOf<'conversation.chat.user.content'>) {
   const { text, attachments, extraBlocks, referenceLabels = EMPTY_LABELS } = content
   const compactImages = attachments.length > 1
   const truncated = (total: number): string => t('json.truncated', { total })
-  const showBubble = text !== '' || extraBlocks.length > 0
+  const hasBody = text !== '' || extraBlocks.length > 0
+  const showBubble = hasBody || footer != null
   return (
     <div className={css.userStack}>
       {attachments.length > 0 && (
@@ -45,10 +48,11 @@ FactoryComponentPropsOf<'conversation.chat.user.content'>) {
         </div>
       )}
       {showBubble && <div className={css.bubble}>
-        {renderFactorySlot('conversation.user.text', { text, facts, interactive, ellipsis })}
+        {hasBody ? renderFactorySlot('conversation.user.text', { text, facts, interactive, ellipsis }) : null}
         {extraBlocks.map((block, index) => (
           <JsonBlock key={index} label={t('message.extraBlock')} payload={block} truncatedLabel={truncated} />
         ))}
+        {footer}
       </div>}
       {referenceLabels.length > 0 && (
         <div className={css.referenceSummary}>

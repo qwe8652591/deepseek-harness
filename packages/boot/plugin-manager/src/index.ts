@@ -569,7 +569,7 @@ export class PluginManager extends TypertRemoteService {
       }
       if (locked) {
         await this.selectBundle(name, false)
-        result.warnings = await this.reload()
+        Object.assign(result, await this.reload())
       }
     }), { stage: 'enable', target: name, enabled: false }, 'bundle')
   }

@@ -13,6 +13,8 @@ import css from './ChatView.module.css'
 
 interface ChatNodeSeatProps extends ChatNodeOwnerProps {
   readonly nodeKey: string
+  /** Key of the loaded conversation's opening user node; only that seat takes the footer. */
+  readonly leadingUserKey?: string | null
   /** A replaced Builder must rebind keyed hooks even when references and keys survive. */
   readonly nodeStore: ChatNodeStore
   readonly useChatNode: ChatFlowSlotProps['useChatNode']
@@ -50,6 +52,7 @@ export const ChatNodeSeat = memo(function ChatNodeSeat({
   nodeKey, groupPart, useChatNode, useChatNodeProcess, usePresentation,
   cwd, openFile, inspectCall, forkAt,
   loadImage, fileMentions, useStore, actions, renderSlot, t, useChatNodeBottom, deferCollapse, useGroupAction,
+  leadingUserKey = null, messageFooter = null,
 }: ChatNodeSeatProps) {
   const bottom = useChatNodeBottom(nodeKey)
   const node = useChatNode(nodeKey)
@@ -133,9 +136,10 @@ export const ChatNodeSeat = memo(function ChatNodeSeat({
       loadImage,
       fileMentions,
       turnProcess,
+      ...nodeKey === leadingUserKey && messageFooter != null ? { messageFooter } : {},
     }, [
     node, groupPart, cwd, openFile, inspectCall, forkAt,
-    loadImage, fileMentions, turnProcess,
+    loadImage, fileMentions, turnProcess, nodeKey, leadingUserKey, messageFooter,
   ])
   if (routedNode === undefined || owner === null) return null
   // Runtime dispatch owns the correlation: every Node's discriminant is the
