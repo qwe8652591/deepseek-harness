@@ -1,9 +1,10 @@
 /** Boot the materialized target runtime without access to a user's Harness profile. */
 
-import { appendFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { appendFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { create as createTar } from 'tar'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { fileURLToPath } from 'node:url'
@@ -33,6 +34,21 @@ export function smokeHostEnvironment(environment: NodeJS.ProcessEnv, home: strin
     npm_config_userconfig: join(home, 'npmrc'), npm_config_globalconfig: join(home, 'npmrc'),
     npm_config_store_dir: join(home, 'store'), npm_config_enable_global_virtual_store: 'false',
   }
+}
+
+/**
+ * The spec the smoke Host installs its test plugin from. A whole-product build accepts only local package files,
+ * so there the directory is packed as an npm-layout `.tgz`; other builds install the directory itself.
+ * @param directory - Test plugin directory.
+ * @param home - Temporary DSH home receiving the package file.
+ * @param product - Whether this is a whole-product build.
+ * @returns The install spec.
+ */
+export async function smokeInstallSpec(directory: string, home: string, product: boolean): Promise<string> {
+  if (!product) return directory
+  const file = join(home, 'desktop-installed-smoke-plugin.tgz')
+  await createTar({ gzip: true, portable: true, cwd: directory, prefix: 'package', file }, readdirSync(directory))
+  return file
 }
 
 /**
@@ -76,6 +92,7 @@ export function apply(ctx) {
 `)
     writeFileSync(join(installedPlugin, 'bundle.yml'), `- insert:\n    - id: ${installedName}\n      name: ${installedName}\n      inject: [webServer]\n`)
     appendFileSync(join(profile, 'pnpm-workspace.yaml'), 'offline: true\nupdateNotifier: false\n')
+    const installSpec = await smokeInstallSpec(installedPlugin, home, product !== undefined)
     const cli = join(root, 'node_modules', '@deepseek-ai', 'dsh-desktop-host', 'lib', 'cli.js')
     const runCli = (args: string[]) => promisify(execFile)(node,
       ['--expose-internals', cli, 'plugin', '--profile', 'desktop', ...args],
@@ -115,7 +132,7 @@ export function apply(ctx) {
   ctx.effect(() => ctx.webServer.register({ kind: 'exact', path: '/desktop-smoke-install',
     async handler(_request, response) {
       try {
-        response.end(JSON.stringify(await ctx.pluginManager.installBundle(${JSON.stringify(installedPlugin)})))
+        response.end(JSON.stringify(await ctx.pluginManager.installBundle(${JSON.stringify(installSpec)})))
       } catch (error) {
         response.statusCode = 500
         response.end(inspect(error, { depth: 5 }))
