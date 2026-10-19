@@ -97,7 +97,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 async function start(profile: string): Promise<(typeof children)[number]> {
   const child = spawn(executable, ['--expose-internals',
     join(runtime, 'node_modules/@deepseek-ai/dsh-desktop-host/lib/index.js'), runtime, profile,
-    join(resources, 'runtime/primary-runtime'), join(resources, 'runtime/pnpm/bin/pnpm.cjs'), join(resources, 'runtime/bin'),
+    join(resources, 'runtime/primary-runtime'), join(resources, 'runtime/primary-runtime/dependencies/pnpm/bin/pnpm.mjs'), join(resources, 'runtime/bin'),
   ], { cwd: profile, windowsHide: true, env: { ...environment, ELECTRON_RUN_AS_NODE: '1',
     DSH_HOME: resolve(profile, '../..'), DSH_CLIENT_VERSION: version,
     AIKO_DESKTOP_ACCOUNT_FILE: resolve(profile, '../../credentials/product-test.json') }, stdio: ['ignore', 'pipe', 'pipe', 'ipc'] })
