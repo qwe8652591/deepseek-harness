@@ -100,10 +100,10 @@ syncNativeTheme()
 // Main-process IPC also verifies the owning window and top frame.
 contextBridge.exposeInMainWorld('dshDesktop', location.protocol === `${SCHEME}:` && location.hostname === 'app' && process.isMainFrame ? {
   ...createProductApi(),
-  ...(process.argv.includes('--aiko-platform-account') ? { account: {
-    profile: () => ipcRenderer.invoke('aiko:account:get'),
-    logout: () => ipcRenderer.invoke('aiko:account:logout'),
-    open: (destination: 'website' | 'capabilities' | 'account') => ipcRenderer.invoke('aiko:account:open', destination),
+  ...(process.argv.includes('--workbench-platform-account') ? { account: {
+    profile: () => ipcRenderer.invoke('workbench:account:get'),
+    logout: () => ipcRenderer.invoke('workbench:account:logout'),
+    open: (destination: 'website' | 'capabilities' | 'account') => ipcRenderer.invoke('workbench:account:open', destination),
   } } : {}),
 } : { protocolVersion: 1 })
 

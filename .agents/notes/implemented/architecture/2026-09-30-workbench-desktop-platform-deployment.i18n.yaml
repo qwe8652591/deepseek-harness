@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for 2026-09-30-workbench-desktop-platform-deployment.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-30-workbench-desktop-platform-deployment.md
+/agent-note-workbench-platform-admission-on-official-desktop:
+  en: 5baaf9e3bc9e00d3
+  zh: 489128420fea66fc
+/agent-note-workbench-platform-admission-on-official-desktop/problem:
+  en: b4f13a318e21ce9a
+  zh: 1d2b1737f80d3429
+/agent-note-workbench-platform-admission-on-official-desktop/decision:
+  en: d25f6b0e0632e9a9
+  zh: 9dbcce9bd4ae836c
+/agent-note-workbench-platform-admission-on-official-desktop/alternatives-considered:
+  en: 746ad78e8282b265
+  zh: 60104f0f1484d257
+/agent-note-workbench-platform-admission-on-official-desktop/consequences:
+  en: cde734baa301c32d
+  zh: e93a4b1173b19a07
+/agent-note-workbench-platform-admission-on-official-desktop/verification:
+  en: 9415494e9226d4a6
+  zh: 29f9f63d82b0d7de

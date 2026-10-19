@@ -1,4 +1,4 @@
-/** Materialize published Aiko plugins against this workspace's exact Desktop runtime. */
+/** Materialize published Workbench plugins against this workspace's exact Desktop runtime. */
 import { execFileSync, spawn } from 'node:child_process'
 import { readFile, mkdir, writeFile, realpath } from 'node:fs/promises'
 import { createRequire } from 'node:module'
@@ -6,14 +6,14 @@ import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { parseArgs } from 'node:util'
 
 const root = resolve(import.meta.dirname, '../../..')
-if (!process.env.npm_config_user_agent?.startsWith('pnpm/10.34.5 ')) throw new Error('Prepare the linked plugin graph with corepack pnpm@10.34.5 --dir apps/desktop run prepare:aiko')
+if (!process.env.npm_config_user_agent?.startsWith('pnpm/10.34.5 ')) throw new Error('Prepare the linked plugin graph with corepack pnpm@10.34.5 --dir apps/desktop run prepare:workbench')
 const { values } = parseArgs({ options: { 'source-runtime': { type: 'string' }, output: { type: 'string' } } })
 const source = values['source-runtime'], output = values.output
 if (!source || !output || !isAbsolute(source) || !isAbsolute(output) || source === output) throw new Error('Provide distinct absolute --source-runtime and --output directories')
 const existing: { dependencies: Record<string, string> } = JSON.parse(await readFile(join(source, 'package.json'), 'utf8'))
-const packages = ['aiko-dsh-workbench', 'aiko-dsh-tender', '@aiko-dsh-plugins/dsh-knowledge', 'aiko-dsh-code', 'aiko-dsh-theme', 'yunyao-dsh-theme', 'aiko-dsh-market', 'aiko-dsh-plugin-catalog']
+const packages = ['workbench', 'workbench-tender', '@workbench/dsh-knowledge', 'workbench-code', 'workbench-theme-orange', 'workbench-theme-blue', 'workbench-market', 'workbench-plugin-catalog']
 // Retain an explicitly supplied legacy resource package without requiring it for platform services.
-if (existing.dependencies['aiko-dsh-workbench-kit']) packages.push('aiko-dsh-workbench-kit')
+if (existing.dependencies['workbench-kit']) packages.push('workbench-kit')
 const dependencies: Record<string, string> = {}
 for (const name of packages) {
   const spec = existing.dependencies[name]
@@ -24,7 +24,7 @@ for (const name of packages) {
 const files = execFileSync('git', ['ls-files', 'packages/**/package.json', 'vendor/**/package.json'], { cwd: root, encoding: 'utf8' }).trim().split('\n')
 const overrides: Record<string, string> = {}
 // The market consumes the directory archive prepared by the same deployment.
-overrides['aiko-dsh-plugin-catalog'] = dependencies['aiko-dsh-plugin-catalog']!
+overrides['workbench-plugin-catalog'] = dependencies['workbench-plugin-catalog']!
 for (const file of files) {
   if (!/^(packages\/[^/]+\/[^/]+|vendor\/[^/]+)\/package.json$/.test(file.trim())) continue
   const path = join(root, file.trim())
@@ -47,10 +47,10 @@ for (const name of packages) {
   }
 }
 await mkdir(output, { recursive: true })
-await writeFile(join(output, 'package.json'), JSON.stringify({ name: 'aiko-desktop-development-plugins', private: true, type: 'module', packageManager: 'pnpm@10.34.5', dependencies }, null, 2) + '\n')
+await writeFile(join(output, 'package.json'), JSON.stringify({ name: 'workbench-desktop-development-plugins', private: true, type: 'module', packageManager: 'pnpm@10.34.5', dependencies }, null, 2) + '\n')
 await writeFile(join(output, 'pnpm-workspace.yaml'), 'packages:\n  - .\nnodeLinker: hoisted\nautoInstallPeers: false\noverrides:\n' + Object.entries(overrides).map(([name, path]) => `  ${JSON.stringify(name)}: ${JSON.stringify(path)}`).join('\n') + '\n')
 const pnpm = process.env.npm_execpath
-if (!pnpm) throw new Error('Run through pnpm run prepare:aiko')
+if (!pnpm) throw new Error('Run through pnpm run prepare:workbench')
 await new Promise<void>((resolve, reject) => {
   const child = spawn(process.execPath, [pnpm, 'install', '--ignore-scripts'], { cwd: output, stdio: 'inherit', windowsHide: true })
   child.once('error', reject)

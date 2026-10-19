@@ -4,10 +4,10 @@ import { dirname, isAbsolute, resolve } from 'node:path'
 import { createHash } from 'node:crypto'
 import { valid } from 'semver'
 
-const themes = { aiko: 'aiko-dsh-theme', yunyao: 'yunyao-dsh-theme' }
+const themes = { orange: 'workbench-theme-orange', blue: 'workbench-theme-blue' }
 // Workbench embeds the knowledge foundation; Tender, Code and the knowledge apps install from its app center.
 // The Markdown editor, Visio, draw.io, PPT, image generation and templates plugins are first-party tools every product ships enabled.
-const applications = ['aiko-dsh-workbench', 'aiko-dsh-market', 'aiko-dsh-md-editor', 'aiko-dsh-visio', 'aiko-dsh-drawio', 'aiko-dsh-ppt', 'aiko-dsh-image-generation', 'aiko-dsh-templates']
+const applications = ['workbench', 'workbench-market', 'workbench-md-editor', 'workbench-visio', 'workbench-drawio', 'workbench-ppt', 'workbench-image-generation', 'workbench-templates']
 const official = ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', '@deepseek-ai/dsh-experimental-agent-team-profile']
 const object = value => typeof value === 'object' && value !== null && !Array.isArray(value)
 
@@ -53,7 +53,7 @@ export function parseDesktopProduct(value) {
   if (value.channel !== 'stable' && value.channel !== 'beta') throw new Error('desktop product: channel must be stable or beta')
   const expectedBundles = [...official, ...applications, themes[value.profile]]
   if (!Array.isArray(value.bundles) || JSON.stringify(value.bundles) !== JSON.stringify(expectedBundles)) throw new Error('desktop product: bundles must match the selected product profile')
-  const expected = [...applications, themes[value.profile], 'aiko-dsh-plugin-catalog'].sort()
+  const expected = [...applications, themes[value.profile], 'workbench-plugin-catalog'].sort()
   if (!Array.isArray(value.plugins) || value.plugins.some(plugin => !object(plugin) || typeof plugin.name !== 'string' || typeof plugin.version !== 'string' || valid(plugin.version) === null)
     || JSON.stringify(value.plugins.map(plugin => plugin.name).sort()) !== JSON.stringify(expected)) throw new Error('desktop product: incomplete or mixed-brand plugin set')
   return { schemaVersion: 1, profile: value.profile, appId: value.appId, productName: value.productName,

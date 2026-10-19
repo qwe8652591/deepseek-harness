@@ -7,7 +7,7 @@ import { dirname, isAbsolute, join } from 'node:path'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { app, safeStorage, shell } from 'electron'
-import { resolveAikoAccountLocale as resolveDesktopLocale } from './aiko-account-locale.ts'
+import { resolveWorkbenchAccountLocale as resolveDesktopLocale } from './workbench-account-locale.ts'
 
 /** Verified display fields; neither IdP tokens nor the native credential are exposed to renderers. */
 export interface DesktopUser {
@@ -86,7 +86,7 @@ function parseUser(value: unknown): DesktopUser {
 
 function parseCredential(value: unknown): Credential {
   if (!record(value) || typeof value.credential !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(value.credential)
-    || typeof value.cookieName !== 'string' || !/^aiko_session_[a-f0-9]{12}$/.test(value.cookieName)) throw new Error('Invalid account credential')
+    || typeof value.cookieName !== 'string' || !/^workbench_session_[a-f0-9]{12}$/.test(value.cookieName)) throw new Error('Invalid account credential')
   return { credential: value.credential, cookieName: value.cookieName }
 }
 
@@ -321,7 +321,7 @@ export class DesktopAccount {
       const pid = Number(/^desktop-capabilities-(\d+)\.json$/.exec(name)?.[1])
       if (pid > 0 && pid !== process.pid && !running(pid)) await rm(join(dirname(file), name), { force: true })
     }
-    await writeFile(file, JSON.stringify({ authMode: 'aiko', platformOrigin: this.config.gatewayOrigin, baseUrl: `http://127.0.0.1:${String(address.port)}`, token }), { mode: 0o600 })
+    await writeFile(file, JSON.stringify({ authMode: 'platform', platformOrigin: this.config.gatewayOrigin, baseUrl: `http://127.0.0.1:${String(address.port)}`, token }), { mode: 0o600 })
     this.relayFile = file
     return file
   }

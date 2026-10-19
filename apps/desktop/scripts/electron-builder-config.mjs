@@ -147,7 +147,7 @@ export function createElectronBuilderConfig(
       'lib/main.js',
       'lib/welcome/**/*',
       'lib/preload-app.cjs',
-      'lib/preload-aiko-account.cjs',
+      'lib/preload-workbench-account.cjs',
       'lib/preload-product-platform.cjs',
       'lib/preload-mandatory.cjs',
       'lib/preload-platform-account.cjs',

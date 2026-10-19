@@ -29,7 +29,7 @@ const payload = join(output, 'payload'), installed = join(output, 'installed')
 const guid = randomUUID(), name = `DSH Install Test ${guid.slice(0, 8)}`
 const packageName = `dsh-install-test-${guid}`
 const executable = name + '.exe', uninstaller = join(installed, 'Uninstall ' + executable)
-const leaf = 'resources/app.asar.unpacked/dsh/node_modules/aiko-dsh-workbench/node_modules/workdsh-plugin-platform/node_modules/@modelcontextprotocol/sdk/node_modules/ajv-formats/node_modules/ajv/node_modules/fast-deep-equal/es6/index.js'
+const leaf = 'resources/app.asar.unpacked/dsh/node_modules/workbench/node_modules/workdsh-plugin-platform/node_modules/@modelcontextprotocol/sdk/node_modules/ajv-formats/node_modules/ajv/node_modules/fast-deep-equal/es6/index.js'
 const marker = join(payload, leaf)
 await mkdir(dirname(marker), { recursive: true })
 await writeFile(marker, 'long dependency payload\n')

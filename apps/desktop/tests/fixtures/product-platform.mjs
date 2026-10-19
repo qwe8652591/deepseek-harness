@@ -18,10 +18,10 @@ export async function qualifyProductPlatform(root) {
   const screenshots = []
   app.setAppPath(fileURLToPath(new URL('../../', import.meta.url)))
   try {
-    for (const profile of ['aiko', 'yunyao']) {
+    for (const profile of ['orange', 'blue']) {
       app.setPath('userData', join(root, profile))
-      // Yunyao names its deployment platform, so its first run starts with that address filled in.
-      const product = { profile, productName: profile === 'aiko' ? 'Aiko DSH' : '云遥宇航', ...profile === 'yunyao' ? { platform: 'https://suggested.example' } : {} }
+      // Blue names its deployment platform, so its first run starts with that address filled in.
+      const product = { profile, productName: profile === 'orange' ? 'Workbench DSH' : '蓝色', ...profile === 'blue' ? { platform: 'https://suggested.example' } : {} }
       for (let pass = 0; pass < 3; pass++) {
         const before = new Set(BrowserWindow.getAllWindows())
         const result = openProductPlatform(product)
@@ -39,7 +39,7 @@ export async function qualifyProductPlatform(root) {
         assert.equal(await window.webContents.executeJavaScript('document.body.dataset.brand'), profile)
         await window.webContents.executeJavaScript('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))')
         assert.equal(await window.webContents.executeJavaScript('document.getElementById("gateway").value'), '')
-        if (pass === 0) assert.equal(await window.webContents.executeJavaScript('document.getElementById("website").value'), profile === 'yunyao' ? 'https://suggested.example' : '')
+        if (pass === 0) assert.equal(await window.webContents.executeJavaScript('document.getElementById("website").value'), profile === 'blue' ? 'https://suggested.example' : '')
         const website = `https://platform${pass}.example`
         const gateway = pass === 2 ? 'https://auth.example' : ''
         if (pass === 0) {

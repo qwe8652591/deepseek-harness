@@ -1,4 +1,4 @@
-# Complete Aiko and Yunyao distributions
+# Complete orange and blue distributions
 
 English | [中文](README.zh.md)
 
@@ -6,13 +6,13 @@ This reference covers branded installers with an embedded profile, application p
 
 ## Build inputs
 
-In the Workbench monorepo, run `corepack pnpm run prepare:desktop-products --output <new-directory> --channel beta`; add `--releases <https-directory/>` to publish to a self-hosted release directory instead of GitHub. The command builds and packs Workbench, the market and its catalog, and the Markdown editor, Visio, draw.io, PPT, image generation and templates plugins, then writes `aiko.json`, `yunyao.json` and their SHA-512-pinned archives. The catalog is a passive market dependency. Kit is not included. Application plugins such as Tender, Code and the knowledge apps are not bundled; users install them from the Workbench app center. A profile contains only its selected theme.
+In the Workbench monorepo, run `corepack pnpm run prepare:desktop-products --output <new-directory> --channel beta`; add `--releases <https-directory/>` to publish to a self-hosted release directory instead of GitHub. The command builds and packs Workbench, the market and its catalog, and the Markdown editor, Visio, draw.io, PPT, image generation and templates plugins, then writes `orange.json`, `blue.json` and their SHA-512-pinned archives. The catalog is a passive market dependency. Kit is not included. Application plugins such as Tender, Code and the knowledge apps are not bundled; users install them from the Workbench app center. A profile contains only its selected theme.
 
 From this Host repository, copy `apps/desktop/.env.windows.example` to `.env.windows` and configure signing for production. An unsigned local build needs that file but no signing credentials. Run:
 
 ```powershell
-corepack pnpm --dir apps/desktop run package:win:x64:unsigned --product D:/release-inputs/aiko.json
-corepack pnpm --dir apps/desktop run package:win:x64:unsigned --product D:/release-inputs/yunyao.json
+corepack pnpm --dir apps/desktop run package:win:x64:unsigned --product D:/release-inputs/orange.json
+corepack pnpm --dir apps/desktop run package:win:x64:unsigned --product D:/release-inputs/blue.json
 ```
 
 Signed Windows builds use `package:win:x64`; macOS uses `package:mac:arm64` or `package:mac:x64` on a Mac with signing and notarization configured. `--build-version <semver>` selects the increasing application release version. The package command verifies archive identity and integrity before preparing the complete runtime. Unsigned builds have an `-unsigned` filename suffix. The product release command publishes them only for a product with a self-hosted release directory; such builds keep their update feed and are verified by HTTPS and SHA-512 only, with no publisher signature.
@@ -33,9 +33,9 @@ On Windows x64, run `node apps/desktop/scripts/test-product-installer.mjs --prod
 
 First launch asks for the platform origin; a product manifest that sets `platform` (an HTTPS origin, `--platform` in the Workbench prepare command) fills it in, and a saved choice always wins. Saving opens the selected brand's sign-in page; closing either admission window explicitly exits the application. The optional authentication origin defaults to the platform origin. Remote origins require HTTPS; `http://127.0.0.1` is available for development. These values are public connection settings, not credentials. The existing platform must implement Desktop PKCE login and the capability API.
 
-After logout, **Platform settings** on the login page changes the addresses. A service-origin hash selects an independent encrypted account store; the verified issuer and subject select its work directory. Returning to a previous platform preserves its data. Application upgrades retain the brand's Electron user data, saved platform selection, account homes, conversations and user patches. Recovery-disabled bundles remain disabled. Aiko and Yunyao use separate user-data directories and can coexist.
+After logout, **Platform settings** on the login page changes the addresses. A service-origin hash selects an independent encrypted account store; the verified issuer and subject select its work directory. Returning to a previous platform preserves its data. Application upgrades retain the brand's Electron user data, saved platform selection, account homes, conversations and user patches. Recovery-disabled bundles remain disabled. orange and blue use separate user-data directories and can coexist.
 
-Knowledge authorization completes through the Host's existing polling and credential exchange. Once the connection configuration is saved, the trusted product main frame can call `dshDesktop.activate()` to restore and focus its current application window without navigation. Other windows, child frames and external pages cannot invoke this operation. Aiko and Yunyao each activate their own shell; the native bridge accepts no callback URL or credential. Run `node apps/desktop/scripts/test-window-activation.mjs` after building Desktop to qualify hidden/minimized restoration, focus, document preservation and sender rejection in isolated native windows.
+Knowledge authorization completes through the Host's existing polling and credential exchange. Once the connection configuration is saved, the trusted product main frame can call `dshDesktop.activate()` to restore and focus its current application window without navigation. Other windows, child frames and external pages cannot invoke this operation. orange and blue each activate their own shell; the native bridge accepts no callback URL or credential. Run `node apps/desktop/scripts/test-window-activation.mjs` after building Desktop to qualify hidden/minimized restoration, focus, document preservation and sender rejection in isolated native windows.
 
 After building Desktop, run `node apps/desktop/scripts/test-product-admission.mjs --resources <packaged-application>/resources` for each brand. It exercises the real startup entry in Electron with private application data, including first setup, changing platforms from sign-in, reopening saved settings and explicit cancellation. Use `--main <packaged-application>/resources/app.asar/lib/main.js` to qualify the packaged entry instead of the local build. The fixture retains evidence under `.desktop-build/qualification` and does not log in to a remote account.
 
@@ -43,9 +43,9 @@ Run `corepack pnpm exec tsx apps/desktop/scripts/test-product-host.ts --installe
 
 ## GitHub release publication
 
-The input repository defaults to `aiko-dsh-plugins/deepseek-harness`. Binary assets live in immutable releases named `aiko-v<version>` or `yunyao-v<version>`. Update metadata lives in the separate `aiko-beta`, `yunyao-beta`, `aiko-stable` or `yunyao-stable` channel release. Each filename includes its brand and architecture; macOS adds the updater's `-mac.yml` suffix. The client does not use GitHub's global latest-release redirect or DeepSeek's feed.
+The input repository defaults to `aiko-dsh-plugins/deepseek-harness`. Binary assets live in immutable releases named `orange-v<version>` or `blue-v<version>`. Update metadata lives in the separate `orange-beta`, `blue-beta`, `orange-stable` or `blue-stable` channel release. Each filename includes its brand and architecture; macOS adds the updater's `-mac.yml` suffix. The client does not use GitHub's global latest-release redirect or DeepSeek's feed.
 
-For example, Aiko Windows beta reads `https://github.com/aiko-dsh-plugins/deepseek-harness/releases/download/aiko-beta/aiko-beta-win-x64.yml`. Its payload URL names the immutable version release. The configured repository must be publicly readable by clients; their platform credentials are never sent to GitHub.
+For example, orange Windows beta reads `https://github.com/aiko-dsh-plugins/deepseek-harness/releases/download/orange-beta/aiko-beta-win-x64.yml`. Its payload URL names the immutable version release. The configured repository must be publicly readable by clients; their platform credentials are never sent to GitHub.
 
 After a successful signed build from a clean checkout, review the generated plan:
 
@@ -57,7 +57,7 @@ Add `--publish` to publish through authenticated `gh`. The publisher verifies th
 
 ## Self-hosted release publication
 
-A product whose manifest sets `releases` (an HTTPS directory URL ending in `/`) instead of `repository` reads its feed from `<releases><profile>-<channel>/`, for example `https://downloads.example.com/dsh/releases/yunyao-stable/yunyao-stable-win-x64.yml`. Payloads live in the immutable `<releases><profile>-v<version>/` directory, and the channel file names their absolute URLs. The server must serve that directory read-only over HTTPS; it receives no platform credentials.
+A product whose manifest sets `releases` (an HTTPS directory URL ending in `/`) instead of `repository` reads its feed from `<releases><profile>-<channel>/`, for example `https://downloads.example.com/dsh/releases/blue-stable/blue-stable-win-x64.yml`. Payloads live in the immutable `<releases><profile>-v<version>/` directory, and the channel file names their absolute URLs. The server must serve that directory read-only over HTTPS; it receives no platform credentials.
 
 After a clean build, stage the release locally:
 

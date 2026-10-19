@@ -1,18 +1,18 @@
-# Build the Yunyao 「工作台」 Windows product from this checkout and the Workbench release branch,
-# qualify it, and publish it to the self-hosted release directory. Push a tag `yunyao-v<version>`.
+# Build the Blue 「工作台」 Windows product from this checkout and the Workbench release branch,
+# qualify it, and publish it to the self-hosted release directory. Push a tag `blue-v<version>`.
 # Runs only in the private source repository; the release server accepts SFTP uploads from the
 # dedicated `dsh-release` account, whose key and host key are repository secrets.
-name: Yunyao desktop release
+name: Blue desktop release
 
 on:
   push:
-    tags: ['yunyao-v*']
+    tags: ['blue-v*']
 
 permissions:
   contents: read
 
 concurrency:
-  group: yunyao-desktop-release
+  group: blue-desktop-release
   cancel-in-progress: false
 
 env:
@@ -55,7 +55,7 @@ jobs:
         id: version
         shell: bash
         run: |
-          version="${GITHUB_REF_NAME#yunyao-v}"
+          version="${GITHUB_REF_NAME#blue-v}"
           if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then echo "stable releases need a plain version, got $version"; exit 1; fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "workbench=$(git -C workbench rev-parse HEAD)" >> "$GITHUB_OUTPUT"
@@ -79,7 +79,7 @@ jobs:
           $PSNativeCommandUseErrorActionPreference = $true
           Set-Content -Path apps/desktop/.env.windows -Value '# Unsigned self-hosted product build: the product names its own release feed.'
           corepack pnpm --dir apps/desktop run package:win:x64:unsigned `
-            --product "$env:RUNNER_TEMP/product-inputs/yunyao.json" --build-version "${{ steps.version.outputs.version }}"
+            --product "$env:RUNNER_TEMP/product-inputs/blue.json" --build-version "${{ steps.version.outputs.version }}"
       - name: Qualify the packaged product
         working-directory: harness
         # The runner's TEMP is an 8.3 short path (`RUNNER~1`); qualification profiles live under TEMP.
@@ -88,7 +88,7 @@ jobs:
           TMP: ${{ runner.temp }}
         run: |
           $PSNativeCommandUseErrorActionPreference = $true
-          $artifacts = "$PWD/apps/desktop/.desktop-build/products/yunyao/win-x64/unsigned-artifacts"
+          $artifacts = "$PWD/apps/desktop/.desktop-build/products/blue/win-x64/unsigned-artifacts"
           corepack pnpm exec tsx apps/desktop/scripts/test-product-host.ts --installed "$artifacts/win-unpacked"
           node apps/desktop/scripts/test-product-admission.mjs --resources "$artifacts/win-unpacked/resources" `
             --main "$artifacts/win-unpacked/resources/app.asar/lib/main.js"
@@ -97,14 +97,14 @@ jobs:
         run: |
           $PSNativeCommandUseErrorActionPreference = $true
           corepack pnpm --dir apps/desktop run publish:product `
-            --record "$PWD/apps/desktop/.desktop-build/products/yunyao/win-x64/unsigned-artifacts/win-x64-release.json" `
+            --record "$PWD/apps/desktop/.desktop-build/products/blue/win-x64/unsigned-artifacts/win-x64-release.json" `
             --output "$env:RUNNER_TEMP/staging"
           Set-Content -Path "$env:RUNNER_TEMP/staging/sources.txt" -Value "workbench ${{ steps.version.outputs.workbench }}", "harness $env:GITHUB_SHA"
       # The release server keeps the published files; a full Actions artifact quota must not block publication.
       - uses: actions/upload-artifact@v4
         continue-on-error: true
         with:
-          name: yunyao-${{ steps.version.outputs.version }}-win-x64
+          name: blue-${{ steps.version.outputs.version }}-win-x64
           path: ${{ runner.temp }}/staging
           retention-days: 30
       - name: Publish to the release server
@@ -122,7 +122,7 @@ jobs:
           printf '%s\n' "$RELEASE_SSH_KEY" > "$key" && chmod 600 "$key"
           printf '%s\n' "$RELEASE_KNOWN_HOSTS" > "$known"
           sftp_run() { sftp -i "$key" -o UserKnownHostsFile="$known" -o StrictHostKeyChecking=yes -o IdentitiesOnly=yes -o BatchMode=yes -P "$RELEASE_PORT" -b - "dsh-release@$RELEASE_HOST"; }
-          version_dir="yunyao-v$VERSION" channel_dir=yunyao-stable
+          version_dir="blue-v$VERSION" channel_dir=blue-stable
           installer=$(cd "$staging/$version_dir" && ls -- *.exe)
           channel_file=$(cd "$staging/$channel_dir" && ls -- *.yml)
           published=$(curl -s -o /dev/null -w '%{http_code}' -I "$RELEASES_URL$version_dir/$installer")
@@ -145,7 +145,7 @@ jobs:
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
-          name: yunyao-packaging-evidence-${{ github.run_attempt }}
+          name: blue-packaging-evidence-${{ github.run_attempt }}
           path: |
             harness/apps/desktop/.desktop-build/packaging-runs
             harness/apps/desktop/.desktop-build/qualification

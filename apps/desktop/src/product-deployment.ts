@@ -15,7 +15,7 @@ const record = (value: unknown): value is Record<string, unknown> => typeof valu
 export async function readPackagedProduct(runtime: string, brand: unknown): Promise<DesktopProduct | undefined> {
   if (brand === undefined) return undefined
   const value: unknown = JSON.parse(await readFile(join(runtime, 'desktop-product.json'), 'utf8'))
-  if (!record(value) || value.schemaVersion !== 1 || value.profile !== brand || brand !== 'aiko' && brand !== 'yunyao'
+  if (!record(value) || value.schemaVersion !== 1 || value.profile !== brand || brand !== 'orange' && brand !== 'blue'
     || typeof value.appId !== 'string' || typeof value.productName !== 'string'
     || value.channel !== 'stable' && value.channel !== 'beta' || !Array.isArray(value.bundles) || !value.bundles.every(name => typeof name === 'string')
     || !Array.isArray(value.plugins)) throw new Error('desktop product: invalid packaged identity')
@@ -30,9 +30,9 @@ export async function readPackagedProduct(runtime: string, brand: unknown): Prom
     if (!record(manifest) || manifest.name !== plugin.name || manifest.version !== plugin.version) throw new Error('desktop product: packaged plugin version mismatch: ' + plugin.name)
     return { name: plugin.name, version: plugin.version }
   }))
-  const selectedTheme = brand === 'aiko' ? 'aiko-dsh-theme' : 'yunyao-dsh-theme'
-  if (value.bundles.filter(name => name === 'aiko-dsh-theme' || name === 'yunyao-dsh-theme').join() !== selectedTheme
-    || plugins.filter(plugin => plugin.name.endsWith('dsh-theme')).map(plugin => plugin.name).join() !== selectedTheme)
+  const selectedTheme = brand === 'orange' ? 'workbench-theme-orange' : 'workbench-theme-blue'
+  if (value.bundles.filter(name => name === 'workbench-theme-orange' || name === 'workbench-theme-blue').join() !== selectedTheme
+    || plugins.filter(plugin => plugin.name.startsWith('workbench-theme-')).map(plugin => plugin.name).join() !== selectedTheme)
     throw new Error('desktop product: mixed-brand installation')
   return { schemaVersion: 1, profile: brand, appId: value.appId, productName: value.productName,
     ...location, ...typeof value.platform === 'string' ? { platform: value.platform } : {},
@@ -61,7 +61,7 @@ export async function prepareProductProfile(product: DesktopProduct, profile: st
   // Old development links are removable only when the deployment marker owns their exact targets.
   let oldRuntime: string | undefined
   try {
-    const old: unknown = JSON.parse(await readFile(join(profile, '.aiko-desktop.json'), 'utf8'))
+    const old: unknown = JSON.parse(await readFile(join(profile, '.workbench-desktop.json'), 'utf8'))
     if (!record(old) || typeof old.runtime !== 'string' || old.brand !== product.profile) throw new Error('desktop product: invalid legacy deployment marker')
     oldRuntime = old.runtime
   } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error }
@@ -100,7 +100,7 @@ export async function writeProductPolicy(runtime: string, product: DesktopProduc
   await writeFile(join(runtime, 'desktop-product.patch.yml'), JSON.stringify([...rows,
     { id: 'plugin-manager', disabled: false, config: { packageChanges: 'local-files' } },
     { id: 'ui-plugin-manager', disabled: false, config: { packageChanges: false, registryProbeEnabled: false,
-      bundledPackages: product.bundles.filter(name => name !== 'aiko-dsh-market') } },
+      bundledPackages: product.bundles.filter(name => name !== 'workbench-market') } },
     { id: 'ui-settings-plugin-inventory', disabled: false },
     { id: 'llm-claude', config: { pluginUpdates: false } },
   ], null, 2) + '\n')

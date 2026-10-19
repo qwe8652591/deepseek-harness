@@ -1,12 +1,12 @@
-# Agent Note: Aiko 平台在官方 Desktop 上的准入
+# Agent Note: Workbench 平台在官方 Desktop 上的准入
 
 Status: implemented
 
-[English](2026-09-30-aiko-desktop-platform-deployment.md) | 中文
+[English](2026-09-30-workbench-desktop-platform-deployment.md) | 中文
 
 ## Problem
 
-旧版 Aiko Desktop 在较早的桌面壳上提供浏览器平台登录和加密凭据，而工作台插件已经使用 DSH 0.2.0-rc.2。用旧壳替换官方桌面入口会丢失当前原生适配、运行时准备和恢复行为。
+旧版 Workbench Desktop 在较早的桌面壳上提供浏览器平台登录和加密凭据，而工作台插件已经使用 DSH 0.2.0-rc.2。用旧壳替换官方桌面入口会丢失当前原生适配、运行时准备和恢复行为。
 
 ## Decision
 
@@ -18,7 +18,7 @@ Status: implemented
 
 ## Alternatives considered
 
-Aiko 与云遥的命名产品 Profile 来自已安装工作台包的 JSON 导出，不引入另一个应用启动器。桌面保留固定的物理 Profile 和签名基础组合。纯品牌配置保持兼容；Profile 与品牌冲突时在登录前报错。首次迁移到命名 Profile 时移除 Kit 资源激活，保留用户业务插件选择及恢复状态。平台适配现在随工作台的平台组件分发，新部署不再要求 Kit。运行时准备保留显式提供的 Kit 压缩包，以支持可选共享资料和旧预设路径；不删除已有用户数据。
+橙色与蓝色的命名产品 Profile 来自已安装工作台包的 JSON 导出，不引入另一个应用启动器。桌面保留固定的物理 Profile 和签名基础组合。纯品牌配置保持兼容；Profile 与品牌冲突时在登录前报错。首次迁移到命名 Profile 时移除 Kit 资源激活，保留用户业务插件选择及恢复状态。平台适配现在随工作台的平台组件分发，新部署不再要求 Kit。运行时准备保留显式提供的 Kit 压缩包，以支持可选共享资料和旧预设路径；不删除已有用户数据。
 
 **整体移植旧主窗口。** 这会丢弃上游浏览器、目录、快捷键、更新和恢复行为，扩大每次升级的分歧。
 
@@ -38,4 +38,4 @@ Aiko 与云遥的命名产品 Profile 来自已安装工作台包的 JSON 导出
 
 ## Verification
 
-本模块测试覆盖拒绝错误部署、单主题选择、保留非托管文件、用户 patch、恢复状态及 profile 写锁互斥。按需执行的构建后 Electron 测试覆盖真实平台 PKCE、加密恢复、拒绝未鉴权转接请求、带认证的能力访问和退出；它签发独立 Desktop 会话供交互验收，不认证模型输出或签名安装包。配置与命令见 [Aiko 部署](../../../../apps/desktop/aiko/README.zh.md)。
+本模块测试覆盖拒绝错误部署、单主题选择、保留非托管文件、用户 patch、恢复状态及 profile 写锁互斥。按需执行的构建后 Electron 测试覆盖真实平台 PKCE、加密恢复、拒绝未鉴权转接请求、带认证的能力访问和退出；它签发独立 Desktop 会话供交互验收，不认证模型输出或签名安装包。配置与命令见 [Workbench 部署](../../../../apps/desktop/workbench/README.zh.md)。

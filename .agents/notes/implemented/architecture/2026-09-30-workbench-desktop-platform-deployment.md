@@ -1,12 +1,12 @@
-# Agent Note: Aiko platform admission on official Desktop
+# Agent Note: Workbench platform admission on official Desktop
 
 Status: implemented
 
-English | [中文](2026-09-30-aiko-desktop-platform-deployment.zh.md)
+English | [中文](2026-09-30-workbench-desktop-platform-deployment.zh.md)
 
 ## Problem
 
-The private Aiko Desktop has browser platform login and encrypted credentials on an older shell. Its Workbench plugins already consume DSH 0.2.0-rc.2. Replacing the official desktop entry with that older shell loses current native adapters, runtime preparation and recovery behavior.
+The private Workbench Desktop has browser platform login and encrypted credentials on an older shell. Its Workbench plugins already consume DSH 0.2.0-rc.2. Replacing the official desktop entry with that older shell loses current native adapters, runtime preparation and recovery behavior.
 
 ## Decision
 
@@ -18,7 +18,7 @@ The market uses the official PluginManager Remote. Its organization directory is
 
 ## Alternatives considered
 
-Named Aiko and Yunyao product profiles come from the installed Workbench package's JSON exports rather than another application launcher. Desktop retains its reserved physical profile and signed base composition. Brand-only configurations remain compatible; conflicting profile and brand selections fail before login. The first named-profile migration removes Kit resource activation while retaining user business-plugin choices and recovery state. Platform adapters now ship in the Workbench platform component, so new deployments do not require Kit. Runtime preparation retains an explicitly supplied Kit archive for optional shared resources and legacy preset paths; it never deletes existing user data.
+Named orange and blue product profiles come from the installed Workbench package's JSON exports rather than another application launcher. Desktop retains its reserved physical profile and signed base composition. Brand-only configurations remain compatible; conflicting profile and brand selections fail before login. The first named-profile migration removes Kit resource activation while retaining user business-plugin choices and recovery state. Platform adapters now ship in the Workbench platform component, so new deployments do not require Kit. Runtime preparation retains an explicitly supplied Kit archive for optional shared resources and legacy preset paths; it never deletes existing user data.
 
 **Port the old main window wholesale.** This discards upstream browser, directory, shortcut, update and recovery behavior, making each upgrade a larger fork.
 
@@ -38,4 +38,4 @@ This is a source deployment, with no signed custom installer or custom update ch
 
 ## Verification
 
-Owner-local tests cover deployment rejection, single-theme selection, preserving unmanaged files, user patches, recovery state and profile-lock exclusion. An opt-in built Electron test exercises real platform PKCE, encrypted restore, unauthorized relay rejection, authenticated capability access and logout. It issues a separate Desktop session for interactive verification; it does not certify model output or signed installers. Configuration and commands live in [Aiko deployment](../../../../apps/desktop/aiko/README.md).
+Owner-local tests cover deployment rejection, single-theme selection, preserving unmanaged files, user patches, recovery state and profile-lock exclusion. An opt-in built Electron test exercises real platform PKCE, encrypted restore, unauthorized relay rejection, authenticated capability access and logout. It issues a separate Desktop session for interactive verification; it does not certify model output or signed installers. Configuration and commands live in [Workbench deployment](../../../../apps/desktop/workbench/README.md).

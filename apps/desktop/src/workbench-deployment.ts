@@ -3,19 +3,19 @@ import { createRequire } from 'node:module'
 import { access, readFile, mkdir, writeFile, realpath, lstat, symlink, unlink } from 'node:fs/promises'
 import { dirname, isAbsolute, join } from 'node:path'
 import { dump, load } from 'js-yaml'
-import { resolveAikoAccountLocale } from './aiko-account-locale.ts'
+import { resolveWorkbenchAccountLocale } from './workbench-account-locale.ts'
 
 /** Paths to an operator-prepared plugin installation and identity configuration. */
-export interface AikoDeployment {
-  readonly brand: 'aiko' | 'yunyao'
-  readonly profile?: 'aiko' | 'yunyao'
+export interface WorkbenchDeployment {
+  readonly brand: 'orange' | 'blue'
+  readonly profile?: 'orange' | 'blue'
   readonly identityConfig: string
   readonly pluginRuntime: string
   readonly profilePatch?: string
 }
-const themes = { aiko: 'aiko-dsh-theme', yunyao: 'yunyao-dsh-theme' } as const
-const plugins = ['aiko-dsh-workbench', 'aiko-dsh-tender', '@aiko-dsh-plugins/dsh-knowledge', 'aiko-dsh-code', 'aiko-dsh-market']
-const releaseAgeExempt = ['@aiko-dsh-plugins/*', 'aiko-dsh-*', 'yunyao-dsh-*']
+const themes = { orange: 'workbench-theme-orange', blue: 'workbench-theme-blue' } as const
+const plugins = ['workbench', 'workbench-tender', '@workbench/dsh-knowledge', 'workbench-code', 'workbench-market']
+const releaseAgeExempt = ['@workbench/*', 'workbench-*', 'blue-dsh-*']
 const record = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
 
 /**
@@ -23,11 +23,11 @@ const record = (value: unknown): value is Record<string, unknown> => typeof valu
  * @param path - deployment JSON selected by the operator.
  * @returns validated brand and installation paths.
  */
-export async function readAikoDeployment(path: string): Promise<AikoDeployment> {
+export async function readWorkbenchDeployment(path: string): Promise<WorkbenchDeployment> {
   const value: unknown = JSON.parse(await readFile(path, 'utf8'))
   if (!record(value)) throw new Error('Desktop deployment must be an object')
   const brand = value.profile === undefined ? value.brand : value.profile
-  if (brand !== 'aiko' && brand !== 'yunyao') throw new Error('Desktop deployment profile must be aiko or yunyao')
+  if (brand !== 'orange' && brand !== 'blue') throw new Error('Desktop deployment profile must be orange or blue')
   if (value.brand !== undefined && value.brand !== brand) throw new Error('Desktop deployment profile and brand must match')
   if (typeof value.identityConfig !== 'string' || !isAbsolute(value.identityConfig)
     || typeof value.pluginRuntime !== 'string' || !isAbsolute(value.pluginRuntime)) throw new Error('Desktop deployment paths must be absolute')
@@ -43,11 +43,11 @@ export async function readAikoDeployment(path: string): Promise<AikoDeployment> 
  * @param language - operating-system locale.
  * @returns localized welcome copy and its passive asset directory.
  */
-export async function readAikoWelcome(deployment: AikoDeployment, language: string) {
+export async function readWorkbenchWelcome(deployment: WorkbenchDeployment, language: string) {
   const require = createRequire(join(deployment.pluginRuntime, 'package.json'))
   const file = require.resolve(themes[deployment.brand] + '/welcome')
   const value: unknown = JSON.parse(await readFile(file, 'utf8'))
-  const base = resolveAikoAccountLocale(language)
+  const base = resolveWorkbenchAccountLocale(language)
   if (!record(value) || value.version !== 1 || value.theme !== themes[deployment.brand] || !record(value.messages)) throw new Error('Unsupported desktop welcome theme')
   const copy = value.messages[base.id]
   if (!record(copy) || Object.values(copy).some(text => typeof text !== 'string')) throw new Error('Invalid desktop welcome messages')
@@ -64,24 +64,24 @@ export async function readAikoWelcome(deployment: AikoDeployment, language: stri
  * @param deployment - validated startup configuration.
  * @param profile - initialized profile; the caller holds its official write lock and has stopped the Host.
  */
-export async function prepareAikoDesktopProfile(deployment: AikoDeployment, profile: string): Promise<void> {
+export async function prepareWorkbenchDesktopProfile(deployment: WorkbenchDeployment, profile: string): Promise<void> {
   let selected = [...plugins, themes[deployment.brand]]
   let official = ['@deepseek-ai/dsh-experimental-agent-team-profile']
   if (deployment.profile !== undefined) {
     const require = createRequire(join(deployment.pluginRuntime, 'package.json'))
-    const file = require.resolve('aiko-dsh-workbench/profiles/' + deployment.profile)
+    const file = require.resolve('workbench/profiles/' + deployment.profile)
     const template: unknown = JSON.parse(await readFile(file, 'utf8'))
     if (!record(template) || !record(template.dsh) || !record(template.dsh.profile)
       || !Array.isArray(template.dsh.profile.bundles) || !template.dsh.profile.bundles.every((name): name is string => typeof name === 'string'))
       throw new Error('Invalid product profile template')
     const bundles = template.dsh.profile.bundles
-    if (bundles.filter(name => name === themes.aiko || name === themes.yunyao).join() !== themes[deployment.brand])
+    if (bundles.filter(name => name === themes.orange || name === themes.blue).join() !== themes[deployment.brand])
       throw new Error('Product profile must contain only its selected theme')
     selected = bundles.filter(name => !name.startsWith('@deepseek-ai/'))
     // The signed Desktop runtime supplies its own base and Web bundles.
     official = bundles.filter(name => name.startsWith('@deepseek-ai/') && name !== '@deepseek-ai/dsh-base' && name !== '@deepseek-ai/dsh-web-app')
   }
-  const installed = [...new Set([...selected, 'aiko-dsh-plugin-catalog'])]
+  const installed = [...new Set([...selected, 'workbench-plugin-catalog'])]
   const runtimeFile = join(deployment.pluginRuntime, 'package.json')
   const runtime: unknown = JSON.parse(await readFile(runtimeFile, 'utf8'))
   if (!record(runtime) || !record(runtime.dependencies)) throw new Error('Desktop plugin runtime has no dependency map')
@@ -98,7 +98,7 @@ export async function prepareAikoDesktopProfile(deployment: AikoDeployment, prof
     || manifest.dependencies !== undefined && (!record(manifest.dependencies)
       || !Object.values(manifest.dependencies).every(spec => typeof spec === 'string')))
     throw new Error('Desktop profile manifest has invalid dependencies or bundles')
-  const marker = join(profile, '.aiko-desktop.json')
+  const marker = join(profile, '.workbench-desktop.json')
   let previous: { runtime: string; profile?: unknown } | undefined
   try {
     const saved: unknown = JSON.parse(await readFile(marker, 'utf8'))
@@ -123,15 +123,15 @@ export async function prepareAikoDesktopProfile(deployment: AikoDeployment, prof
   const workspace: unknown = load(await readFile(workspacePath, 'utf8'))
   if (!record(workspace) || workspace.overrides !== undefined && !record(workspace.overrides))
     throw new Error('Desktop profile package-manager settings are invalid')
-  const other = deployment.brand === 'aiko' ? themes.yunyao : themes.aiko
+  const other = deployment.brand === 'orange' ? themes.blue : themes.orange
   const migrateKit = deployment.profile !== undefined && previous?.profile === undefined
   const patchPath = join(profile, 'cordis.patch.yml')
   const patchText = initialPatch ?? await readFile(patchPath, 'utf8')
   const patch: unknown = load(patchText) ?? []
   if (!Array.isArray(patch)) throw new Error('Desktop profile patches must be a YAML sequence')
-  const brandIds = { 'aiko-theme': themes.aiko, 'yunyao-theme': themes.yunyao }
+  const brandIds = { 'orange-theme': themes.orange, 'blue-theme': themes.blue }
   let splitWorkbench = true
-  try { await access(join(deployment.pluginRuntime, 'node_modules/aiko-dsh-workbench/node_modules/workdsh-plugin-platform/package.json')) }
+  try { await access(join(deployment.pluginRuntime, 'node_modules/workbench/node_modules/workdsh-plugin-platform/package.json')) }
   catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
     splitWorkbench = false
@@ -140,12 +140,12 @@ export async function prepareAikoDesktopProfile(deployment: AikoDeployment, prof
   const nextPatch: unknown[] = []
   for (const entry of patch) {
     if (!record(entry)) { nextPatch.push(entry); continue }
-    if (splitWorkbench && entry.id === 'workdsh' && entry.name === 'aiko-dsh-workbench') {
+    if (splitWorkbench && entry.id === 'workdsh' && entry.name === 'workbench') {
       entry.name = 'workdsh-plugin-platform'
       patchChanged = true
     }
     const theme = typeof entry.id === 'string' ? brandIds[entry.id as keyof typeof brandIds] : undefined
-    if (theme === other || entry.name === other || migrateKit && (entry.id === 'aiko-workbench-kit' || entry.name === 'aiko-dsh-workbench-kit')) {
+    if (theme === other || entry.name === other || migrateKit && (entry.id === 'workbench-kit' || entry.name === 'workbench-kit')) {
       patchChanged = true
       continue
     }
@@ -171,7 +171,7 @@ export async function prepareAikoDesktopProfile(deployment: AikoDeployment, prof
   manifest.dependencies = { ...Object.fromEntries(Object.entries(manifest.dependencies ?? {}).filter(([name]) => name !== other)),
     ...Object.fromEntries(paths.map(({ name, spec }) => [name, spec])) }
   const bundles = manifest.dsh.profile.bundles
-    .filter(name => !migrateKit || name !== 'aiko-dsh-workbench-kit')
+    .filter(name => !migrateKit || name !== 'workbench-kit')
     .map(name => name === other ? themes[deployment.brand] : name)
   manifest.dsh.profile.bundles = [...new Set(previous ? bundles : [...bundles, ...official, ...selected])]
   // Package operations retain deployment-owned links and the unpublished passive directory.

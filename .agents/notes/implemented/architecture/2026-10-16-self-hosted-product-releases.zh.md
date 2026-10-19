@@ -6,7 +6,7 @@ Status: implemented
 
 ## Problem
 
-[完整品牌 Desktop 产品](2026-10-03-complete-branded-desktop-products.zh.md)从 GitHub 通道发布读取更新源，只有签名构建带更新源、能被发布。云遥部署从自己的 HTTPS 服务器分发安装包，第一个生产版本还没有 Windows 代码签名证书。按原规则这一版只能不带自动更新发布，以后每个版本都要用户手动重装。
+[完整品牌 Desktop 产品](2026-10-03-complete-branded-desktop-products.zh.md)从 GitHub 通道发布读取更新源，只有签名构建带更新源、能被发布。蓝色部署从自己的 HTTPS 服务器分发安装包，第一个生产版本还没有 Windows 代码签名证书。按原规则这一版只能不带自动更新发布，以后每个版本都要用户手动重装。
 
 ## Decision
 

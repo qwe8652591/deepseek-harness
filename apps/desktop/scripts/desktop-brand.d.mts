@@ -1,6 +1,6 @@
 /** Passive artwork resolved from an installed brand theme. */
 export interface DesktopBrandArtwork {
-  brand: 'aiko' | 'yunyao'
+  brand: 'orange' | 'blue'
   productName: string
   image: Buffer
 }
@@ -16,4 +16,4 @@ export function readDesktopBrand(env: NodeJS.ProcessEnv): DesktopBrandArtwork | 
  * @param brand - Selected brand.
  * @returns native artwork directory.
  */
-export function desktopBrandDirectory(root: string, brand: 'aiko' | 'yunyao'): string
+export function desktopBrandDirectory(root: string, brand: 'orange' | 'blue'): string

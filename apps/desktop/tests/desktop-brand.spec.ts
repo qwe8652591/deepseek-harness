@@ -13,24 +13,24 @@ import { loadDesktopPackageEnvironment } from '../scripts/desktop-package-enviro
 const directories: string[] = []
 afterEach(async () => { await Promise.all(directories.splice(0).map(path => rm(path, { recursive: true, force: true }))) })
 
-async function fixture(brand: 'aiko' | 'yunyao') {
+async function fixture(brand: 'orange' | 'blue') {
   const root = await mkdtemp(join(tmpdir(), 'desktop-brand-'))
   directories.push(root)
-  const theme = brand === 'aiko' ? 'aiko-dsh-theme' : 'yunyao-dsh-theme'
+  const theme = brand === 'orange' ? 'workbench-theme-orange' : 'workbench-theme-blue'
   const directory = join(root, 'node_modules', theme)
   await mkdir(directory, { recursive: true })
   await writeFile(join(directory, 'package.json'), JSON.stringify({ name: theme, exports: { './desktop-icon': './icon.json' } }))
-  const source = brand === 'aiko'
+  const source = brand === 'orange'
     ? Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="100" height="50"><rect width="100" height="50" fill="#de7c21"/></svg>')
     : await sharp({ create: { width: 100, height: 50, channels: 4, background: '#3289ab' } }).png().toBuffer()
-  const asset = { version: 1, theme, productName: brand === 'aiko' ? 'Aiko DSH' : '云遥宇航',
-    image: 'data:image/' + (brand === 'aiko' ? 'svg+xml' : 'png') + ';base64,' + source.toString('base64') }
+  const asset = { version: 1, theme, productName: brand === 'orange' ? 'Workbench DSH' : '蓝色',
+    image: 'data:image/' + (brand === 'orange' ? 'svg+xml' : 'png') + ';base64,' + source.toString('base64') }
   await writeFile(join(directory, 'icon.json'), JSON.stringify(asset))
   return { root, directory, asset, env: { DSH_DESKTOP_BRAND: brand, DSH_DESKTOP_BRAND_RUNTIME: root } }
 }
 
 describe('native desktop brand selection', () => {
-  it.each(['aiko', 'yunyao'] as const)('renders %s artwork into app, tray and installer assets', async (brand) => {
+  it.each(['orange', 'blue'] as const)('renders %s artwork into app, tray and installer assets', async (brand) => {
     const { root, env } = await fixture(brand)
     const directory = await prepareDesktopBrand(env, root)
     expect(directory).toBeDefined()
@@ -59,48 +59,48 @@ describe('native desktop brand selection', () => {
   })
 
   it('does not accept another brand, an invalid manifest or missing prepared artwork', async () => {
-    const { root, directory, asset, env } = await fixture('aiko')
+    const { root, directory, asset, env } = await fixture('orange')
     const prepared = await prepareDesktopBrand(env, root)
-    expect(() => readNativeDesktopBrand(false, root, prepared, 'yunyao')).toThrow('differs')
-    expect(() => readNativeDesktopBrand(false, root, undefined, 'aiko')).toThrow('missing')
+    expect(() => readNativeDesktopBrand(false, root, prepared, 'blue')).toThrow('differs')
+    expect(() => readNativeDesktopBrand(false, root, undefined, 'orange')).toThrow('missing')
     await rm(join(prepared!, 'icon.ico'))
-    expect(() => readNativeDesktopBrand(false, root, prepared, 'aiko')).toThrow('incomplete')
-    await writeFile(join(directory, 'icon.json'), JSON.stringify({ ...asset, theme: 'yunyao-dsh-theme' }))
+    expect(() => readNativeDesktopBrand(false, root, prepared, 'orange')).toThrow('incomplete')
+    await writeFile(join(directory, 'icon.json'), JSON.stringify({ ...asset, theme: 'workbench-theme-blue' }))
     expect(() => readDesktopBrand(env)).toThrow('invalid theme')
     await writeFile(join(directory, 'icon.json'), JSON.stringify({ ...asset, image: 'https://example.com/logo.svg' }))
     expect(() => readDesktopBrand(env)).toThrow('embedded')
   })
 
   it('installed applications ignore development resources', async () => {
-    const { root, env } = await fixture('aiko')
+    const { root, env } = await fixture('orange')
     const directory = await prepareDesktopBrand(env, root)
     expect(readNativeDesktopBrand(true, root, directory, undefined)).toBeUndefined()
-    expect(() => readNativeDesktopBrand(true, root, directory, 'aiko')).toThrow('missing')
+    expect(() => readNativeDesktopBrand(true, root, directory, 'orange')).toThrow('missing')
     const { cp } = await import('node:fs/promises')
     const resources = join(root, 'installed')
     await cp(directory!, join(resources, 'branding'), { recursive: true })
-    expect(readNativeDesktopBrand(true, resources, '/ignored', 'aiko', 'aiko')?.brand).toBe('aiko')
-    expect(() => readNativeDesktopBrand(true, resources, '/ignored', 'aiko', 'yunyao')).toThrow('application manifest')
-    expect(() => readNativeDesktopBrand(true, resources, '/ignored', 'aiko', 'other')).toThrow('invalid packaged')
-    expect(() => readNativeDesktopBrand(true, root, undefined, undefined, 'aiko')).toThrow('missing')
+    expect(readNativeDesktopBrand(true, resources, '/ignored', 'orange', 'orange')?.brand).toBe('orange')
+    expect(() => readNativeDesktopBrand(true, resources, '/ignored', 'orange', 'blue')).toThrow('application manifest')
+    expect(() => readNativeDesktopBrand(true, resources, '/ignored', 'orange', 'other')).toThrow('invalid packaged')
+    expect(() => readNativeDesktopBrand(true, root, undefined, undefined, 'orange')).toThrow('missing')
     await writeFile(join(resources, 'branding', 'brand.json'), '{"version":2}')
-    expect(() => readNativeDesktopBrand(true, resources, undefined, 'aiko')).toThrow('invalid')
+    expect(() => readNativeDesktopBrand(true, resources, undefined, 'orange')).toThrow('invalid')
   })
 
   it('keeps upstream packaging unchanged and rejects incomplete brand selection', () => {
     expect(readDesktopBrand({})).toBeUndefined()
     expect(readNativeDesktopBrand(false, '/unused', undefined, undefined)).toBeUndefined()
     expect(() => readDesktopBrand({ DSH_DESKTOP_BRAND: 'other' })).toThrow('select')
-    expect(() => readDesktopBrand({ DSH_DESKTOP_BRAND: 'aiko' })).toThrow('absolute')
+    expect(() => readDesktopBrand({ DSH_DESKTOP_BRAND: 'orange' })).toThrow('absolute')
   })
 
   it('takes brand configuration only from the target dotenv file', async () => {
-    const { root, env } = await fixture('yunyao')
-    await writeFile(join(root, '.env.windows'), 'DSH_DESKTOP_BRAND=yunyao\nDSH_DESKTOP_BRAND_RUNTIME=.\n')
+    const { root, env } = await fixture('blue')
+    await writeFile(join(root, '.env.windows'), 'DSH_DESKTOP_BRAND=blue\nDSH_DESKTOP_BRAND_RUNTIME=.\n')
     const loaded = loadDesktopPackageEnvironment('win32', {
-      ...env, DSH_DESKTOP_BRAND: 'aiko', DSH_DESKTOP_BRAND_RESOURCES: '/untrusted',
+      ...env, DSH_DESKTOP_BRAND: 'orange', DSH_DESKTOP_BRAND_RESOURCES: '/untrusted',
     }, root)
-    expect(readDesktopBrand(loaded)?.brand).toBe('yunyao')
+    expect(readDesktopBrand(loaded)?.brand).toBe('blue')
     expect(loaded.DSH_DESKTOP_BRAND_RESOURCES).toBeUndefined()
     await writeFile(join(root, '.env.windows'), '')
     expect(readDesktopBrand(loadDesktopPackageEnvironment('win32', env, root))).toBeUndefined()

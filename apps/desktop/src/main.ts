@@ -62,23 +62,23 @@ import { DesktopUpdateOverlays } from './update-overlay.ts'
 import { DesktopQuitConfirmation } from './quit-confirmation.ts'
 import { DesktopTray } from './tray.ts'
 import { DesktopBackgroundNotice } from './background-notice.ts'
-import { readAikoDeployment, prepareAikoDesktopProfile, type AikoDeployment } from './aiko-deployment.ts'
-import { signInAikoDesktop, installAikoAccountBridge, DesktopPlatformChangeRequested } from './aiko-account-window.ts'
-import { AccountSignedOutError, type DesktopAccount } from './aiko-account.ts'
+import { readWorkbenchDeployment, prepareWorkbenchDesktopProfile, type WorkbenchDeployment } from './workbench-deployment.ts'
+import { signInWorkbenchDesktop, installWorkbenchAccountBridge, DesktopPlatformChangeRequested } from './workbench-account-window.ts'
+import { AccountSignedOutError, type DesktopAccount } from './workbench-account.ts'
 import { readNativeDesktopBrand, type DesktopBrand } from './desktop-brand.ts'
 import { readPackagedProduct, prepareProductProfile } from './product-deployment.ts'
 import { readProductPlatform, saveProductPlatform, ProductPlatformConfigurationError } from './product-platform.ts'
 import { openProductPlatform } from './product-platform-window.ts'
 import type { DesktopProduct } from '../scripts/desktop-product.mjs'
 
-let aikoDeployment: AikoDeployment | undefined
-let aikoAccount: DesktopAccount | undefined
+let workbenchDeployment: WorkbenchDeployment | undefined
+let workbenchAccount: DesktopAccount | undefined
 let nativeBrand: DesktopBrand | undefined
 let desktopProduct: DesktopProduct | undefined
 // Pin storage before single-instance locking, Chromium initialization or localized display-name changes.
 if (app.isPackaged) {
   const manifest = JSON.parse(readFileSync(join(app.getAppPath(), 'package.json'), 'utf8')) as { dshDesktopProduct?: unknown }
-  if (manifest.dshDesktopProduct === 'aiko' || manifest.dshDesktopProduct === 'yunyao') {
+  if (manifest.dshDesktopProduct === 'orange' || manifest.dshDesktopProduct === 'blue') {
     const directory = join(app.getPath('appData'), manifest.dshDesktopProduct + '-dsh-desktop')
     app.setPath('userData', directory)
     app.setPath('sessionData', directory)
@@ -259,7 +259,7 @@ function createWindow(preload: string, show = false, primary = false): BrowserWi
       sandbox: true,
       webSecurity: true,
       webviewTag: primary,
-      ...(aikoAccount === undefined ? {} : { additionalArguments: ['--aiko-platform-account'] }),
+      ...(workbenchAccount === undefined ? {} : { additionalArguments: ['--workbench-platform-account'] }),
       devTools: true,
     },
   })
@@ -364,7 +364,7 @@ async function main(): Promise<void> {
   let hostEnvironment: NodeJS.ProcessEnv = process.env
   const prepareHostEnvironment = async (): Promise<void> => { hostEnvironment = await loginShell }
   let quitting = false
-  const aikoAccountPoll: { timer: ReturnType<typeof setInterval> | undefined } = { timer: undefined }
+  const workbenchAccountPoll: { timer: ReturnType<typeof setInterval> | undefined } = { timer: undefined }
   let startup: Promise<void> | undefined
   let workspaceRecovery: Promise<void> | undefined
   let mainWindow: BrowserWindow | undefined
@@ -431,7 +431,7 @@ async function main(): Promise<void> {
   let hostCookie: string | undefined
   // Signed-in accounts keep guest storage per account (unified login inside app panels survives restarts).
   const browserGuests = new DesktopBrowserGuests(() => hostUrl,
-    aikoAccount === undefined ? undefined : createHash('sha256').update(aikoAccount.home()).digest('hex').slice(0, 32))
+    workbenchAccount === undefined ? undefined : createHash('sha256').update(workbenchAccount.home()).digest('hex').slice(0, 32))
   let injections: readonly unknown[] = []
   let welcomeBackend: DesktopWelcomeBackend | undefined
   let reportedLaunch = false
@@ -488,7 +488,7 @@ async function main(): Promise<void> {
         analyticsEnabled = await welcomeBackend.analyticsEnabled().catch(() => false)
         if (!reportedLaunch) { reportedLaunch = true; void track('desktop_app_launch', {}) }
         stopAccount?.()
-        if (aikoAccount !== undefined) return
+        if (workbenchAccount !== undefined) return
         const accountBackend = welcomeBackend.account
         stopAccount = accountBackend.watch((state) => {
           if (quitting) return
@@ -601,11 +601,11 @@ async function main(): Promise<void> {
     startup ??= (async () => {
       await navigateMain(applicationUrl)
       await backend.start(async () => {
-        const deployment = aikoDeployment
+        const deployment = workbenchDeployment
         const product = desktopProduct
         await Promise.all([
           manager.applyRelease(product !== undefined ? () => prepareProductProfile(product, activeProject)
-            : deployment === undefined ? undefined : () => prepareAikoDesktopProfile(deployment, activeProject)),
+            : deployment === undefined ? undefined : () => prepareWorkbenchDesktopProfile(deployment, activeProject)),
           prepareHostEnvironment(),
         ])
       })
@@ -703,7 +703,7 @@ async function main(): Promise<void> {
     // Shell-owned documents live in the application bundle and never pass through the Host.
     if (url.hostname === 'shell') return serveWebDocument(request, join(app.getAppPath(), 'renderer'))
     if (url.hostname === 'app') {
-      if (url.pathname === '/auth/me' && aikoAccount !== undefined) return Promise.resolve(Response.json(aikoAccount.profile()))
+      if (url.pathname === '/auth/me' && workbenchAccount !== undefined) return Promise.resolve(Response.json(workbenchAccount.profile()))
       if (url.pathname === '/' || url.pathname === '/index.html' || url.pathname.startsWith('/assets/')
         || ['/favicon.svg', '/manifest.webmanifest'].includes(url.pathname)) {
         return serveWebDocument(request, join(resources.dsh, 'node_modules', '@deepseek-ai', 'dsh-web-frontend', 'dist'))
@@ -1113,7 +1113,7 @@ async function main(): Promise<void> {
   }
   const createMainWindow = (): BrowserWindow => {
     const window = createWindow(appPreload, false, true)
-    if (aikoAccount !== undefined) {
+    if (workbenchAccount !== undefined) {
       window.setTitle(app.getName())
       window.on('page-title-updated', (event) => { event.preventDefault(); window.setTitle(app.getName()) })
     }
@@ -1254,7 +1254,7 @@ async function main(): Promise<void> {
     locale = startupLocale(state.localePreference)
     windowsLanguage = locale.id
     refreshApplicationMenu()
-    if (aikoAccount === undefined && !enteredWorkspace && needsWelcome({ loggedIn: state.loggedIn, hasApiKey: state.hasApiKey })) {
+    if (workbenchAccount === undefined && !enteredWorkspace && needsWelcome({ loggedIn: state.loggedIn, hasApiKey: state.hasApiKey })) {
       // A later login must retain its own activation policy instead of replaying startup focus.
       raiseAfterUpdate = false
       await showWelcome()
@@ -1303,8 +1303,8 @@ async function main(): Promise<void> {
     updateSchedule.dispose()
     updateDialog.dispose()
     mandatoryUI?.dispose()
-    clearInterval(aikoAccountPoll.timer)
-    const hostShutdown = (async () => { try { await backend.close() } finally { await aikoAccount?.dispose() } })()
+    clearInterval(workbenchAccountPoll.timer)
+    const hostShutdown = (async () => { try { await backend.close() } finally { await workbenchAccount?.dispose() } })()
     void Promise.all([Promise.resolve(mandatoryPolicy?.dispose()).then(() => policyAuth?.dispose()), hostShutdown,
       // A Platform cleanup failure is logged without cutting the remaining Host shutdown short.
       platformView.dispose().catch((error: unknown) => { console.error(error) })])
@@ -1376,30 +1376,30 @@ async function main(): Promise<void> {
       if (app.isPackaged && state.error === 'authentication-required' && !isQuitting()) queuePolicyAuthentication()
     }).catch((error: unknown) => { console.error(error) })
   }
-  let checkingAikoAccount = false
-  const restartAiko = async (): Promise<void> => {
+  let checkingWorkbenchAccount = false
+  const restartWorkbench = async (): Promise<void> => {
     mainWindow?.hide()
     await backend.close()
     skipQuitConfirmation = true
     app.relaunch()
     app.quit()
   }
-  const activeAikoAccount = aikoAccount
+  const activeWorkbenchAccount = workbenchAccount
   // Signing out, here or anywhere else (unified sign-out), also erases this account's app panel storage;
   // an expired session alone keeps it for the same account.
-  if (activeAikoAccount !== undefined) installAikoAccountBridge(activeAikoAccount, assertProductSender, restartAiko,
+  if (activeWorkbenchAccount !== undefined) installWorkbenchAccountBridge(activeWorkbenchAccount, assertProductSender, restartWorkbench,
     () => browserGuests.clearAccountStorage())
-  aikoAccountPoll.timer = activeAikoAccount === undefined ? undefined : setInterval(() => {
-    if (checkingAikoAccount || quitting) return
-    checkingAikoAccount = true
-    void activeAikoAccount.verify().catch(async (error: unknown) => {
+  workbenchAccountPoll.timer = activeWorkbenchAccount === undefined ? undefined : setInterval(() => {
+    if (checkingWorkbenchAccount || quitting) return
+    checkingWorkbenchAccount = true
+    void activeWorkbenchAccount.verify().catch(async (error: unknown) => {
       if (error instanceof AccountSignedOutError) {
         await browserGuests.clearAccountStorage().catch((cause: unknown) => { console.error(cause) })
       }
-      await restartAiko()
+      await restartWorkbench()
     }).catch((error: unknown) => { console.error(error) })
-      .finally(() => { checkingAikoAccount = false })
-  }, activeAikoAccount.config.checkIntervalMs)
+      .finally(() => { checkingWorkbenchAccount = false })
+  }, activeWorkbenchAccount.config.checkIntervalMs)
   automaticCheck()
   await reconcileBackend().catch(() => undefined)
   // Window lifecycle callbacks run while backend startup is pending.
@@ -1419,12 +1419,12 @@ if (ownsDesktopInstance) app.on('window-all-closed', keepAdmissionAlive)
 
 if (ownsDesktopInstance) void app.whenReady().then(async () => {
   const deploymentFile = process.env.DSH_DESKTOP_DEPLOYMENT
-  if (!app.isPackaged && deploymentFile !== undefined) aikoDeployment = await readAikoDeployment(deploymentFile)
+  if (!app.isPackaged && deploymentFile !== undefined) workbenchDeployment = await readWorkbenchDeployment(deploymentFile)
   const packagedManifest = app.isPackaged
     ? JSON.parse(await readFile(join(app.getAppPath(), 'package.json'), 'utf8')) as Record<string, unknown> : undefined
   desktopProduct = app.isPackaged ? await readPackagedProduct(join(app.getAppPath(), 'dsh'), packagedManifest?.dshDesktopProduct) : undefined
   nativeBrand = readNativeDesktopBrand(app.isPackaged, process.resourcesPath,
-    process.env.DSH_DESKTOP_BRAND_RESOURCES, aikoDeployment?.brand, packagedManifest?.dshDesktopBrand)
+    process.env.DSH_DESKTOP_BRAND_RESOURCES, workbenchDeployment?.brand, packagedManifest?.dshDesktopBrand)
   if (nativeBrand !== undefined) {
     const icon = nativeBrand.icon
     app.dock?.setIcon(icon)
@@ -1440,26 +1440,26 @@ if (ownsDesktopInstance) void app.whenReady().then(async () => {
     }
     let identityConfig = connection === undefined ? await openProductPlatform(product) : await saveProductPlatform(app.getPath('userData'), connection)
     for (;;) {
-      aikoDeployment = { brand: product.profile, profile: product.profile, pluginRuntime: join(app.getAppPath(), 'dsh'), identityConfig }
-      try { aikoAccount = await signInAikoDesktop(aikoDeployment, true); break }
+      workbenchDeployment = { brand: product.profile, profile: product.profile, pluginRuntime: join(app.getAppPath(), 'dsh'), identityConfig }
+      try { workbenchAccount = await signInWorkbenchDesktop(workbenchDeployment, true); break }
       catch (error) {
         if (!(error instanceof DesktopPlatformChangeRequested)) throw error
         identityConfig = await openProductPlatform(product)
       }
     }
   }
-  if (aikoDeployment !== undefined) {
-    aikoAccount ??= await signInAikoDesktop(aikoDeployment)
-    process.env.DSH_HOME = aikoAccount.home()
-    const relay = await aikoAccount.startRelay()
-    process.env.AIKO_DESKTOP_ACCOUNT_FILE = relay
-    process.env.AIKO_CAPABILITY_SSO_FILE = relay
+  if (workbenchDeployment !== undefined) {
+    workbenchAccount ??= await signInWorkbenchDesktop(workbenchDeployment)
+    process.env.DSH_HOME = workbenchAccount.home()
+    const relay = await workbenchAccount.startRelay()
+    process.env.WORKBENCH_DESKTOP_ACCOUNT_FILE = relay
+    process.env.WORKBENCH_CAPABILITY_SSO_FILE = relay
   }
   await main()
 }).finally(() => {
   app.off('window-all-closed', keepAdmissionAlive)
 }).catch(async (error: unknown) => {
-  await aikoAccount?.dispose()
+  await workbenchAccount?.dispose()
   if (error instanceof DOMException && error.name === 'AbortError') { app.quit(); return }
   const message = error instanceof Error ? error.message : String(error)
   console.error(error)

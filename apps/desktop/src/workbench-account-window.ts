@@ -3,8 +3,8 @@ import { app, BrowserWindow, ipcMain, shell, type IpcMainInvokeEvent } from 'ele
 import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { DesktopAccount, readAccountConfig } from './aiko-account.ts'
-import { readAikoWelcome, type AikoDeployment } from './aiko-deployment.ts'
+import { DesktopAccount, readAccountConfig } from './workbench-account.ts'
+import { readWorkbenchWelcome, type WorkbenchDeployment } from './workbench-deployment.ts'
 
 /** Sign-in was closed explicitly so the user can select another platform. */
 export class DesktopPlatformChangeRequested extends Error {}
@@ -15,15 +15,15 @@ export class DesktopPlatformChangeRequested extends Error {}
  * @param configurePlatform - Whether the packaged product offers editable platform addresses before login.
  * @returns a verified native account owned by the caller until shutdown.
  */
-export async function signInAikoDesktop(deployment: AikoDeployment, configurePlatform = false): Promise<DesktopAccount> {
+export async function signInWorkbenchDesktop(deployment: WorkbenchDeployment, configurePlatform = false): Promise<DesktopAccount> {
   const account = new DesktopAccount(await readAccountConfig(deployment.identityConfig))
-  const welcome = await readAikoWelcome(deployment, app.getLocale())
-  const directory = join(app.getPath('userData'), 'aiko-welcome', deployment.brand)
+  const welcome = await readWorkbenchWelcome(deployment, app.getLocale())
+  const directory = join(app.getPath('userData'), 'workbench-welcome', deployment.brand)
   await mkdir(directory, { recursive: true })
   const html = await readFile(join(welcome.directory, 'login.html'), 'utf8')
   await writeFile(join(directory, 'login.html'), html.replaceAll('"/login.css"', '"./login.css"').replaceAll('"/login.js"', '"./login.js"'))
   await copyFile(join(welcome.directory, 'login.css'), join(directory, 'login.css'))
-  await copyFile(join(app.getAppPath(), 'renderer', 'aiko-login.js'), join(directory, 'login.js'))
+  await copyFile(join(app.getAppPath(), 'renderer', 'workbench-login.js'), join(directory, 'login.js'))
   let window: BrowserWindow | undefined
   let admitted = false
   let resolveAdmission!: () => void
@@ -36,28 +36,28 @@ export async function signInAikoDesktop(deployment: AikoDeployment, configurePla
       || new URL(event.senderFrame.url).pathname !== new URL(pathToFileURL(join(directory, 'login.html')).href).pathname)
       throw new Error('Account IPC rejected an unowned welcome frame')
   }
-  ipcMain.handle('aiko:account:locale', (event) => { assertWelcome(event); return { ...welcome.locale, configurePlatform } })
-  ipcMain.handle('aiko:account:platform', (event) => {
+  ipcMain.handle('workbench:account:locale', (event) => { assertWelcome(event); return { ...welcome.locale, configurePlatform } })
+  ipcMain.handle('workbench:account:platform', (event) => {
     assertWelcome(event)
     if (!configurePlatform) throw new Error('Platform selection belongs to packaged products')
     account.cancel()
     rejectAdmission(new DesktopPlatformChangeRequested())
   })
-  ipcMain.handle('aiko:account:login', async (event) => {
+  ipcMain.handle('workbench:account:login', async (event) => {
     assertWelcome(event)
     const user = await account.login()
     admitted = true
     resolveAdmission()
     return user
   })
-  ipcMain.handle('aiko:account:cancel', (event) => { assertWelcome(event); account.cancel() })
+  ipcMain.handle('workbench:account:cancel', (event) => { assertWelcome(event); account.cancel() })
   try {
     let restoreError = ''
     try { admitted = await account.restore() }
     catch { restoreError = welcome.locale.messages.accountRestoreError }
     if (!admitted) {
       window = new BrowserWindow({ width: 1120, height: 780, title: welcome.locale.messages.accountProduct,
-        webPreferences: { preload: join(app.getAppPath(), 'lib', 'preload-aiko-account.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true } })
+        webPreferences: { preload: join(app.getAppPath(), 'lib', 'preload-workbench-account.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true } })
       window.setMenuBarVisibility(false)
       window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
       window.webContents.on('will-navigate', (event) => { event.preventDefault() })
@@ -71,7 +71,7 @@ export async function signInAikoDesktop(deployment: AikoDeployment, configurePla
   } catch (error) { await account.dispose(); throw error }
   finally {
     if (window !== undefined && !window.isDestroyed()) window.destroy()
-    for (const method of ['locale', 'login', 'cancel', 'platform']) ipcMain.removeHandler('aiko:account:' + method)
+    for (const method of ['locale', 'login', 'cancel', 'platform']) ipcMain.removeHandler('workbench:account:' + method)
   }
 }
 
@@ -82,19 +82,19 @@ export async function signInAikoDesktop(deployment: AikoDeployment, configurePla
  * @param restart - stops the Host and restarts admission after logout.
  * @param forgetLocal - erases account-scoped local browser storage after the server session is revoked.
  */
-export function installAikoAccountBridge(
+export function installWorkbenchAccountBridge(
   account: DesktopAccount, assertSender: (event: IpcMainInvokeEvent) => void, restart: () => Promise<void>,
   forgetLocal: () => Promise<void> = async () => {},
 ): void {
-  ipcMain.handle('aiko:account:get', (event) => { assertSender(event); return account.profile() })
-  ipcMain.handle('aiko:account:logout', async (event) => {
+  ipcMain.handle('workbench:account:get', (event) => { assertSender(event); return account.profile() })
+  ipcMain.handle('workbench:account:logout', async (event) => {
     assertSender(event)
     await account.logout()
     // Local leftovers must not block the restart that completes sign-out.
     await forgetLocal().catch((error: unknown) => { console.error(error) })
     await restart()
   })
-  ipcMain.handle('aiko:account:open', async (event, destination: unknown) => {
+  ipcMain.handle('workbench:account:open', async (event, destination: unknown) => {
     assertSender(event)
     if (destination !== 'website' && destination !== 'capabilities' && destination !== 'account') throw new Error('Invalid platform destination')
     const paths = { website: account.config.websiteOrigin, capabilities: account.config.gatewayOrigin + '/capabilities/', account: account.config.gatewayOrigin + '/auth/account' }

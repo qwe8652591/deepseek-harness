@@ -9,7 +9,7 @@ export interface DesktopElectronBuilderConfig {
     readonly output: string
   }
   readonly files: readonly (string | { readonly from: string, readonly to: string, readonly filter: readonly string[] })[]
-  readonly extraMetadata: { readonly dshDesktopAppId: string, readonly dshDesktopBrand?: 'aiko' | 'yunyao', readonly dshDesktopProduct?: 'aiko' | 'yunyao', readonly name?: string }
+  readonly extraMetadata: { readonly dshDesktopAppId: string, readonly dshDesktopBrand?: 'orange' | 'blue', readonly dshDesktopProduct?: 'orange' | 'blue', readonly name?: string }
   readonly asarUnpack: readonly string[]
   readonly extraResources: readonly { readonly from: string, readonly to: 'runtime' | 'icon.png' | 'tray.ico' | 'branding' }[]
   readonly mac: {
