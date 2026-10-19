@@ -139,7 +139,8 @@ jobs:
           retention-days: 7
 
   macos:
-    if: github.repository == 'aiko-dsh-plugins/deepseek-harness-source'
+    # Runs once the Apple signing and notarization secrets exist; set the repository variable MACOS_RELEASE to true then.
+    if: github.repository == 'aiko-dsh-plugins/deepseek-harness-source' && vars.MACOS_RELEASE == 'true'
     runs-on: macos-15
     timeout-minutes: 150
     defaults:
