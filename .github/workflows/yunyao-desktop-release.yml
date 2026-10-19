@@ -1,6 +1,7 @@
 # Build the Yunyao 「工作台」 Windows x64 and Mac Apple silicon products from this checkout and the Workbench
 # release branch, qualify them, and publish them to the self-hosted release directory. Push a tag `yunyao-v<version>`.
-# Windows ships unsigned; the Mac build is signed with a Developer ID certificate and notarized.
+# Windows ships unsigned; the Mac build is signed with a Developer ID certificate and notarized (the Mac job is
+# currently disabled, see the job).
 # Runs only in the private source repository; the release server accepts SFTP uploads from the
 # dedicated `dsh-release` account, whose key and host key are repository secrets.
 name: Yunyao desktop release
@@ -139,7 +140,9 @@ jobs:
           retention-days: 7
 
   macos:
-    if: github.repository == 'aiko-dsh-plugins/deepseek-harness-source'
+    # Disabled until the Apple Developer ID certificate and App Store Connect key are in the repository secrets.
+    # Re-enable by removing `false &&`.
+    if: false && github.repository == 'aiko-dsh-plugins/deepseek-harness-source'
     runs-on: macos-15
     timeout-minutes: 150
     defaults:
