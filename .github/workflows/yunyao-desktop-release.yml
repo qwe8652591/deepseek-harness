@@ -20,7 +20,7 @@ env:
   RELEASES_URL: https://ai-engineering.yunyaoyun.cn:20124/dsh/releases/
   PLATFORM_URL: https://ai-engineering.yunyaoyun.cn:20124
   WORKBENCH_REPOSITORY: aiko-dsh-plugins/aiko-dsh-workbench
-  WORKBENCH_REF: release/desktop-0.3.0
+  WORKBENCH_REF: codex/desktop-account-launcher
   RELEASE_HOST: 116.114.29.62
   RELEASE_PORT: '12223'
 
