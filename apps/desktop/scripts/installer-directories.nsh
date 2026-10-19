@@ -9,7 +9,10 @@ Var dshDirectoryError
 Var dshDirectorySource
 Var dshDirectoryDestination
 Var dshRestoreError
-Var dshDirectoryLogDirectory
+; Only installers that define a log directory (the stock installer.nsh) record directory failures there.
+!ifdef DSH_INSTALLER_LOG_DIR
+  Var dshDirectoryLogDirectory
+!endif
 Var dshRecoveryStopped
 
 ; MoveFileEx preserves the destination and exposes the Windows error before rollback changes it.
