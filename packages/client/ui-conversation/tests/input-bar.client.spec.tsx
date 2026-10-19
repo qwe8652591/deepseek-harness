@@ -1819,6 +1819,12 @@ describe('strips and variants', () => {
     expect(dock?.owner).toMatchObject({ session: { running: false }, input: { draft: '' } })
   })
 
+  it('docks under the blank-session hero card too, where a conversation mode lists its templates', () => {
+    const { view, slotCalls } = bench({ variant: 'hero', footer: <i data-testid="foot" />, extensionZone: true })
+    expect(slotCalls.some(call => call.key === 'conversation.composer.dock')).toBe(true)
+    expect(view.getByTestId('foot')).toBeTruthy()
+  })
+
   it('renders overlay, left/right, and footer slots at their layout positions', () => {
     const { view } = bench({
       overlay: <i data-testid="ov" />,

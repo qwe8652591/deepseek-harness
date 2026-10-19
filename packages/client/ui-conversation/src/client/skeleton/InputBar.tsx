@@ -524,7 +524,8 @@ export const InputBar = memo(function InputBar({
         </div>
       </div>
       <div className={css.dock} data-composer-dock>
-        {variant === 'composer' && input !== undefined && sessionId !== undefined && extensionZone !== undefined
+        {/* Both variants: a blank-session hero docks a conversation mode's chooser (PPT templates) here. */}
+        {input !== undefined && sessionId !== undefined && extensionZone !== undefined
           ? renderSlot('conversation.composer.dock', extensionZone)
           : null}
         {activity ? null : <ContextMeter useProjection={useProjection} t={t} />}
