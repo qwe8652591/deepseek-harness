@@ -60,6 +60,18 @@ jobs:
           if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then echo "stable releases need a plain version, got $version"; exit 1; fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "workbench=$(git -C workbench rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      # The app development skill (Workbench modules/app-kit) carries the DSH developer docs. Regenerate them from
+      # the DSH checkout being released, so the skill always matches the DSH version inside the product. Workbench
+      # branches without the generator only get a warning.
+      - name: Sync the DSH developer docs into the app development skill
+        working-directory: workbench
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          if (Test-Path modules/app-kit/scripts/sync-dsh-docs.mjs) {
+            node modules/app-kit/scripts/sync-dsh-docs.mjs "$env:GITHUB_WORKSPACE/harness"
+          } else {
+            Write-Output "::warning::modules/app-kit/scripts/sync-dsh-docs.mjs is missing on this Workbench branch; the app development skill ships without the DSH developer docs."
+          }
       - name: Product inputs from the Workbench
         working-directory: workbench
         run: |
@@ -155,6 +167,17 @@ jobs:
           if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then echo "stable releases need a plain version, got $version"; exit 1; fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "workbench=$(git -C workbench rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      # The app development skill (Workbench modules/app-kit) carries the DSH developer docs. Regenerate them from
+      # the DSH checkout being released, so the skill always matches the DSH version inside the product. Workbench
+      # branches without the generator only get a warning.
+      - name: Sync the DSH developer docs into the app development skill
+        working-directory: workbench
+        run: |
+          if [ -f modules/app-kit/scripts/sync-dsh-docs.mjs ]; then
+            node modules/app-kit/scripts/sync-dsh-docs.mjs "$GITHUB_WORKSPACE/harness"
+          else
+            echo "::warning::modules/app-kit/scripts/sync-dsh-docs.mjs is missing on this Workbench branch; the app development skill ships without the DSH developer docs."
+          fi
       # Artifacts cannot move between jobs while the Actions storage quota is full, so the Mac job prepares its own inputs.
       - name: Product inputs from the Workbench
         working-directory: workbench
