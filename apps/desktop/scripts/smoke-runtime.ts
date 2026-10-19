@@ -14,6 +14,27 @@ import type { DesktopRuntimeDescriptor } from '../src/runtime-tree.ts'
 import { prepareProductProfile } from '../src/product-deployment.ts'
 import { readDesktopProduct } from './desktop-product.mjs'
 
+const DESKTOP_VERSION = (JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string }).version
+
+/**
+ * Environment of the smoke Host: isolated in its home, without package-manager variables, and carrying the client
+ * version the packaged app passes its Host, which the desktop profile's product telemetry requires.
+ * @param environment - Credential-scrubbed build environment.
+ * @param home - Temporary DSH home.
+ * @returns The Host environment.
+ */
+export function smokeHostEnvironment(environment: NodeJS.ProcessEnv, home: string): NodeJS.ProcessEnv {
+  return {
+    ...Object.fromEntries(Object.entries(environment).filter(([name]) => !/^(?:npm|pnpm|corepack)_/iu.test(name))),
+    DSH_CLIENT_VERSION: environment.DSH_CLIENT_VERSION ?? DESKTOP_VERSION,
+    DSH_HOME: home, HOME: home, USERPROFILE: home,
+    XDG_CONFIG_HOME: home, XDG_CACHE_HOME: home, XDG_STATE_HOME: home,
+    APPDATA: home, LOCALAPPDATA: home,
+    npm_config_userconfig: join(home, 'npmrc'), npm_config_globalconfig: join(home, 'npmrc'),
+    npm_config_store_dir: join(home, 'store'), npm_config_enable_global_virtual_store: 'false',
+  }
+}
+
 /**
  * Check CLI package operations, Host startup, its frontend, external plugins and real Office-to-PDF conversion.
  * @param root - Materialized dsh resources.
@@ -28,14 +49,7 @@ export async function smokeDesktopRuntime(
 ): Promise<void> {
   const home = mkdtempSync(join(tmpdir(), 'dsh-desktop-smoke-'))
   const profile = join(home, 'profiles', 'desktop')
-  const hostEnvironment = {
-    ...Object.fromEntries(Object.entries(environment).filter(([name]) => !/^(?:npm|pnpm|corepack)_/iu.test(name))),
-    DSH_HOME: home, HOME: home, USERPROFILE: home,
-    XDG_CONFIG_HOME: home, XDG_CACHE_HOME: home, XDG_STATE_HOME: home,
-    APPDATA: home, LOCALAPPDATA: home,
-    npm_config_userconfig: join(home, 'npmrc'), npm_config_globalconfig: join(home, 'npmrc'),
-    npm_config_store_dir: join(home, 'store'), npm_config_enable_global_virtual_store: 'false',
-  }
+  const hostEnvironment = smokeHostEnvironment(environment, home)
   const host = new DesktopHostProcess(node, root, profile, undefined, hostEnvironment,
     undefined, join(resourcesRuntime, 'primary-runtime'),
     { pnpm: join(resourcesRuntime, 'primary-runtime', 'dependencies', 'pnpm', 'bin', 'pnpm.mjs'), nodeBin: join(resourcesRuntime, 'bin') })
