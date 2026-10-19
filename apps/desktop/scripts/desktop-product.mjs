@@ -6,8 +6,8 @@ import { valid } from 'semver'
 
 const themes = { aiko: 'aiko-dsh-theme', yunyao: 'yunyao-dsh-theme' }
 // Workbench embeds the knowledge foundation; Tender, Code and the knowledge apps install from its app center.
-// The Markdown editor, Visio, draw.io, PPT and image generation plugins are first-party tools every product ships enabled.
-const applications = ['aiko-dsh-workbench', 'aiko-dsh-market', 'aiko-dsh-md-editor', 'aiko-dsh-visio', 'aiko-dsh-drawio', 'aiko-dsh-ppt', 'aiko-dsh-image-generation']
+// The Markdown editor, Visio, draw.io, PPT, image generation and annotation plugins are first-party tools every product ships enabled.
+const applications = ['aiko-dsh-workbench', 'aiko-dsh-market', 'aiko-dsh-md-editor', 'aiko-dsh-visio', 'aiko-dsh-drawio', 'aiko-dsh-ppt', 'aiko-dsh-image-generation', 'aiko-dsh-annotation']
 const official = ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', '@deepseek-ai/dsh-experimental-agent-team-profile']
 const object = value => typeof value === 'object' && value !== null && !Array.isArray(value)
 
