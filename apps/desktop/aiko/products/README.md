@@ -6,7 +6,7 @@ This reference covers branded installers with an embedded profile, application p
 
 ## Build inputs
 
-In the Workbench monorepo, run `corepack pnpm run prepare:desktop-products --output <new-directory> --channel beta`; add `--releases <https-directory/>` to publish to a self-hosted release directory instead of GitHub. The command builds and packs Workbench, the market and its catalog, and the Markdown editor, Visio, draw.io, PPT and image generation plugins, then writes `aiko.json`, `yunyao.json` and their SHA-512-pinned archives. The catalog is a passive market dependency. Kit is not included. Application plugins such as Tender, Code and the knowledge apps are not bundled; users install them from the Workbench app center. A profile contains only its selected theme.
+In the Workbench monorepo, run `corepack pnpm run prepare:desktop-products --output <new-directory> --channel beta`; add `--releases <https-directory/>` to publish to a self-hosted release directory instead of GitHub. The command builds and packs Workbench, the market and its catalog, and the Markdown editor, Visio, draw.io, PPT, image generation and templates plugins, then writes `aiko.json`, `yunyao.json` and their SHA-512-pinned archives. The catalog is a passive market dependency. Kit is not included. Application plugins such as Tender, Code and the knowledge apps are not bundled; users install them from the Workbench app center. A profile contains only its selected theme.
 
 From this Host repository, copy `apps/desktop/.env.windows.example` to `.env.windows` and configure signing for production. An unsigned local build needs that file but no signing credentials. Run:
 
