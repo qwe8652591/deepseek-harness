@@ -61,8 +61,13 @@ export async function prepareProductRelease(recordFile: string): Promise<Product
   const artifacts = [payload, payload + '.blockmap', ...(platform === 'darwin' ? [join(root, prefix + '.dmg')] : []), recordFile]
   for (const path of artifacts) if (!(await stat(path)).isFile() || (await stat(path)).size === 0) throw new Error('product release: missing artifact ' + basename(path))
   const versionTag = `${product.profile}-v${record.version}`
-  const url = `${product.releases ?? `https://github.com/${product.repository}/releases/download/`}${versionTag}/${filename}`
-  const metadata = dump({ ...value, files: [{ ...file, url }], ...(value.path === undefined ? {} : { path: url }) })
+  const directory = `${product.releases ?? `https://github.com/${product.repository}/releases/download/`}${versionTag}/`
+  const url = directory + filename
+  // Mac downloads use the dmg while the updater uses the zip; electron-updater ignores the extra field.
+  const dmg = platform === 'darwin' ? await readFile(join(root, prefix + '.dmg')) : undefined
+  const installer = dmg === undefined ? {}
+    : { installer: { url: `${directory}${prefix}.dmg`, sha512: createHash('sha512').update(dmg).digest('base64'), size: dmg.length } }
+  const metadata = dump({ ...value, files: [{ ...file, url }], ...(value.path === undefined ? {} : { path: url }), ...installer })
   return { product, version: record.version, target: record.target, versionTag,
     channelTag: feed.tag, metadataFilename, metadata, artifacts }
 }

@@ -15,8 +15,10 @@ import { parseDesktopProduct } from './desktop-product.mjs'
 
 const { values } = parseArgs({ options: { installed: { type: 'string' }, runtime: { type: 'string' }, ui: { type: 'boolean' } } })
 assert.ok(values.installed, 'Use --installed <application-directory> [--runtime <prepared-dsh-directory>]')
+// On macOS the application directory is the bundle's Contents directory, as in smoke-packaged-runtime.ts.
+const darwin = process.platform === 'darwin'
 const installed = resolve(values.installed)
-const resources = join(installed, 'resources')
+const resources = join(installed, darwin ? 'Resources' : 'resources')
 const runtime = values.runtime === undefined ? join(resources, 'app.asar/dsh') : resolve(values.runtime)
 const archive = values.runtime === undefined ? await readAsar(join(resources, 'app.asar')) : undefined
 const metadata = async (name: string): Promise<string> => archive === undefined
@@ -28,7 +30,8 @@ const version = manifest.version
 assert.equal(typeof electron, 'string')
 // Outside Electron this package exports its executable path, despite its main-process types.
 const rendererExecutable = electron as unknown as string
-const executable = join(installed, product.productName + (process.platform === 'win32' ? '.exe' : ''))
+const executable = darwin ? join(installed, 'MacOS', product.productName)
+  : join(installed, product.productName + (process.platform === 'win32' ? '.exe' : ''))
 const evidenceRoot = resolve(import.meta.dirname, '../.desktop-build/qualification')
 await mkdir(evidenceRoot, { recursive: true })
 const evidence = await mkdtemp(join(evidenceRoot, 'product-host-'))
@@ -94,7 +97,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 async function start(profile: string): Promise<(typeof children)[number]> {
   const child = spawn(executable, ['--expose-internals',
     join(runtime, 'node_modules/@deepseek-ai/dsh-desktop-host/lib/index.js'), runtime, profile,
-    join(resources, 'runtime/primary-runtime'), join(resources, 'runtime/pnpm/bin/pnpm.cjs'), join(resources, 'runtime/bin'),
+    join(resources, 'runtime/primary-runtime'), join(resources, 'runtime/primary-runtime/dependencies/pnpm/bin/pnpm.mjs'), join(resources, 'runtime/bin'),
   ], { cwd: profile, windowsHide: true, env: { ...environment, ELECTRON_RUN_AS_NODE: '1',
     DSH_HOME: resolve(profile, '../..'), DSH_CLIENT_VERSION: version,
     AIKO_DESKTOP_ACCOUNT_FILE: resolve(profile, '../../credentials/product-test.json') }, stdio: ['ignore', 'pipe', 'pipe', 'ipc'] })

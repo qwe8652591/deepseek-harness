@@ -63,27 +63,19 @@ function chunkUrl(row: BootModuleRow, fileName: string, rev: string): string {
   return `${url.slice(0, resourceStart)}/${row.id}/${fileName}?${url.slice(revisionStart + 1)}`
 }
 
-/**
- * Untagged <style> tags present before a factory runs. Plugins may append
- * untagged tags from effects at any time; those belong to their own fiber
- * teardown, so only tags absent from this snapshot are claimed.
- * @returns The untagged tags currently in the document.
- */
+/** Untagged <style> elements present before a factory runs; the factory must not claim them. */
 const untaggedStyles = (): ReadonlySet<Element> =>
   typeof document === 'undefined' ? new Set() : new Set(document.querySelectorAll('style:not([data-plugin])'))
 
 /**
  * Claim and inventory the <style> tags a factory injected during
  * materialization: preset-emitted tags arrive pre-tagged with data-plugin;
- * an untagged tag the factory appended is claimed for the materializing
- * plugin (HMR bookkeeping).
- * @param id - Materializing plugin id.
- * @param before - Untagged tags present before the factory ran; never claimed.
- * @returns The owned css ids.
+ * an untagged tag that was absent from `before` is claimed for the
+ * materializing plugin (HMR bookkeeping).
  */
 const claimStyles = (id: string, before: ReadonlySet<Element>): string[] => {
   if (typeof document === 'undefined') return []
-  for (const el of document.querySelectorAll('style:not([data-plugin])')) {
+  for (const el of untaggedStyles()) {
     if (!before.has(el)) el.setAttribute('data-plugin', id)
   }
   const owned: string[] = []
@@ -313,14 +305,15 @@ export class ClientModuleSystem implements ClientModuleLoader {
       throw new Error(`client-modules: require cycle through "${id}" (factory-form CJS cannot deliver partial exports)`)
     }
     this.materializing.add(id)
+    const before = untaggedStyles()
     try {
       const edges = new Set<string>()
-      const before = untaggedStyles()
       const exports = registered.factory(this.makeRequire(ownerId, edges))
       const record: ClientModuleRecord = { id, exports, styles: claimStyles(ownerId, before), edges }
       this.loadCache.set(id, record)
       return record
     } catch (error) {
+      claimStyles(ownerId, before)
       removeOwnedStyles(ownerId)
       throw error
     } finally {
