@@ -15,12 +15,12 @@ async function directory() {
   roots.push(root)
   return root
 }
-const applications = ['aiko-dsh-workbench', 'aiko-dsh-market', 'aiko-dsh-md-editor', 'aiko-dsh-visio', 'aiko-dsh-drawio', 'aiko-dsh-ppt', 'aiko-dsh-image-generation', 'aiko-dsh-annotation', 'aiko-dsh-templates']
-function product(profile: 'aiko' | 'yunyao' = 'aiko'): DesktopProduct {
+const applications = ['workbench', 'workbench-market', 'workbench-md-editor', 'workbench-visio', 'workbench-drawio', 'workbench-ppt', 'workbench-image-generation', 'workbench-annotation', 'workbench-templates']
+function product(profile: 'orange' | 'blue' = 'orange'): DesktopProduct {
   return parseDesktopProduct({ schemaVersion: 1, profile, appId: `com.${profile}.dsh`, productName: profile,
     repository: 'aiko-dsh-plugins/deepseek-harness', channel: 'beta',
-    bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', '@deepseek-ai/dsh-experimental-agent-team-profile', ...applications, profile + '-dsh-theme'],
-    plugins: [...applications, profile + '-dsh-theme', 'aiko-dsh-plugin-catalog'].map(name => ({ name, version: '1.0.0' })),
+    bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', '@deepseek-ai/dsh-experimental-agent-team-profile', ...applications, 'workbench-theme-' + profile],
+    plugins: [...applications, 'workbench-theme-' + profile, 'workbench-plugin-catalog'].map(name => ({ name, version: '1.0.0' })),
   })
 }
 
@@ -28,20 +28,20 @@ it('isolates brand and architecture feeds and refuses mixed product inputs', () 
   expect(resolveDesktopBuildVersion({ DSH_DESKTOP_PRODUCT: '/explicit-product.json', DSH_DESKTOP_BUILD_VERSION: '1.2.3' }, '0.2.0-rc.2')).toBe('1.2.3')
   expect(() => resolveDesktopBuildVersion({ DSH_DESKTOP_PRODUCT: '/explicit-product.json', DSH_DESKTOP_BUILD_VERSION: '1.2.3+ignored' }, '0.2.0-rc.2')).toThrow(/build metadata/)
   expect(desktopProductFeed(product(), 'win-x64')).toEqual({
-    publicUrl: 'https://github.com/aiko-dsh-plugins/deepseek-harness/releases/download/aiko-beta/', channel: 'aiko-beta-win-x64', tag: 'aiko-beta',
+    publicUrl: 'https://github.com/aiko-dsh-plugins/deepseek-harness/releases/download/orange-beta/', channel: 'orange-beta-win-x64', tag: 'orange-beta',
   })
-  expect(desktopProductFeed(product('yunyao'), 'mac-arm64').channel).toBe('yunyao-beta-mac-arm64')
-  expect(() => parseDesktopProduct({ ...product(), plugins: [...product().plugins, { name: 'yunyao-dsh-theme', version: '1.0.0' }] })).toThrow(/mixed-brand/)
+  expect(desktopProductFeed(product('blue'), 'mac-arm64').channel).toBe('blue-beta-mac-arm64')
+  expect(() => parseDesktopProduct({ ...product(), plugins: [...product().plugins, { name: 'workbench-theme-blue', version: '1.0.0' }] })).toThrow(/mixed-brand/)
   expect(() => desktopProductFeed(product(), 'linux-x64')).toThrow(/unsupported/)
 })
 
 it('selects a self-hosted HTTPS release directory instead of a GitHub repository', () => {
-  const { repository: _repository, ...base } = product('yunyao')
+  const { repository: _repository, ...base } = product('blue')
   const releases = 'https://downloads.example.test:20124/dsh/releases/'
   const hosted = parseDesktopProduct({ ...base, releases })
   expect(hosted.releases).toBe(releases)
   expect(hosted).not.toHaveProperty('repository')
-  expect(desktopProductFeed(hosted, 'win-x64')).toEqual({ publicUrl: releases + 'yunyao-beta/', channel: 'yunyao-beta-win-x64', tag: 'yunyao-beta' })
+  expect(desktopProductFeed(hosted, 'win-x64')).toEqual({ publicUrl: releases + 'blue-beta/', channel: 'blue-beta-win-x64', tag: 'blue-beta' })
   for (const value of ['http://downloads.example.test/dsh/releases/', 'https://downloads.example.test/dsh/releases',
     'https://user:secret@downloads.example.test/dsh/', 'https://downloads.example.test/dsh/?token=x/', 'https://downloads.example.test/dsh/#x/'])
     expect(() => parseDesktopProduct({ ...base, releases: value })).toThrow(/releases/)
@@ -50,7 +50,7 @@ it('selects a self-hosted HTTPS release directory instead of a GitHub repository
 })
 
 it('suggests the deployment platform on first run when the product names one', () => {
-  const suggested = parseDesktopProduct({ ...product('yunyao'), platform: 'https://platform.example.test:20124' })
+  const suggested = parseDesktopProduct({ ...product('blue'), platform: 'https://platform.example.test:20124' })
   expect(suggested.platform).toBe('https://platform.example.test:20124')
   expect(product()).not.toHaveProperty('platform')
   for (const value of ['http://platform.example.test', 'https://platform.example.test/', 'https://platform.example.test/path',
@@ -60,8 +60,8 @@ it('suggests the deployment platform on first run when the product names one', (
 
 it('refuses products that preinstall app-center application plugins', () => {
   const official = product().bundles.slice(0, 3)
-  for (const name of ['aiko-dsh-tender', '@aiko-dsh-plugins/dsh-knowledge', 'aiko-dsh-code']) {
-    expect(() => parseDesktopProduct({ ...product(), bundles: [...official, ...applications, name, 'aiko-dsh-theme'] })).toThrow(/bundles must match/)
+  for (const name of ['workbench-tender', '@workbench/dsh-knowledge', 'workbench-code']) {
+    expect(() => parseDesktopProduct({ ...product(), bundles: [...official, ...applications, name, 'workbench-theme-orange'] })).toThrow(/bundles must match/)
     expect(() => parseDesktopProduct({ ...product(), plugins: [...product().plugins, { name, version: '1.0.0' }] })).toThrow(/incomplete or mixed-brand/)
   }
 })
@@ -69,7 +69,7 @@ it('refuses products that preinstall app-center application plugins', () => {
 it('verifies archive bytes before packaging and does not embed local build paths', async () => {
   const root = await directory(), file = join(root, 'product.json')
   await writeFile(join(root, 'plugin.tgz'), 'archive')
-  const input = { ...product(), artwork: { version: 1, theme: 'aiko-dsh-theme', productName: 'aiko', image: 'data:image/png;base64,YQ==' },
+  const input = { ...product(), artwork: { version: 1, theme: 'workbench-theme-orange', productName: 'orange', image: 'data:image/png;base64,YQ==' },
     plugins: product().plugins.map(plugin => ({ ...plugin, file: 'plugin.tgz', integrity: 'sha512-' + createHash('sha512').update('archive').digest('base64') })),
   }
   await writeFile(file, JSON.stringify(input))
@@ -89,14 +89,14 @@ it('uses new installer plugins while preserving patches, sessions and recovery c
   await prepareProductProfile(product(), root)
   const initial = JSON.parse(await readFile(file, 'utf8')) as { dsh: { profile: { bundles: string[] } } }
   expect(initial.dsh.profile.bundles).toEqual(product().bundles)
-  initial.dsh.profile.bundles = initial.dsh.profile.bundles.filter(name => name !== 'aiko-dsh-market')
+  initial.dsh.profile.bundles = initial.dsh.profile.bundles.filter(name => name !== 'workbench-market')
   await writeFile(file, JSON.stringify(initial))
   await prepareProductProfile({ ...product(), plugins: product().plugins.map(plugin => ({ ...plugin, version: '1.1.0' })) }, root)
-  expect(await readFile(file, 'utf8')).not.toContain('aiko-dsh-market')
+  expect(await readFile(file, 'utf8')).not.toContain('workbench-market')
   expect(await readFile(join(root, '.desktop-product.json'), 'utf8')).toContain('1.1.0')
   expect(await readFile(join(root, 'sessions.jsonl'), 'utf8')).toBe('saved user work\n')
   expect(await readFile(join(root, 'cordis.patch.yml'), 'utf8')).toContain('kept')
-  await expect(prepareProductProfile(product('yunyao'), root)).rejects.toThrow(/another product/)
+  await expect(prepareProductProfile(product('blue'), root)).rejects.toThrow(/another product/)
 })
 
 it('refuses unowned installed packages and a runtime with different plugin bytes identified by version', async () => {
@@ -109,21 +109,21 @@ it('refuses unowned installed packages and a runtime with different plugin bytes
   }
   await expect(prepareProductProfile(product(), root)).rejects.toThrow(/unmanaged/)
   await writeFile(join(root, 'desktop-product.json'), JSON.stringify(product()))
-  expect(await readPackagedProduct(root, 'aiko')).toEqual(product())
+  expect(await readPackagedProduct(root, 'orange')).toEqual(product())
   const { repository: _repository, ...hosted } = product()
   await writeFile(join(root, 'desktop-product.json'), JSON.stringify({ ...hosted, releases: 'https://downloads.example.test/dsh/releases/' }))
-  expect(await readPackagedProduct(root, 'aiko')).toEqual({ ...hosted, releases: 'https://downloads.example.test/dsh/releases/' })
+  expect(await readPackagedProduct(root, 'orange')).toEqual({ ...hosted, releases: 'https://downloads.example.test/dsh/releases/' })
   await writeFile(join(root, 'desktop-product.json'), JSON.stringify({ ...product(), platform: 'https://platform.example.test' }))
-  expect((await readPackagedProduct(root, 'aiko'))?.platform).toBe('https://platform.example.test')
+  expect((await readPackagedProduct(root, 'orange'))?.platform).toBe('https://platform.example.test')
   await writeFile(join(root, 'desktop-product.json'), JSON.stringify(product()))
-  await writeFile(join(root, 'node_modules/aiko-dsh-workbench/package.json'), JSON.stringify({ name: 'aiko-dsh-workbench', version: '2.0.0' }))
-  await expect(readPackagedProduct(root, 'aiko')).rejects.toThrow(/version mismatch/)
+  await writeFile(join(root, 'node_modules/workbench/package.json'), JSON.stringify({ name: 'workbench', version: '2.0.0' }))
+  await expect(readPackagedProduct(root, 'orange')).rejects.toThrow(/version mismatch/)
   await writeProductPolicy(root, product())
   const policy: unknown = JSON.parse(await readFile(join(root, 'desktop-product.patch.yml'), 'utf8'))
   expect(policy).toContainEqual({ id: 'llm-claude', config: { pluginUpdates: false } })
   expect(policy).toContainEqual({ id: 'plugin-manager', disabled: false, config: { packageChanges: 'local-files' } })
   expect(policy).toContainEqual({ id: 'ui-plugin-manager', disabled: false, config: {
-    packageChanges: false, registryProbeEnabled: false, bundledPackages: product().bundles.filter(name => name !== 'aiko-dsh-market'),
+    packageChanges: false, registryProbeEnabled: false, bundledPackages: product().bundles.filter(name => name !== 'workbench-market'),
   } })
 })
 

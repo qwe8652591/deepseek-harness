@@ -6,25 +6,25 @@ import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const credential = { credential: 'a'.repeat(43), cookieName: 'aiko_session_0123456789ab' }
+const credential = { credential: 'a'.repeat(43), cookieName: 'workbench_session_0123456789ab' }
 const electron = vi.hoisted(() => ({ saved: '' }))
 vi.mock('electron', () => ({
   app: { getLocale: () => 'zh-CN' },
   shell: { openExternal: vi.fn() },
   safeStorage: { isEncryptionAvailable: () => true, getSelectedStorageBackend: () => 'gnome_libsecret', decryptString: () => electron.saved },
 }))
-const { DesktopAccount } = await import('../src/aiko-account.ts')
+const { DesktopAccount } = await import('../src/workbench-account.ts')
 
 let server: Server, origin: string, directory: string
 const forwarded: { url: string; cookie: string | undefined; authorization: string | undefined }[] = []
 
 beforeEach(async () => {
   forwarded.length = 0
-  directory = await mkdtemp(join(tmpdir(), 'aiko-relay-'))
+  directory = await mkdtemp(join(tmpdir(), 'workbench-relay-'))
   server = createServer((req, res) => {
     if (req.url === '/auth/me') {
       res.writeHead(200, { 'content-type': 'application/json' })
-      res.end(JSON.stringify({ issuer: origin + '/realms/aiko', subject: 'alice', name: 'alice', organization: 'aiko', expiresAt: Date.now() + 60_000, capabilities: true }))
+      res.end(JSON.stringify({ issuer: origin + '/realms/workbench', subject: 'alice', name: 'alice', organization: 'orange', expiresAt: Date.now() + 60_000, capabilities: true }))
       return
     }
     forwarded.push({ url: req.url ?? '', cookie: req.headers.cookie, authorization: req.headers.authorization })

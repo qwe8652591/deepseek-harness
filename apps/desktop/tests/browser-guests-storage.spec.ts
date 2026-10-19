@@ -24,12 +24,12 @@ afterEach(async () => { await rm(electron.sessionData, { recursive: true, force:
 describe('DesktopBrowserGuests storage', () => {
   it('keeps one persistent partition per account and workspace, and a temporary one without an account', () => {
     const alice = 'a'.repeat(32), bob = 'b'.repeat(32)
-    const first = new DesktopBrowserGuests(() => undefined, alice).acquire(owner, 'aiko-workbench-apps').partition
+    const first = new DesktopBrowserGuests(() => undefined, alice).acquire(owner, 'workbench-apps').partition
     expect(first).toMatch(/^persist:dsh-browser-a{32}-[a-f0-9]{16}$/)
-    expect(new DesktopBrowserGuests(() => undefined, alice).acquire(owner, 'aiko-workbench-apps').partition).toBe(first)
+    expect(new DesktopBrowserGuests(() => undefined, alice).acquire(owner, 'workbench-apps').partition).toBe(first)
     expect(new DesktopBrowserGuests(() => undefined, alice).acquire(owner, 'session').partition).not.toBe(first)
-    expect(new DesktopBrowserGuests(() => undefined, bob).acquire(owner, 'aiko-workbench-apps').partition).not.toBe(first)
-    expect(new DesktopBrowserGuests(() => undefined).acquire(owner, 'aiko-workbench-apps').partition).toMatch(/^dsh-sidebar-browser-/)
+    expect(new DesktopBrowserGuests(() => undefined, bob).acquire(owner, 'workbench-apps').partition).not.toBe(first)
+    expect(new DesktopBrowserGuests(() => undefined).acquire(owner, 'workbench-apps').partition).toMatch(/^dsh-sidebar-browser-/)
     expect(() => new DesktopBrowserGuests(() => undefined, '../x')).toThrow(/account scope/)
   })
 
@@ -38,7 +38,7 @@ describe('DesktopBrowserGuests storage', () => {
     await mkdir(join(electron.sessionData, 'Partitions', `dsh-browser-${alice}-0123456789abcdef`), { recursive: true })
     await mkdir(join(electron.sessionData, 'Partitions', `dsh-browser-${'b'.repeat(32)}-0123456789abcdef`), { recursive: true })
     const guests = new DesktopBrowserGuests(() => undefined, alice)
-    const current = guests.acquire(owner, 'aiko-workbench-apps').partition
+    const current = guests.acquire(owner, 'workbench-apps').partition
     await guests.clearAccountStorage()
     expect(electron.cleared.sort()).toEqual([`persist:dsh-browser-${alice}-0123456789abcdef`, current].sort())
     await new DesktopBrowserGuests(() => undefined).clearAccountStorage()

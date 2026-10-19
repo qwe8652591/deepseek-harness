@@ -2,7 +2,7 @@
 import { app } from 'electron';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { DesktopAccount, readAccountConfig } from '../lib/types/aiko-account.js';
+import { DesktopAccount, readAccountConfig } from '../lib/types/workbench-account.js';
 
 const [identityFile, credentialsFile, userData] = process.argv.slice(2);
 if (!identityFile || !credentialsFile || !userData) throw new Error('Expected identity file, private test account file and isolated Electron user data');

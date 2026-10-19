@@ -4,11 +4,11 @@
 # through a rename, because it switches clients and download pages to the new version.
 # Usage: publish-self-hosted.sh <staging-directory> <version>
 # Environment: RELEASES_URL (public directory ending in /), RELEASE_HOST, RELEASE_PORT,
-#   RELEASE_SSH_KEY (private key text), RELEASE_KNOWN_HOSTS (known_hosts line), RELEASE_PROFILE (default yunyao),
+#   RELEASE_SSH_KEY (private key text), RELEASE_KNOWN_HOSTS (known_hosts line), RELEASE_PROFILE (default blue),
 #   RELEASE_CHANNEL (default stable).
 set -euo pipefail
 staging=$1 version=$2
-profile=${RELEASE_PROFILE:-yunyao} channel=${RELEASE_CHANNEL:-stable}
+profile=${RELEASE_PROFILE:-blue} channel=${RELEASE_CHANNEL:-stable}
 temp=$(mktemp -d)
 key="$temp/release-key" known="$temp/release-known-hosts"
 trap 'rm -rf "$temp"' EXIT

@@ -3,7 +3,7 @@ import { app, BrowserWindow, ipcMain, type IpcMainInvokeEvent } from 'electron'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { parseProductPlatform, readProductPlatform, saveProductPlatform, ProductPlatformConfigurationError } from './product-platform.ts'
-import { resolveAikoAccountLocale } from './aiko-account-locale.ts'
+import { resolveWorkbenchAccountLocale } from './workbench-account-locale.ts'
 import type { DesktopProduct } from '../scripts/desktop-product.mjs'
 
 /**
@@ -19,7 +19,7 @@ export async function openProductPlatform(product: DesktopProduct): Promise<stri
     if (!(error instanceof SyntaxError || error instanceof ProductPlatformConfigurationError)) throw error
     saved = undefined // Malformed saved endpoints are corrected in this form.
   }
-  const locale = resolveAikoAccountLocale(app.getLocale())
+  const locale = resolveWorkbenchAccountLocale(app.getLocale())
   const window = new BrowserWindow({ width: 680, height: 570, title: product.productName, resizable: false,
     webPreferences: { preload: join(app.getAppPath(), 'lib/preload-product-platform.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true } })
   window.setMenuBarVisibility(false)

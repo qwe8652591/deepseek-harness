@@ -12,7 +12,7 @@ Desktop runs the Harness workspace in a native application. This reference cover
 
 Source launches report application updates as unavailable: the sidebar stays clear and a manual check explains how to update the source or install a deployment release. This is distinct from an up-to-date result. A packaged application without `app-update.yml` still reports a configuration failure. Application releases and independently managed plugin updates have separate ownership.
 
-Private Aiko/Yunyao deployments use the same Desktop Host and launchers. See [Aiko deployment](aiko/README.md) for source development, or [complete product distributions](aiko/products/README.md) for bundled plugins, editable platform addresses and brand-specific GitHub updates.
+Private orange/blue deployments use the same Desktop Host and launchers. See [Workbench deployment](workbench/README.md) for source development, or [complete product distributions](workbench/products/README.md) for bundled plugins, editable platform addresses and brand-specific GitHub updates.
 
 ## Table of Contents
 

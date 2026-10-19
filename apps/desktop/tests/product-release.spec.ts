@@ -11,14 +11,14 @@ vi.mock('node:child_process', () => ({ execFileSync: gh }))
 
 const roots: string[] = []
 afterEach(async () => { gh.mockReset(); for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true }) })
-async function fixture(brand = 'aiko', releases?: string) {
+async function fixture(brand = 'orange', releases?: string) {
   const root = await mkdtemp(join(tmpdir(), 'dsh-product-release-'))
   roots.push(root)
-  const applications = ['aiko-dsh-workbench', 'aiko-dsh-market', 'aiko-dsh-md-editor', 'aiko-dsh-visio', 'aiko-dsh-drawio', 'aiko-dsh-ppt', 'aiko-dsh-image-generation', 'aiko-dsh-annotation', 'aiko-dsh-templates']
+  const applications = ['workbench', 'workbench-market', 'workbench-md-editor', 'workbench-visio', 'workbench-drawio', 'workbench-ppt', 'workbench-image-generation', 'workbench-annotation', 'workbench-templates']
   const product = { schemaVersion: 1, profile: brand, appId: `com.${brand}.dsh`, productName: brand,
     ...releases === undefined ? { repository: 'aiko-dsh-plugins/deepseek-harness' } : { releases }, channel: 'beta',
-    bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', '@deepseek-ai/dsh-experimental-agent-team-profile', ...applications, `${brand}-dsh-theme`],
-    plugins: [...applications, `${brand}-dsh-theme`, 'aiko-dsh-plugin-catalog'].map(name => ({ name, version: '1.0.0' })),
+    bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', '@deepseek-ai/dsh-experimental-agent-team-profile', ...applications, `workbench-theme-${brand}`],
+    plugins: [...applications, `workbench-theme-${brand}`, 'workbench-plugin-catalog'].map(name => ({ name, version: '1.0.0' })),
   }
   const record = { schemaVersion: 1, signed: releases === undefined, dirty: false, target: 'win-x64', version: '0.2.0-rc.3', product,
     publicUrl: `${releases ?? 'https://github.com/aiko-dsh-plugins/deepseek-harness/releases/download/'}${brand}-beta/`, channel: `${brand}-beta-win-x64`,
@@ -35,7 +35,7 @@ async function fixture(brand = 'aiko', releases?: string) {
   return { root, recordFile, record, metadataFile, metadata, name }
 }
 
-it.each(['aiko', 'yunyao'])('publishes %s channel metadata pointing at its immutable version payload', async (brand) => {
+it.each(['orange', 'blue'])('publishes %s channel metadata pointing at its immutable version payload', async (brand) => {
   const f = await fixture(brand)
   const plan = await prepareProductRelease(f.recordFile)
   expect(plan.versionTag).toBe(`${brand}-v0.2.0-rc.3`)
@@ -46,12 +46,12 @@ it.each(['aiko', 'yunyao'])('publishes %s channel metadata pointing at its immut
 
 it('refuses unsigned builds, dirty builds, changed payloads and another brand before publication', async () => {
   const f = await fixture()
-  for (const record of [{ ...f.record, signed: false }, { ...f.record, dirty: true }, { ...f.record, channel: 'yunyao-beta-win-x64' }]) {
+  for (const record of [{ ...f.record, signed: false }, { ...f.record, dirty: true }, { ...f.record, channel: 'blue-beta-win-x64' }]) {
     await writeFile(f.recordFile, JSON.stringify(record))
     await expect(prepareProductRelease(f.recordFile)).rejects.toThrow()
   }
   await writeFile(f.recordFile, JSON.stringify(f.record))
-  await writeFile(f.metadataFile, JSON.stringify({ ...f.metadata, files: [{ ...f.metadata.files[0], url: 'yunyao-dsh-0.2.0-rc.3-win-x64.exe' }] }))
+  await writeFile(f.metadataFile, JSON.stringify({ ...f.metadata, files: [{ ...f.metadata.files[0], url: 'blue-dsh-0.2.0-rc.3-win-x64.exe' }] }))
   await expect(prepareProductRelease(f.recordFile)).rejects.toThrow(/brand/)
   await writeFile(f.metadataFile, JSON.stringify(f.metadata))
   await writeFile(join(f.root, f.name), 'altered installer')
@@ -86,22 +86,22 @@ it('leaves the public channel unchanged when payload upload fails', async () => 
 const hosted = 'https://downloads.example.test:20124/dsh/releases/'
 
 it('publishes unsigned self-hosted payloads under the server version directory', async () => {
-  const f = await fixture('yunyao', hosted)
+  const f = await fixture('blue', hosted)
   const plan = await prepareProductRelease(f.recordFile)
-  expect(load(plan.metadata)).toMatchObject({ path: `${hosted}yunyao-v0.2.0-rc.3/${f.name}`, files: [{ url: `${hosted}yunyao-v0.2.0-rc.3/${f.name}` }] })
+  expect(load(plan.metadata)).toMatchObject({ path: `${hosted}blue-v0.2.0-rc.3/${f.name}`, files: [{ url: `${hosted}blue-v0.2.0-rc.3/${f.name}` }] })
   const output = join(f.root, 'out')
   const read = vi.fn(async () => undefined)
   expect(await stageProductRelease(plan, output, read)).toEqual([
-    `yunyao-v0.2.0-rc.3/${f.name}`, `yunyao-v0.2.0-rc.3/${f.name}.blockmap`, 'yunyao-v0.2.0-rc.3/win-x64-release.json', 'yunyao-beta/yunyao-beta-win-x64.yml',
+    `blue-v0.2.0-rc.3/${f.name}`, `blue-v0.2.0-rc.3/${f.name}.blockmap`, 'blue-v0.2.0-rc.3/win-x64-release.json', 'blue-beta/blue-beta-win-x64.yml',
   ])
-  expect(read).toHaveBeenCalledWith(`${hosted}yunyao-beta/yunyao-beta-win-x64.yml`)
-  expect((await readdir(join(output, 'yunyao-v0.2.0-rc.3'))).sort()).toEqual([f.name, f.name + '.blockmap', 'win-x64-release.json'].sort())
-  expect(await readFile(join(output, 'yunyao-beta', 'yunyao-beta-win-x64.yml'), 'utf8')).toBe(plan.metadata)
+  expect(read).toHaveBeenCalledWith(`${hosted}blue-beta/blue-beta-win-x64.yml`)
+  expect((await readdir(join(output, 'blue-v0.2.0-rc.3'))).sort()).toEqual([f.name, f.name + '.blockmap', 'win-x64-release.json'].sort())
+  expect(await readFile(join(output, 'blue-beta', 'blue-beta-win-x64.yml'), 'utf8')).toBe(plan.metadata)
   await expect(stageProductRelease(plan, output, read)).rejects.toThrow(/already staged/)
 })
 
 it('refuses a self-hosted channel that already carries the same or a newer version', async () => {
-  const plan = await prepareProductRelease((await fixture('yunyao', hosted)).recordFile)
+  const plan = await prepareProductRelease((await fixture('blue', hosted)).recordFile)
   const root = await mkdtemp(join(tmpdir(), 'dsh-product-stage-'))
   roots.push(root)
   for (const version of ['0.2.0-rc.3', '0.2.0'])
@@ -111,7 +111,7 @@ it('refuses a self-hosted channel that already carries the same or a newer versi
 })
 
 it('keeps unsigned builds out of GitHub products and staged releases out of GitHub products', async () => {
-  const f = await fixture('yunyao', hosted)
+  const f = await fixture('blue', hosted)
   const github = await prepareProductRelease((await fixture()).recordFile)
   await expect(stageProductRelease(github, join(f.root, 'out'), async () => undefined)).rejects.toThrow(/self-hosted/)
   const plan = await prepareProductRelease(f.recordFile)
@@ -119,29 +119,29 @@ it('keeps unsigned builds out of GitHub products and staged releases out of GitH
 })
 
 it('stages a signed self-hosted Mac release whose channel names the dmg installer for downloads', async () => {
-  const { product } = (await fixture('yunyao', hosted)).record
+  const { product } = (await fixture('blue', hosted)).record
   const root = await mkdtemp(join(tmpdir(), 'dsh-product-release-mac-'))
   roots.push(root)
   const record = { schemaVersion: 1, signed: true, dirty: false, target: 'mac-arm64', version: '0.2.0-rc.3', product,
-    publicUrl: `${hosted}yunyao-beta/`, channel: 'yunyao-beta-mac-arm64' }
-  const zip = 'yunyao-dsh-0.2.0-rc.3-mac-arm64.zip', dmg = 'yunyao-dsh-0.2.0-rc.3-mac-arm64.dmg'
+    publicUrl: `${hosted}blue-beta/`, channel: 'blue-beta-mac-arm64' }
+  const zip = 'blue-dsh-0.2.0-rc.3-mac-arm64.zip', dmg = 'blue-dsh-0.2.0-rc.3-mac-arm64.dmg'
   const zipBytes = 'zip fixture', dmgBytes = 'dmg installer fixture'
   const sha = (bytes: string) => createHash('sha512').update(bytes).digest('base64')
   await writeFile(join(root, 'mac-arm64-release.json'), JSON.stringify(record))
   await writeFile(join(root, zip), zipBytes)
   await writeFile(join(root, zip + '.blockmap'), 'blockmap fixture')
   await writeFile(join(root, dmg), dmgBytes)
-  await writeFile(join(root, 'yunyao-beta-mac-arm64-mac.yml'), JSON.stringify({ version: record.version, path: zip, sha512: sha(zipBytes),
+  await writeFile(join(root, 'blue-beta-mac-arm64-mac.yml'), JSON.stringify({ version: record.version, path: zip, sha512: sha(zipBytes),
     files: [{ url: zip, sha512: sha(zipBytes), size: Buffer.byteLength(zipBytes) }] }))
   const plan = await prepareProductRelease(join(root, 'mac-arm64-release.json'))
   expect(load(plan.metadata)).toMatchObject({
-    path: `${hosted}yunyao-v0.2.0-rc.3/${zip}`,
-    files: [{ url: `${hosted}yunyao-v0.2.0-rc.3/${zip}` }],
-    installer: { url: `${hosted}yunyao-v0.2.0-rc.3/${dmg}`, sha512: sha(dmgBytes), size: Buffer.byteLength(dmgBytes) },
+    path: `${hosted}blue-v0.2.0-rc.3/${zip}`,
+    files: [{ url: `${hosted}blue-v0.2.0-rc.3/${zip}` }],
+    installer: { url: `${hosted}blue-v0.2.0-rc.3/${dmg}`, sha512: sha(dmgBytes), size: Buffer.byteLength(dmgBytes) },
   })
   const output = join(root, 'out')
   expect(await stageProductRelease(plan, output, async () => undefined)).toEqual([
-    `yunyao-v0.2.0-rc.3/${zip}`, `yunyao-v0.2.0-rc.3/${zip}.blockmap`, `yunyao-v0.2.0-rc.3/${dmg}`, 'yunyao-v0.2.0-rc.3/mac-arm64-release.json',
-    'yunyao-beta/yunyao-beta-mac-arm64-mac.yml',
+    `blue-v0.2.0-rc.3/${zip}`, `blue-v0.2.0-rc.3/${zip}.blockmap`, `blue-v0.2.0-rc.3/${dmg}`, 'blue-v0.2.0-rc.3/mac-arm64-release.json',
+    'blue-beta/blue-beta-mac-arm64-mac.yml',
   ])
 })

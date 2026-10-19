@@ -82,6 +82,6 @@ const zh: typeof en = {
   accountLogoutFailed: '退出登录失败，请检查网络后重试。',
 }
 /** Resolve account copy from the desktop locale. */
-export function resolveAikoAccountLocale(locale: string) {
+export function resolveWorkbenchAccountLocale(locale: string) {
   return { id: locale.startsWith('zh') ? 'zh-CN' : 'en', messages: locale.startsWith('zh') ? zh : en }
 }

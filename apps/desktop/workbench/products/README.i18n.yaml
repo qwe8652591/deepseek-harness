@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write apps/desktop/workbench/products/README.md
+/complete-orange-and-blue-distributions:
+  en: 4d27c1bf06b12b20
+  zh: b32d713d3711a259
+/complete-orange-and-blue-distributions/build-inputs:
+  en: aeece95c1ee989bd
+  zh: 0b1dd68e822f5b42
+/complete-orange-and-blue-distributions/windows-installation-qualification:
+  en: 051e6abbe5685a87
+  zh: 832cb972505c0457
+/complete-orange-and-blue-distributions/platform-settings-and-retained-data:
+  en: 43e06e1b37e95ada
+  zh: 165a42653451ee7e
+/complete-orange-and-blue-distributions/github-release-publication:
+  en: 230ee366fe6eeaed
+  zh: d40564cd4f74fcdf
+/complete-orange-and-blue-distributions/self-hosted-release-publication:
+  en: d404ffbee4eb40fe
+  zh: fc5ea7cb1000611a

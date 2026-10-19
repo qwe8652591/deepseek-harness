@@ -16,9 +16,9 @@ const bundle = await Rolldown.rolldown({ input: fileURLToPath(new URL('../tests/
 try { await bundle.write({ file: entry, format: 'esm' }) }
 finally { await bundle.close() }
 const environment = Object.fromEntries(Object.entries(process.env).filter(([name]) =>
-  !/KEY|SECRET|TOKEN|PASSWORD|^DSH_|^AIKO_|^NODE_OPTIONS$|^ELECTRON_/iu.test(name)))
+  !/KEY|SECRET|TOKEN|PASSWORD|^DSH_|^WORKBENCH_|^NODE_OPTIONS$|^ELECTRON_/iu.test(name)))
 try {
-  for (const brand of ['aiko', 'yunyao']) {
+  for (const brand of ['orange', 'blue']) {
     const child = spawn(electron, [entry], { env: { ...environment, DSH_ACTIVATION_TEST_ROOT: root,
       DSH_ACTIVATION_TEST_PRELOAD: fileURLToPath(new URL('../lib/preload-app.cjs', import.meta.url)),
       DSH_ACTIVATION_TEST_BRAND: brand }, stdio: ['ignore', 'pipe', 'pipe'] })

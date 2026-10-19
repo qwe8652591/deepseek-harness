@@ -83,19 +83,19 @@ describe('installer preparation preserves application dependencies', () => {
     const { createHash } = await import('node:crypto')
     const root = mkdtempSync(join(tmpdir(), 'dsh-hosted-product-'))
     try {
-      const applications = ['aiko-dsh-workbench', 'aiko-dsh-market', 'aiko-dsh-md-editor', 'aiko-dsh-visio', 'aiko-dsh-drawio', 'aiko-dsh-ppt', 'aiko-dsh-image-generation', 'aiko-dsh-annotation', 'aiko-dsh-templates']
+      const applications = ['workbench', 'workbench-market', 'workbench-md-editor', 'workbench-visio', 'workbench-drawio', 'workbench-ppt', 'workbench-image-generation', 'workbench-annotation', 'workbench-templates']
       writeFileSync(join(root, 'plugin.tgz'), 'archive')
       const integrity = 'sha512-' + createHash('sha512').update('archive').digest('base64')
-      const productFile = join(root, 'yunyao.json')
-      writeFileSync(productFile, JSON.stringify({ schemaVersion: 1, profile: 'yunyao', appId: 'com.yunyao.dsh', productName: '工作台',
+      const productFile = join(root, 'blue.json')
+      writeFileSync(productFile, JSON.stringify({ schemaVersion: 1, profile: 'blue', appId: 'com.blue.dsh', productName: '工作台',
         releases: 'https://downloads.example.test:20124/dsh/releases/', channel: 'stable',
-        bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', '@deepseek-ai/dsh-experimental-agent-team-profile', ...applications, 'yunyao-dsh-theme'],
-        plugins: [...applications, 'yunyao-dsh-theme', 'aiko-dsh-plugin-catalog'].map(name => ({ name, version: '1.0.0', file: 'plugin.tgz', integrity })),
-        artwork: { version: 1, theme: 'yunyao-dsh-theme', productName: '工作台', image: 'data:image/png;base64,YQ==' },
+        bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', '@deepseek-ai/dsh-experimental-agent-team-profile', ...applications, 'workbench-theme-blue'],
+        plugins: [...applications, 'workbench-theme-blue', 'workbench-plugin-catalog'].map(name => ({ name, version: '1.0.0', file: 'plugin.tgz', integrity })),
+        artwork: { version: 1, theme: 'workbench-theme-blue', productName: '工作台', image: 'data:image/png;base64,YQ==' },
       }))
       const { createElectronBuilderConfig } = await import('../scripts/electron-builder-config.mjs')
       const config = createElectronBuilderConfig({
-        DSH_DESKTOP_APP_ID: 'com.yunyao.dsh',
+        DSH_DESKTOP_APP_ID: 'com.blue.dsh',
         DSH_DESKTOP_PRODUCT: productFile,
         DSH_DESKTOP_MANDATORY_UPDATE_TEST_ORIGIN: 'https://policy.example.com',
         DSH_DESKTOP_MANDATORY_UPDATE_CONFIG: JSON.stringify({ allowedAuthOrigins: ['https://login.example.com'] }),
@@ -103,10 +103,10 @@ describe('installer preparation preserves application dependencies', () => {
         DSH_DESKTOP_TARGET_ARCH: 'x64',
         DSH_DESKTOP_UNSIGNED: '1',
       }, 'win32', 'x64')
-      expect(config.publish).toEqual([{ provider: 'generic', url: 'https://downloads.example.test:20124/dsh/releases/yunyao-stable/', channel: 'yunyao-stable-win-x64' }])
+      expect(config.publish).toEqual([{ provider: 'generic', url: 'https://downloads.example.test:20124/dsh/releases/blue-stable/', channel: 'blue-stable-win-x64' }])
       expect(config.win.signtoolOptions.publisherName).toBeUndefined()
       expect(config.win.forceCodeSigning).toBe(false)
-      expect(config.artifactName).toBe('yunyao-dsh-${version}-${os}-${arch}-unsigned.${ext}')
+      expect(config.artifactName).toBe('blue-dsh-${version}-${os}-${arch}-unsigned.${ext}')
     } finally { rmSync(root, { recursive: true, force: true }) }
   })
 

@@ -5,28 +5,28 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const credential = { credential: 'a'.repeat(43), cookieName: 'aiko_session_0123456789ab' }
+const credential = { credential: 'a'.repeat(43), cookieName: 'workbench_session_0123456789ab' }
 const electron = vi.hoisted(() => ({ saved: '' }))
 vi.mock('electron', () => ({
   app: { getLocale: () => 'zh-CN' },
   shell: { openExternal: vi.fn() },
   safeStorage: { isEncryptionAvailable: () => true, getSelectedStorageBackend: () => 'gnome_libsecret', decryptString: () => electron.saved },
 }))
-const { DesktopAccount, AccountSignedOutError } = await import('../src/aiko-account.ts')
+const { DesktopAccount, AccountSignedOutError } = await import('../src/workbench-account.ts')
 
 let server: Server, origin: string, directory: string, logoutLocation: string, logoutStatus: number
 let me: { status: number; body: unknown } | undefined
-const issuer = (): string => origin + '/realms/aiko'
+const issuer = (): string => origin + '/realms/workbench'
 
 beforeEach(async () => {
-  directory = await mkdtemp(join(tmpdir(), 'aiko-account-'))
+  directory = await mkdtemp(join(tmpdir(), 'workbench-account-'))
   logoutStatus = 303
   me = undefined
   server = createServer((req, res) => {
     if (req.url === '/auth/me' && me) { res.writeHead(me.status, { 'content-type': 'application/json' }); res.end(JSON.stringify(me.body)); return }
     if (req.url === '/auth/me') {
       res.writeHead(200, { 'content-type': 'application/json' })
-      res.end(JSON.stringify({ issuer: issuer(), subject: 'alice', name: 'alice', organization: 'aiko', expiresAt: Date.now() + 60_000, capabilities: true }))
+      res.end(JSON.stringify({ issuer: issuer(), subject: 'alice', name: 'alice', organization: 'orange', expiresAt: Date.now() + 60_000, capabilities: true }))
       return
     }
     if (req.url === '/auth/logout' && req.method === 'POST' && logoutStatus === 502) {
@@ -104,7 +104,7 @@ describe('DesktopAccount.verify', () => {
 
   it('keeps an expiry distinct so the same account keeps its panel storage', async () => {
     const account = await signedIn(vi.fn(async () => {}))
-    me = { status: 401, body: { error: 'Aiko authentication required' } }
+    me = { status: 401, body: { error: 'Workbench authentication required' } }
     const expired = await account.verify().then(() => undefined, (error: unknown) => error)
     expect(expired).toBeInstanceOf(Error)
     expect(expired).not.toBeInstanceOf(AccountSignedOutError)

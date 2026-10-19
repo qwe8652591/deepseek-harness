@@ -7,7 +7,7 @@ import { readDesktopProduct } from './desktop-product.mjs'
 /**
  * Resolve one installed theme's native artwork; neither option means upstream artwork.
  * @param {NodeJS.ProcessEnv} env Build settings.
- * @returns {{ brand: 'aiko' | 'yunyao', productName: string, image: Buffer } | undefined} Selected artwork.
+ * @returns {{ brand: 'orange' | 'blue', productName: string, image: Buffer } | undefined} Selected artwork.
  */
 export function readDesktopBrand(env) {
   const product = readDesktopProduct(env)
@@ -16,9 +16,9 @@ export function readDesktopBrand(env) {
   const brand = env.DSH_DESKTOP_BRAND
   const runtime = env.DSH_DESKTOP_BRAND_RUNTIME
   if (brand === undefined && runtime === undefined) return undefined
-  if (brand !== 'aiko' && brand !== 'yunyao') throw new Error('desktop brand: select aiko or yunyao')
+  if (brand !== 'orange' && brand !== 'blue') throw new Error('desktop brand: select orange or blue')
   if (!runtime || !isAbsolute(runtime)) throw new Error('desktop brand: DSH_DESKTOP_BRAND_RUNTIME must be absolute')
-  const theme = brand === 'aiko' ? 'aiko-dsh-theme' : 'yunyao-dsh-theme'
+  const theme = brand === 'orange' ? 'workbench-theme-orange' : 'workbench-theme-blue'
   const require = createRequire(join(runtime, 'package.json'))
   const asset = JSON.parse(readFileSync(require.resolve(theme + '/desktop-icon'), 'utf8'))
   if (asset.version !== 1 || asset.theme !== theme || typeof asset.productName !== 'string' || !asset.productName.trim())
@@ -31,7 +31,7 @@ export function readDesktopBrand(env) {
 /**
  * Keep generated artwork separate for each build target and brand.
  * @param {string} root Target build directory.
- * @param {'aiko' | 'yunyao'} brand Selected brand.
+ * @param {'orange' | 'blue'} brand Selected brand.
  * @returns {string} Native artwork directory.
  */
 export function desktopBrandDirectory(root, brand) {

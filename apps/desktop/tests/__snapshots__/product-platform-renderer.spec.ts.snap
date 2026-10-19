@@ -1,11 +1,11 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`shows aiko setup and follows a changed platform when auth is shared 1`] = `
-"Aiko DSH连接你的平台填写平台地址，然后使用平台账号登录。平台地址使用独立的认证服务认证服务地址（选填）请填写不带路径的 HTTPS 地址。本机测试也支持 http://127.0.0.1:端口。保存并继续退出登录后可以修改地址。已有工作资料会保留在本机。
+exports[`shows blue setup and follows a changed platform when auth is shared 1`] = `
+"蓝色连接你的平台填写平台地址，然后使用平台账号登录。平台地址使用独立的认证服务认证服务地址（选填）请填写不带路径的 HTTPS 地址。本机测试也支持 http://127.0.0.1:端口。保存并继续退出登录后可以修改地址。已有工作资料会保留在本机。
 "
 `;
 
-exports[`shows yunyao setup and follows a changed platform when auth is shared 1`] = `
-"云遥宇航连接你的平台填写平台地址，然后使用平台账号登录。平台地址使用独立的认证服务认证服务地址（选填）请填写不带路径的 HTTPS 地址。本机测试也支持 http://127.0.0.1:端口。保存并继续退出登录后可以修改地址。已有工作资料会保留在本机。
+exports[`shows orange setup and follows a changed platform when auth is shared 1`] = `
+"Workbench DSH连接你的平台填写平台地址，然后使用平台账号登录。平台地址使用独立的认证服务认证服务地址（选填）请填写不带路径的 HTTPS 地址。本机测试也支持 http://127.0.0.1:端口。保存并继续退出登录后可以修改地址。已有工作资料会保留在本机。
 "
 `;

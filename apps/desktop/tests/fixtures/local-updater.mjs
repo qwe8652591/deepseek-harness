@@ -70,7 +70,7 @@ async function main() {
   try {
     dialogScreenshots.push(...await qualifyProductPlatform(root))
     cases.push('product-platform-save-change-reopen')
-    for (const brand of ['aiko', 'yunyao']) {
+    for (const brand of ['orange', 'blue']) {
       await scenario(`${brand}-isolated-channel-download`, async () => {
         const channel = `${brand}-beta-win-x64`
         const f = await fixture('healthy', 60000, channel)

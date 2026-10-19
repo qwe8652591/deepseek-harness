@@ -62,13 +62,13 @@ function bundleTarball(manifest: Record<string, string>): Buffer {
 const APP_FIXTURE = 'dsh-product-app-fixture'
 await mkdir(join(evidence, 'fixtures'), { recursive: true })
 const appFixture = join(evidence, 'fixtures', `${APP_FIXTURE}-1.0.0.tgz`)
-const suppliedFixture = join(evidence, 'fixtures', 'aiko-dsh-workbench-999.0.0.tgz')
+const suppliedFixture = join(evidence, 'fixtures', 'workbench-999.0.0.tgz')
 await writeFile(appFixture, bundleTarball({ name: APP_FIXTURE, version: '1.0.0' }))
-await writeFile(suppliedFixture, bundleTarball({ name: 'aiko-dsh-workbench', version: '999.0.0' }))
+await writeFile(suppliedFixture, bundleTarball({ name: 'workbench', version: '999.0.0' }))
 const environment = Object.fromEntries(Object.entries(process.env).filter(([name]) =>
-  !/KEY|SECRET|TOKEN|PASSWORD|^DSH_|^AIKO_|^NODE_OPTIONS$|^ELECTRON_/iu.test(name)))
+  !/KEY|SECRET|TOKEN|PASSWORD|^DSH_|^WORKBENCH_|^NODE_OPTIONS$|^ELECTRON_/iu.test(name)))
 const requiredClients = product.plugins.map(plugin => plugin.name)
-  .filter(name => name !== 'aiko-dsh-market' && name !== 'aiko-dsh-plugin-catalog')
+  .filter(name => name !== 'workbench-market' && name !== 'workbench-plugin-catalog')
 const children: {
   child: ChildProcess
   exit: Promise<{ code: number | null; signal: NodeJS.Signals | null }>
@@ -78,7 +78,7 @@ const children: {
 const reports: { profile: string; origin: string; clients: string[] }[] = []
 const account = { issuer: 'https://product-test.example', subject: 'fixture', name: 'Product qualification',
   organization: 'Qualification', capabilities: true, expiresAt: Date.now() + 600000 }
-// Same layout as a product installation (aiko-account accountHomeDirectory): accounts/<16-character digest prefix>.
+// Same layout as a product installation (workbench-account accountHomeDirectory): accounts/<16-character digest prefix>.
 const accountKey = createHash('sha256').update(JSON.stringify([account.issuer, account.subject])).digest('hex').slice(0, 16)
 const relayToken = randomBytes(32).toString('base64url')
 const relay = createServer((request, response) => {
@@ -100,7 +100,7 @@ async function start(profile: string): Promise<(typeof children)[number]> {
     join(resources, 'runtime/primary-runtime'), join(resources, 'runtime/primary-runtime/dependencies/pnpm/bin/pnpm.mjs'), join(resources, 'runtime/bin'),
   ], { cwd: profile, windowsHide: true, env: { ...environment, ELECTRON_RUN_AS_NODE: '1',
     DSH_HOME: resolve(profile, '../..'), DSH_CLIENT_VERSION: version,
-    AIKO_DESKTOP_ACCOUNT_FILE: resolve(profile, '../../credentials/product-test.json') }, stdio: ['ignore', 'pipe', 'pipe', 'ipc'] })
+    WORKBENCH_DESKTOP_ACCOUNT_FILE: resolve(profile, '../../credentials/product-test.json') }, stdio: ['ignore', 'pipe', 'pipe', 'ipc'] })
   let diagnostic = ''
   const capture = (chunk: Buffer): void => {
     diagnostic = (diagnostic + chunk.toString().replace(/(token|code|state)=([^&\s]+)/giu, '$1=[REDACTED]')).slice(-65536)
@@ -146,7 +146,7 @@ async function start(profile: string): Promise<(typeof children)[number]> {
     assert.ok(isRecord(inventory) && inventory.ok === true && Array.isArray(inventory.value))
     for (const name of requiredClients) assert.ok(inventory.value.some(row => isRecord(row) && row.name === name && row.error === undefined), `Unavailable bundled module: ${name}`)
     // The Workbench platform foundation serves the app center; it starts only when the verified account owns this home.
-    const platform = await fetch(new URL('/aiko-platform/accountProfile', ready.url), {
+    const platform = await fetch(new URL('/workbench-platform/accountProfile', ready.url), {
       method: 'POST', headers: { cookie, 'content-type': 'application/json' },
       body: JSON.stringify({ type: 'client-request', rpcId: 'account-profile', method: 'accountProfile', payload: {} }), signal: AbortSignal.timeout(10000),
     })
@@ -172,7 +172,7 @@ async function start(profile: string): Promise<(typeof children)[number]> {
     for (const [method, args, code] of [
       ['installBundle', { spec: 'dsh-product-policy-test' }, 'managed-installation'],
       ['installBundle', { spec: suppliedFixture }, 'managed-installation'],
-      ['removeBundle', { name: 'aiko-dsh-workbench' }, 'not-removable'],
+      ['removeBundle', { name: 'workbench' }, 'not-removable'],
     ] as const) {
       const value = await call(method, args)
       assert.ok(isRecord(value) && value.application === 'failed' && isRecord(value.error) && value.error.code === code,
@@ -243,7 +243,7 @@ try {
     createPluginProfile(profile); await prepareProductProfile(product, profile)
     const credentials = resolve(profile, '../../credentials')
     await mkdir(credentials, { recursive: true })
-    await writeFile(join(credentials, 'product-test.json'), JSON.stringify({ authMode: 'aiko',
+    await writeFile(join(credentials, 'product-test.json'), JSON.stringify({ authMode: 'platform',
       baseUrl: relayOrigin, platformOrigin: relayOrigin, token: relayToken }), { mode: 0o600 })
   }
   const started = await Promise.allSettled(profiles.map(start))

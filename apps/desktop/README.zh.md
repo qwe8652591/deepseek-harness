@@ -12,7 +12,7 @@ Desktop 在原生应用中运行 Harness 工作区。本参考文档说明应用
 
 源码启动时应用更新不可用：侧栏不显示更新提示，手动检查会说明如何更新源码或安装部署方的发布版本。该状态不同于“已是最新版本”。正式安装包缺少 `app-update.yml` 时仍报告配置错误。应用发布与独立管理的插件更新分别负责。
 
-Aiko／云遥私有部署复用同一 Desktop Host 和启动命令。源码开发见 [Aiko 部署](aiko/README.zh.md)；内置插件、可修改的平台地址及分品牌 GitHub 更新见[完整产品发行包](aiko/products/README.zh.md)。
+橙色／蓝色私有部署复用同一 Desktop Host 和启动命令。源码开发见 [Workbench 部署](workbench/README.zh.md)；内置插件、可修改的平台地址及分品牌 GitHub 更新见[完整产品发行包](workbench/products/README.zh.md)。
 
 ## 目录
 

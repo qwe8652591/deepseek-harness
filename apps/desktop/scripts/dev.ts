@@ -11,7 +11,7 @@ import { developmentRuntimeDirectory, resolveDesktopBuildTarget } from './deskto
 import { prepareDevelopmentProject } from './development-project.ts'
 import { prepareDevelopmentApp } from './development-app.ts'
 import { preparePrimaryRuntime } from './prepare-primary-runtime.ts'
-import { readAikoDeployment } from '../src/aiko-deployment.ts'
+import { readWorkbenchDeployment } from '../src/workbench-deployment.ts'
 import { prepareDesktopBrand } from './prepare-desktop-brand.ts'
 
 const APP_ROOT = resolve(import.meta.dirname, '..')
@@ -76,7 +76,7 @@ async function launchElectron(): Promise<void> {
     ELECTRON_ENABLE_LOGGING: process.env.ELECTRON_ENABLE_LOGGING ?? '1',
   }
   if (environment.DSH_DESKTOP_DEPLOYMENT !== undefined) {
-    const deployment = await readAikoDeployment(environment.DSH_DESKTOP_DEPLOYMENT)
+    const deployment = await readWorkbenchDeployment(environment.DSH_DESKTOP_DEPLOYMENT)
     environment.DSH_DESKTOP_BRAND_RESOURCES = await prepareDesktopBrand({
       DSH_DESKTOP_BRAND: deployment.brand, DSH_DESKTOP_BRAND_RUNTIME: deployment.pluginRuntime,
     }, DEVELOPMENT_ROOT)

@@ -583,7 +583,7 @@ describe('desktop main startup', () => {
     vi.spyOn(harness.app, 'getPreferredSystemLanguages').mockReturnValue(['zh-CN'])
     const brand = mkdtempSync(join(tmpdir(), 'desktop-brand-'))
     onTestFinished(() => { rmSync(brand, { recursive: true, force: true }) })
-    writeFileSync(join(brand, 'brand.json'), JSON.stringify({ version: 1, brand: 'yunyao', productName: '工作台' }))
+    writeFileSync(join(brand, 'brand.json'), JSON.stringify({ version: 1, brand: 'blue', productName: '工作台' }))
     writeFileSync(join(brand, 'icon.png'), '')
     writeFileSync(join(brand, 'icon.ico'), '')
     vi.stubEnv('DSH_DESKTOP_BRAND_RESOURCES', brand)

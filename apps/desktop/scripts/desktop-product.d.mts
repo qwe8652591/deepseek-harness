@@ -1,7 +1,7 @@
 /** Public configuration carried by a branded installer. */
 export interface DesktopProduct {
   readonly schemaVersion: 1
-  readonly profile: 'aiko' | 'yunyao'
+  readonly profile: 'orange' | 'blue'
   readonly appId: string
   readonly productName: string
   /** GitHub `owner/repo` whose releases carry the update feed; exactly one of `repository` and `releases` is set. */

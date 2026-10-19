@@ -49,7 +49,7 @@ async function interact(window) {
     record('save-' + setupCount)
     await window.webContents.executeJavaScript(`document.getElementById('website').value = ${JSON.stringify(value)};
       document.getElementById('gateway').value = ''; document.getElementById('platform-form').requestSubmit();`)
-  } else if (url.includes('/aiko-welcome/') && url.includes('/login.html')) {
+  } else if (url.includes('/workbench-welcome/') && url.includes('/login.html')) {
     loginCount++
     record('login-' + loginCount)
     const saved = JSON.parse(readFileSync(join(app.getPath('userData'), 'platform.json'), 'utf8'))

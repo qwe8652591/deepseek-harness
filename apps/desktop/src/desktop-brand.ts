@@ -4,7 +4,7 @@ import { join } from 'node:path'
 
 /** Resolved native brand assets; private build paths never enter packaged metadata. */
 export interface DesktopBrand {
-  readonly brand: 'aiko' | 'yunyao'
+  readonly brand: 'orange' | 'blue'
   readonly productName: string
   readonly icon: string
   readonly tray: string
@@ -23,7 +23,7 @@ export function readNativeDesktopBrand(
   packaged: boolean, resources: string, developmentResources: string | undefined, selectedBrand: string | undefined,
   packagedBrand?: unknown,
 ): DesktopBrand | undefined {
-  if (packaged && packagedBrand !== undefined && packagedBrand !== 'aiko' && packagedBrand !== 'yunyao')
+  if (packaged && packagedBrand !== undefined && packagedBrand !== 'orange' && packagedBrand !== 'blue')
     throw new Error('desktop brand: invalid packaged brand')
   const directory = packaged ? join(resources, 'branding') : developmentResources
   if (directory === undefined || !existsSync(join(directory, 'brand.json'))) {
@@ -32,7 +32,7 @@ export function readNativeDesktopBrand(
     return undefined
   }
   const data = JSON.parse(readFileSync(join(directory, 'brand.json'), 'utf8')) as Record<string, unknown>
-  if (data.version !== 1 || (data.brand !== 'aiko' && data.brand !== 'yunyao')
+  if (data.version !== 1 || (data.brand !== 'orange' && data.brand !== 'blue')
     || typeof data.productName !== 'string' || !data.productName.trim())
     throw new Error('desktop brand: invalid native artwork manifest')
   if (selectedBrand !== undefined && selectedBrand !== data.brand)

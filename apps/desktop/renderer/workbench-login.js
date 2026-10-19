@@ -1,6 +1,6 @@
 /** Unauthenticated welcome UI; privileged actions belong to the context-isolated account bridge. */
 async function main() {
-  const account = window.dshDesktop?.account ?? window.aikoBrowserAccount;
+  const account = window.dshDesktop?.account ?? window.workbenchBrowserAccount;
   const {id,messages,configurePlatform} = await account.locale();
   document.documentElement.lang = id;
   document.title = messages.accountProduct;

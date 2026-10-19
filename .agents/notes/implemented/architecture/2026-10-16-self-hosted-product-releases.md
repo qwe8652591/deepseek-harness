@@ -6,7 +6,7 @@ English | [中文](2026-10-16-self-hosted-product-releases.zh.md)
 
 ## Problem
 
-[Complete branded products](2026-10-03-complete-branded-desktop-products.md) read their update feed from GitHub channel releases, and only signed builds carried a feed or could be published. The Yunyao deployment distributes its installer from its own HTTPS server, and its first production release has no Windows code-signing certificate yet. Under those rules the release could ship only without automatic updates, so every later version would need a manual reinstall.
+[Complete branded products](2026-10-03-complete-branded-desktop-products.md) read their update feed from GitHub channel releases, and only signed builds carried a feed or could be published. The Blue deployment distributes its installer from its own HTTPS server, and its first production release has no Windows code-signing certificate yet. Under those rules the release could ship only without automatic updates, so every later version would need a manual reinstall.
 
 ## Decision
 
