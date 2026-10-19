@@ -6,7 +6,7 @@
 
 ## 构建输入
 
-在工作台单仓库执行 `corepack pnpm run prepare:desktop-products --output <new-directory> --channel beta`；加 `--releases <https-directory/>` 时发布到自建的发布目录而不是 GitHub。命令构建并打包工作台、市场及其目录模块，以及 Markdown 编辑器、Visio、draw.io、PPT、生图和批注六个内部插件，然后输出 `aiko.json`、`yunyao.json` 及通过 SHA-512 固定的归档。目录模块是市场的被动依赖。Kit 不包含在内。标书、Code 和知识库应用等应用插件不打进安装包，用户在工作台应用中心安装。每个 profile 只包含所选主题。
+在工作台单仓库执行 `corepack pnpm run prepare:desktop-products --output <new-directory> --channel beta`；加 `--releases <https-directory/>` 时发布到自建的发布目录而不是 GitHub。命令构建并打包工作台、市场及其目录模块，以及 Markdown 编辑器、Visio、draw.io、PPT、生图、批注和模板七个内部插件，然后输出 `aiko.json`、`yunyao.json` 及通过 SHA-512 固定的归档。目录模块是市场的被动依赖。Kit 不包含在内。标书、Code 和知识库应用等应用插件不打进安装包，用户在工作台应用中心安装。每个 profile 只包含所选主题。
 
 在 Host 仓库中，将 `apps/desktop/.env.windows.example` 复制为 `.env.windows` 并配置生产签名。未签名本地构建需要该文件，但无需签名凭据。执行：
 

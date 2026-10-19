@@ -15,7 +15,7 @@ async function directory() {
   roots.push(root)
   return root
 }
-const applications = ['aiko-dsh-workbench', 'aiko-dsh-market', 'aiko-dsh-md-editor', 'aiko-dsh-visio', 'aiko-dsh-drawio', 'aiko-dsh-ppt', 'aiko-dsh-image-generation', 'aiko-dsh-annotation']
+const applications = ['aiko-dsh-workbench', 'aiko-dsh-market', 'aiko-dsh-md-editor', 'aiko-dsh-visio', 'aiko-dsh-drawio', 'aiko-dsh-ppt', 'aiko-dsh-image-generation', 'aiko-dsh-annotation', 'aiko-dsh-templates']
 function product(profile: 'aiko' | 'yunyao' = 'aiko'): DesktopProduct {
   return parseDesktopProduct({ schemaVersion: 1, profile, appId: `com.${profile}.dsh`, productName: profile,
     repository: 'aiko-dsh-plugins/deepseek-harness', channel: 'beta',

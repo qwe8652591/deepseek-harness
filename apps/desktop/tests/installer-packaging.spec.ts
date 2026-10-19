@@ -83,7 +83,7 @@ describe('installer preparation preserves application dependencies', () => {
     const { createHash } = await import('node:crypto')
     const root = mkdtempSync(join(tmpdir(), 'dsh-hosted-product-'))
     try {
-      const applications = ['aiko-dsh-workbench', 'aiko-dsh-market', 'aiko-dsh-md-editor', 'aiko-dsh-visio', 'aiko-dsh-drawio', 'aiko-dsh-ppt', 'aiko-dsh-image-generation', 'aiko-dsh-annotation']
+      const applications = ['aiko-dsh-workbench', 'aiko-dsh-market', 'aiko-dsh-md-editor', 'aiko-dsh-visio', 'aiko-dsh-drawio', 'aiko-dsh-ppt', 'aiko-dsh-image-generation', 'aiko-dsh-annotation', 'aiko-dsh-templates']
       writeFileSync(join(root, 'plugin.tgz'), 'archive')
       const integrity = 'sha512-' + createHash('sha512').update('archive').digest('base64')
       const productFile = join(root, 'yunyao.json')
