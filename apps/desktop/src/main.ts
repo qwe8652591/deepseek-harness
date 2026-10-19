@@ -77,11 +77,14 @@ let workbenchDeployment: WorkbenchDeployment | undefined
 let workbenchAccount: DesktopAccount | undefined
 let nativeBrand: DesktopBrand | undefined
 let desktopProduct: DesktopProduct | undefined
+// Every product installs as one application whatever its theme; scripts/desktop-product.mjs productInstall holds the same names.
+const PRODUCT_DATA_DIRECTORY = 'workbench-dsh-desktop'
+const PRODUCT_PROTOCOL = 'workbench-dsh'
 // Pin storage before single-instance locking, Chromium initialization or localized display-name changes.
 if (app.isPackaged) {
   const manifest = JSON.parse(readFileSync(join(app.getAppPath(), 'package.json'), 'utf8')) as { dshDesktopProduct?: unknown }
   if (manifest.dshDesktopProduct === 'orange' || manifest.dshDesktopProduct === 'blue') {
-    const directory = join(app.getPath('appData'), manifest.dshDesktopProduct + '-dsh-desktop')
+    const directory = join(app.getPath('appData'), PRODUCT_DATA_DIRECTORY)
     app.setPath('userData', directory)
     app.setPath('sessionData', directory)
   }
@@ -1283,7 +1286,7 @@ async function main(): Promise<void> {
     revealDesktopWindow(window)
   }
 
-  const launchProtocol = desktopProduct === undefined ? 'dsh' : desktopProduct.profile + '-dsh'
+  const launchProtocol = desktopProduct === undefined ? 'dsh' : PRODUCT_PROTOCOL
   if (app.isPackaged || process.env.DSH_DESKTOP_DEV_APP === '1') app.setAsDefaultProtocolClient(launchProtocol)
   app.on('open-url', (event, url) => {
     event.preventDefault()

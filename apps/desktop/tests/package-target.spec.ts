@@ -160,7 +160,7 @@ describe('desktop package target', () => {
       writeFileSync(join(root, 'plugin.tgz'), 'archive')
       const integrity = 'sha512-' + createHash('sha512').update('archive').digest('base64')
       const productFile = join(root, 'blue.json')
-      writeFileSync(productFile, JSON.stringify({ schemaVersion: 1, profile: 'blue', appId: 'com.blue.dsh', productName: '工作台',
+      writeFileSync(productFile, JSON.stringify({ schemaVersion: 1, profile: 'blue', appId: 'com.workbench.dsh', productName: '工作台',
         releases: 'https://downloads.example.test/dsh/releases/', channel: 'stable',
         bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', '@deepseek-ai/dsh-experimental-agent-team-profile', ...applications, 'workbench-theme-blue'],
         plugins: [...applications, 'workbench-theme-blue', 'workbench-plugin-catalog'].map(name => ({ name, version: '1.0.0', file: 'plugin.tgz', integrity })),

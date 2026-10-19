@@ -17,7 +17,7 @@ async function directory() {
 }
 const applications = ['workbench', 'workbench-market', 'workbench-md-editor', 'workbench-visio', 'workbench-drawio', 'workbench-ppt', 'workbench-image-generation', 'workbench-annotation', 'workbench-templates']
 function product(profile: 'orange' | 'blue' = 'orange'): DesktopProduct {
-  return parseDesktopProduct({ schemaVersion: 1, profile, appId: `com.${profile}.dsh`, productName: profile,
+  return parseDesktopProduct({ schemaVersion: 1, profile, appId: 'com.workbench.dsh', productName: profile,
     repository: 'aiko-dsh-plugins/deepseek-harness', channel: 'beta',
     bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', '@deepseek-ai/dsh-experimental-agent-team-profile', ...applications, 'workbench-theme-' + profile],
     plugins: [...applications, 'workbench-theme-' + profile, 'workbench-plugin-catalog'].map(name => ({ name, version: '1.0.0' })),
@@ -33,6 +33,7 @@ it('isolates brand and architecture feeds and refuses mixed product inputs', () 
   expect(desktopProductFeed(product('blue'), 'mac-arm64').channel).toBe('blue-beta-mac-arm64')
   expect(() => parseDesktopProduct({ ...product(), plugins: [...product().plugins, { name: 'workbench-theme-blue', version: '1.0.0' }] })).toThrow(/mixed-brand/)
   expect(() => desktopProductFeed(product(), 'linux-x64')).toThrow(/unsupported/)
+  expect(() => parseDesktopProduct({ ...product('blue'), appId: 'com.blue.dsh' })).toThrow(/shared product identity/)
 })
 
 it('selects a self-hosted HTTPS release directory instead of a GitHub repository', () => {

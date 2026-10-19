@@ -5,6 +5,11 @@ import { createHash } from 'node:crypto'
 import { valid } from 'semver'
 
 const themes = { orange: 'workbench-theme-orange', blue: 'workbench-theme-blue' }
+/**
+ * Install identity every product shares. The profile only selects a theme (appearance and artwork),
+ * so application ID, data directory and launch protocol never depend on it; src/main.ts repeats the last two.
+ */
+export const productInstall = Object.freeze({ appId: 'com.workbench.dsh', name: 'workbench-dsh-desktop', protocol: 'workbench-dsh' })
 // Workbench embeds the knowledge foundation; Tender, Code and the knowledge apps install from its app center.
 // The Markdown editor, Visio, draw.io, PPT, image generation, annotation and templates plugins are first-party tools every product ships enabled.
 const applications = ['workbench', 'workbench-market', 'workbench-md-editor', 'workbench-visio', 'workbench-drawio', 'workbench-ppt', 'workbench-image-generation', 'workbench-annotation', 'workbench-templates']
@@ -43,8 +48,7 @@ function platformOrigin(value) {
  */
 export function parseDesktopProduct(value) {
   if (!object(value) || value.schemaVersion !== 1 || !Object.hasOwn(themes, value.profile)) throw new Error('desktop product: invalid profile')
-  if (typeof value.appId !== 'string' || !/^[a-z][a-z0-9]*(?:\.[a-z][a-z0-9-]*){2,}$/.test(value.appId)
-    || !value.appId.split('.').includes(value.profile)) throw new Error('desktop product: appId must contain the brand as a separate component')
+  if (value.appId !== productInstall.appId) throw new Error('desktop product: appId must be the shared product identity ' + productInstall.appId)
   if (typeof value.productName !== 'string' || !value.productName.trim() || /[\\/:*?"<>|\r\n]/.test(value.productName)) throw new Error('desktop product: invalid productName')
   if ((value.repository === undefined) === (value.releases === undefined)) throw new Error('desktop product: set exactly one of repository and releases')
   if (value.repository !== undefined && (typeof value.repository !== 'string' || !/^[A-Za-z0-9-]+\/[A-Za-z0-9_.-]+$/.test(value.repository))) throw new Error('desktop product: repository must be owner/repo')

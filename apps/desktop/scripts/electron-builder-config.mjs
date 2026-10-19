@@ -29,7 +29,7 @@ import { preserveWindowsRuntimeSignature, signWindowsCode } from './windows-runt
 import { prepareWindowsAsarUnpack, verifyWindowsAsarUnpack } from './windows-asar-unpack.mjs'
 import { recordPackagingEvent } from './packaging-run.mjs'
 import { desktopBrandDirectory, readDesktopBrand } from './desktop-brand.mjs'
-import { readDesktopProduct } from './desktop-product.mjs'
+import { productInstall, readDesktopProduct } from './desktop-product.mjs'
 import {
   resolveMacOSAppUpdateFeed,
   verifyMacOSAppUpdateConfig,
@@ -112,10 +112,10 @@ export function createElectronBuilderConfig(
   const packaged = resolveDesktopBuildCommit(env)
   return {
     appId,
-    protocols: [{ name: product?.productName ?? 'DeepSeek Harness', schemes: [product === undefined ? 'dsh' : product.profile + '-dsh'] }],
+    protocols: [{ name: product?.productName ?? 'DeepSeek Harness', schemes: [product === undefined ? 'dsh' : productInstall.protocol] }],
     extraMetadata: {
       dshDesktopAppId: appId,
-      ...product === undefined ? {} : { name: product.profile + '-dsh-desktop', dshDesktopProduct: product.profile },
+      ...product === undefined ? {} : { name: productInstall.name, dshDesktopProduct: product.profile },
       ...brand === undefined ? {} : { dshDesktopBrand: brand.brand },
       // Products name their own feed at runtime; the packaged channel is only the upstream nightly or latest feed.
       ...product === undefined ? { dshDesktopUpdateChannel: update?.channel ?? 'nightly' } : {},
