@@ -45,7 +45,7 @@ Run `corepack pnpm exec tsx apps/desktop/scripts/test-product-host.ts --installe
 
 The input repository defaults to `aiko-dsh-plugins/deepseek-harness`. Binary assets live in immutable releases named `orange-v<version>` or `blue-v<version>`. Update metadata lives in the separate `orange-beta`, `blue-beta`, `orange-stable` or `blue-stable` channel release. Each filename includes its brand and architecture; macOS adds the updater's `-mac.yml` suffix. The client does not use GitHub's global latest-release redirect or DeepSeek's feed.
 
-For example, orange Windows beta reads `https://github.com/aiko-dsh-plugins/deepseek-harness/releases/download/orange-beta/aiko-beta-win-x64.yml`. Its payload URL names the immutable version release. The configured repository must be publicly readable by clients; their platform credentials are never sent to GitHub.
+For example, orange Windows beta reads `https://github.com/aiko-dsh-plugins/deepseek-harness/releases/download/orange-beta/orange-beta-win-x64.yml`. Its payload URL names the immutable version release. The configured repository must be publicly readable by clients; their platform credentials are never sent to GitHub.
 
 After a successful signed build from a clean checkout, review the generated plan:
 

@@ -45,7 +45,7 @@ Windows 签名构建使用 `package:win:x64`；macOS 在配置好签名和公证
 
 输入仓库默认为 `aiko-dsh-plugins/deepseek-harness`。二进制资产存放在名为 `orange-v<version>` 或 `blue-v<version>` 的不可变版本发布中。更新元数据存放在独立的 `orange-beta`、`blue-beta`、`orange-stable` 或 `blue-stable` 通道发布中。每个文件名包含品牌和架构；macOS 额外使用更新器要求的 `-mac.yml` 后缀。客户端不使用 GitHub 全局最新发布跳转或 DeepSeek 更新源。
 
-例如，orange Windows beta 读取 `https://github.com/aiko-dsh-plugins/deepseek-harness/releases/download/orange-beta/aiko-beta-win-x64.yml`。其中的下载地址指向不可变版本发布。配置的仓库必须允许客户端公开读取；平台凭据不会发送给 GitHub。
+例如，orange Windows beta 读取 `https://github.com/aiko-dsh-plugins/deepseek-harness/releases/download/orange-beta/orange-beta-win-x64.yml`。其中的下载地址指向不可变版本发布。配置的仓库必须允许客户端公开读取；平台凭据不会发送给 GitHub。
 
 从干净检出成功完成签名构建后，检查生成的发布计划：
 
