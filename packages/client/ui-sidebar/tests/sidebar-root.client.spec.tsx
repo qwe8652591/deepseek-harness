@@ -35,9 +35,10 @@ type AttentionSnapshot = Parameters<Parameters<SidebarRootComponentProps['useSes
 const noAttention: AttentionSnapshot = new Map()
 const useSessionStatus: SidebarRootComponentProps['useSessionStatus'] = selector => selector(noAttention)
 
-function mountShell({ collapsed = false, width = 300, shortcuts = [] }: {
+function mountShell({ collapsed = false, width = 300, peek = false, shortcuts = [] }: {
   collapsed?: boolean
   width?: number
+  peek?: boolean
   shortcuts?: readonly ShortcutCatalogEntry[]
 } = {}) {
   const startSession = vi.fn()
@@ -47,10 +48,10 @@ function mountShell({ collapsed = false, width = 300, shortcuts = [] }: {
   let footerActionOwner: SidebarFooterActionOwnerProps | undefined
   const brandMark = <span data-testid="custom-brand-mark">M</span>
   const brandName = <span data-testid="custom-brand-name">Custom Brand</span>
-  let current = { collapsed, width }
+  let current = { collapsed, width, peek }
   const root = () => (
     <SidebarRoot
-      collapsed={current.collapsed} width={current.width}
+      collapsed={current.collapsed} width={current.width} peek={current.peek}
       useSessions={neverHook} useSessionStatus={useSessionStatus} useSessionRetainInfo={neverHook}
       usePanelInfo={usePanelInfo} selectPanel={() => {}} usePanels={selector => selector([])} useShortcuts={selector => selector(shortcuts)}
       useResource={useResource} useWorkspaces={neverHook}
@@ -250,6 +251,17 @@ describe('SidebarRoot shell', () => {
     fireEvent.mouseLeave(toggle)
     expect(screen.queryByRole('tooltip')).toBeNull()
   })
+})
+
+it('draws no collapse toggle on the hover-revealed copy, keeping its panels and New Session', () => {
+  mountShell({ peek: true })
+  expect(screen.queryByRole('button', { name: en['toggle.collapse'] })).toBeNull()
+  expect(screen.getAllByRole('button', { name: 'New session' })).toHaveLength(2)
+  expect(screen.getByTestId('region').getAttribute('data-wide')).toBe('true')
+  cleanup()
+  document.documentElement.dataset.platform = 'darwin'
+  mountShell({ peek: true })
+  expect(screen.queryByRole('button', { name: en['toggle.collapse'] })).toBeNull()
 })
 
 it('keeps the macOS sidebar toggle in its top strip', () => {

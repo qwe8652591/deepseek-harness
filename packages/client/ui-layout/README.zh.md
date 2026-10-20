@@ -42,6 +42,8 @@ root 作用域的单一 `shell.bottom` slot 横跨三列下方的整行。占用
 
 Windows Electron 的 `data-windows-titlebar` 标记在所有列上方预留顶栏高度，并移除收起后的侧栏轨道。内容区仅左上角保留 16px 圆角，其余角和内部交界处保持直角。框架发布 `--dsh-windows-content-radius` 和 `--dsh-windows-sidebar-width`，供 ui-sidebar-right 的全屏圆角及侧栏避让使用。普通 Web 文档不会获得该标记；macOS 保留其独立布局。
 
+收起会隐藏整列的平台（Windows 顶栏布局、macOS 桌面端）上，框架左边缘有一条 6px 的感应条，位于顶栏之下、主面板之上，悬停即可唤出侧栏：停留 120ms 后，框架把第二份 `sidebar` 渲染（`collapsed: false`、280px、`peek: true`）以浮层盖在内容上，使用列的底色并带阴影，不必重新展开侧栏也能切换面板和 Session。指针离开浮层 300ms 后收回；指针停在它打开的菜单、对话框或下拉列表上（这些通过 portal 渲染在浮层之外）时不收回；按 Esc 也会收回。感应条盖在主面板之上，主面板里嵌入的 iframe 不会吞掉边缘的指针。保留 56px 轨道的平台没有感应条。
+
 根元素通过 `--dsh-frame-top-clearance` 发布顶栏占用量（macOS 为 48px，Windows 为标题栏高度），通过 `--dsh-frame-overlay-top` 为弹窗和菜单再留出 20px。原生全屏时浮层起点降为 20px；弹窗仍保留自身 24px 的最小边距。`--dsh-frame-chrome-top` 让模态遮罩不绘制 Windows 顶栏区域，全屏时归零。覆盖整个视口的模态层仍阻挡背景点击。普通浏览器文档不发布这些值。
 
 ### 主题呈现

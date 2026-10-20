@@ -139,6 +139,13 @@ export interface SidebarOwnerProps {
   collapsed: boolean
   /** Rendered column width in px (SIDEBAR_COLLAPSED when collapsed). */
   width: number
+  /**
+   * True for the hover-reveal copy: with the column hidden (no rail), pointing at the
+   * frame's left edge floats a wide sidebar over the content until the pointer leaves.
+   * That copy renders expanded (`collapsed` false); the column's own collapse toggle
+   * stays where the collapsed copy draws it.
+   */
+  peek?: boolean
 }
 
 /** Right column owner share: resolved normal geometry and opening eligibility. */
