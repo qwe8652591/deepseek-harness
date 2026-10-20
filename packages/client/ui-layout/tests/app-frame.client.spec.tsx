@@ -3,7 +3,7 @@
 import type { GlobalStandardProps, RenderOpts } from '@deepseek-ai/dsh-client-ui-slots'
 import { allowAllAccess, bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, cleanup, render } from '@testing-library/react'
+import { act, cleanup, fireEvent, render } from '@testing-library/react'
 import { AppFrame } from '../src/client/AppFrame.tsx'
 import type { AppFrameProps } from '../src/client/AppFrame.tsx'
 import type { MainPanelId, RightbarOwnerProps, SidebarOwnerProps } from '../src/client/index.ts'
@@ -241,6 +241,72 @@ describe('AppFrame', () => {
     } finally {
       document.documentElement.removeAttribute('data-windows-titlebar')
     }
+  })
+
+  it('floats a wide sidebar copy from the left edge while a railless column is closed', () => {
+    vi.useFakeTimers()
+    document.documentElement.setAttribute('data-windows-titlebar', '')
+    try {
+      const { frame, instance, slotCalls } = mountFrame()
+      const zone = () => frame.querySelector('[data-sidebar-peek-zone]')
+      const panel = () => frame.querySelector('[data-sidebar-peek]')
+      expect(zone()).toBeNull()
+      act(() => { instance.actions.toggleSidebar() })
+      expect(zone()).not.toBeNull()
+      // A pointer passing the edge does not open it; dwelling does.
+      fireEvent.pointerEnter(zone()!)
+      fireEvent.pointerLeave(zone()!)
+      act(() => { vi.advanceTimersByTime(200) })
+      expect(panel()).toBeNull()
+      fireEvent.pointerEnter(zone()!)
+      act(() => { vi.advanceTimersByTime(120) })
+      expect(panel()).not.toBeNull()
+      expect(slotCalls.findLast(c => c.key === 'sidebar')!.props).toEqual({ collapsed: false, width: 280, peek: true })
+      expect(tracks(frame)[0]).toBe(0)
+      // A pointer over a popup the copy opened (portalled outside its box) keeps it;
+      // a pointer anywhere else outside the box closes it after a beat.
+      const menu = document.createElement('div')
+      menu.setAttribute('role', 'menu')
+      document.body.append(menu)
+      const move = (target: Element, clientX: number) => {
+        act(() => { target.dispatchEvent(new PointerEvent('pointermove', { clientX, clientY: 10, bubbles: true })) })
+      }
+      move(menu, 2400)
+      act(() => { vi.advanceTimersByTime(400) })
+      expect(panel()).not.toBeNull()
+      menu.remove()
+      move(document.body, 2400)
+      act(() => { vi.advanceTimersByTime(299) })
+      expect(panel()).not.toBeNull()
+      move(document.body, 100)
+      act(() => { vi.advanceTimersByTime(400) })
+      expect(panel()).not.toBeNull()
+      fireEvent.pointerLeave(panel()!, { relatedTarget: null })
+      act(() => { vi.advanceTimersByTime(299) })
+      expect(panel()).not.toBeNull()
+      fireEvent.pointerEnter(panel()!)
+      act(() => { vi.advanceTimersByTime(400) })
+      expect(panel()).not.toBeNull()
+      fireEvent.pointerLeave(panel()!, { relatedTarget: null })
+      act(() => { vi.advanceTimersByTime(300) })
+      expect(panel()).toBeNull()
+      // Escape dismisses it; reopening the column removes the edge altogether.
+      fireEvent.pointerEnter(zone()!)
+      act(() => { vi.advanceTimersByTime(120) })
+      act(() => { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })) })
+      expect(panel()).toBeNull()
+      act(() => { instance.actions.toggleSidebar() })
+      expect(zone()).toBeNull()
+    } finally {
+      document.documentElement.removeAttribute('data-windows-titlebar')
+      vi.useRealTimers()
+    }
+  })
+
+  it('offers no left-edge reveal where the closed column keeps its rail', () => {
+    const { frame, instance } = mountFrame()
+    act(() => { instance.actions.toggleSidebar() })
+    expect(frame.querySelector('[data-sidebar-peek-zone]')).toBeNull()
   })
 
   it('keeps the closed sidebar mounted at its 56px rail without a handle', () => {

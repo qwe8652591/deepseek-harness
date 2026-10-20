@@ -31,6 +31,16 @@ export type AppFrameProps =
   & PropsStore<ReturnType<typeof createLayoutStore>>
   & PropsLocale<'common'>
 
+/** Hover-reveal timing: a short dwell before opening keeps a pointer passing the edge from flashing it open. */
+const PEEK_OPEN_MS = 120
+const PEEK_CLOSE_MS = 300
+
+/** Whether a target sits in a popup a floated sidebar opened (menus and dialogs portal out of its box). */
+function overPopup(target: EventTarget | null): boolean {
+  return target instanceof Element
+    && target.closest('[role="menu"], [role="dialog"], [role="listbox"], [data-radix-popper-content-wrapper]') !== null
+}
+
 /** Center column grid item (session-body building block). */
 function CenterColumn(props: { children?: ReactNode }) {
   return <div className={css.centerCol}>{props.children}</div>
@@ -252,6 +262,61 @@ export function AppFrame({
     collapsed: sidebarCollapsed,
     width: cols.sidebar,
   }), [renderSlot, sidebarCollapsed, cols.sidebar])
+  // Hover reveal: a collapsed column with no rail (desktop) leaves no way to
+  // reach the panels or sessions without reopening it. Pointing at the
+  // frame's left edge floats a wide copy over the content; it leaves when the
+  // pointer does. The edge strip sits above the main panel, so an embedded
+  // frame there (an app page's iframe) cannot swallow the pointer.
+  const peekable = sidebarCollapsed && collapsedWidth === 0
+  const [peek, setPeek] = useState(false)
+  const peekRef = useRef<HTMLDivElement>(null)
+  const peekOpen = useRef<number | undefined>(undefined)
+  const peekClose = useRef<number | undefined>(undefined)
+  const cancelPeekClose = useCallback(() => {
+    window.clearTimeout(peekClose.current)
+    peekClose.current = undefined
+  }, [])
+  const armPeekClose = useCallback(() => {
+    if (peekClose.current !== undefined) return
+    peekClose.current = window.setTimeout(() => {
+      peekClose.current = undefined
+      setPeek(false)
+    }, PEEK_CLOSE_MS)
+  }, [])
+  useEffect(() => {
+    if (!peekable) setPeek(false)
+  }, [peekable])
+  useEffect(() => () => {
+    window.clearTimeout(peekOpen.current)
+    window.clearTimeout(peekClose.current)
+  }, [])
+  // Leaving is decided by the floating box plus any popup it opened (menus,
+  // dialogs render through portals outside it), so opening a row's menu does
+  // not dismiss the copy that owns it.
+  useEffect(() => {
+    if (!peek) return
+    const onMove = (event: PointerEvent): void => {
+      const rect = peekRef.current?.getBoundingClientRect()
+      const inside = rect !== undefined && event.clientX < rect.right && event.clientY >= rect.top && event.clientY < rect.bottom
+      if (inside || overPopup(event.target)) cancelPeekClose()
+      else armPeekClose()
+    }
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') setPeek(false)
+    }
+    document.addEventListener('pointermove', onMove)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('pointermove', onMove)
+      document.removeEventListener('keydown', onKey)
+      cancelPeekClose()
+    }
+  }, [peek, armPeekClose, cancelPeekClose])
+  const peekSidebar = useMemo(() => (peek ? renderSlot('sidebar', {
+    collapsed: false,
+    width: SIDEBAR_DEFAULT,
+    peek: true,
+  }) : null), [renderSlot, peek])
   const main = useMemo(() => (
     <MainPanel usePanelInfo={usePanelInfo} renderSlot={renderSlot} />
   ), [usePanelInfo, renderSlot])
@@ -304,6 +369,30 @@ export function AppFrame({
       {leadingMounted && (
         <div className={css.leadingSeat} data-shell-leading>
           {leading}
+        </div>
+      )}
+      {peekable && (
+        <div
+          className={css.peekZone}
+          data-sidebar-peek-zone
+          aria-hidden="true"
+          onPointerEnter={() => {
+            window.clearTimeout(peekOpen.current)
+            peekOpen.current = window.setTimeout(() => { setPeek(true) }, PEEK_OPEN_MS)
+          }}
+          onPointerLeave={() => { window.clearTimeout(peekOpen.current) }}
+        />
+      )}
+      {peekable && peek && (
+        <div
+          ref={peekRef}
+          className={css.peekPanel}
+          style={{ width: SIDEBAR_DEFAULT }}
+          data-sidebar-peek
+          onPointerEnter={cancelPeekClose}
+          onPointerLeave={(event) => { if (!overPopup(event.relatedTarget)) armPeekClose() }}
+        >
+          {peekSidebar}
         </div>
       )}
       {/* The collapsed rail is fixed-width: no resize handle while closed. */}
