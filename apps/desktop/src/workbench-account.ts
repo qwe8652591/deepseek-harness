@@ -29,10 +29,18 @@ export interface AccountConfig {
   checkIntervalMs: number
 }
 interface Credential { credential: string; cookieName: string }
-class AccountSessionExpiredError extends Error {}
+/** The server rejected the credential (expired or revoked); the saved credential is already removed. */
+export class AccountSessionExpiredError extends Error {}
 /** The account signed out elsewhere (unified sign-out); unlike an expiry, local account storage is erased as on sign-out. */
 export class AccountSignedOutError extends AccountSessionExpiredError {}
+/**
+ * The account service could not answer (offline, timeout, restart, 5xx). The credential is kept: a server restart,
+ * a network drop or waking from sleep must not look like a sign-out. Only a 401 ends the session locally.
+ */
+export class AccountUnavailableError extends Error {}
 const random = (): string => randomBytes(32).toString('base64url')
+/** Fields worth storing again when they change; the sliding session expiry is not one of them. */
+const identityKey = (user: DesktopUser): string => JSON.stringify([user.issuer, user.subject, user.name, user.organization, user.email ?? '', user.capabilities])
 const digest = (text: string): string => createHash('sha256').update(text).digest('hex')
 
 /**
@@ -84,6 +92,13 @@ function parseUser(value: unknown): DesktopUser {
     ...(typeof value.email === 'string' ? { email: value.email } : {}), expiresAt: value.expiresAt, capabilities: value.capabilities }
 }
 
+/** Last verified public account fields kept beside the credential, so a temporarily unreachable server can still open the account. */
+function parseCachedUser(value: unknown): DesktopUser | undefined {
+  if (!record(value) || typeof value.expiresAt !== 'number') return undefined
+  // A stored account that no longer parses is ignored: the server check decides instead.
+  try { return { ...parseUser({ ...value, expiresAt: Number.MAX_SAFE_INTEGER }), expiresAt: value.expiresAt } } catch { return undefined }
+}
+
 function parseCredential(value: unknown): Credential {
   if (!record(value) || typeof value.credential !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(value.credential)
     || typeof value.cookieName !== 'string' || !/^workbench_session_[a-f0-9]{12}$/.test(value.cookieName)) throw new Error('Invalid account credential')
@@ -100,6 +115,8 @@ export class DesktopAccount {
   private readonly messages = resolveDesktopLocale(app.getLocale()).messages
   private credential: Credential | undefined
   private user: DesktopUser | undefined
+  /** Identity fields stored with the credential; rewritten only when they change, not on every check. */
+  private savedUser: string | undefined
   private cancelLogin: (() => void) | undefined
   private relay: Server | undefined
   private relayFile: string | undefined
@@ -130,8 +147,15 @@ export class DesktopAccount {
     const value: unknown = JSON.parse(safeStorage.decryptString(saved))
     if (!record(value) || value.origin !== this.config.gatewayOrigin) throw new Error('Saved account belongs to another identity service')
     this.credential = parseCredential(value)
+    const cached = parseCachedUser(value.user)
+    this.savedUser = cached && identityKey(cached)
     try { await this.verify(); return true }
-    catch (error) { if (error instanceof AccountSessionExpiredError) return false; throw error }
+    catch (error) {
+      if (error instanceof AccountSessionExpiredError) return false
+      // The server is temporarily unreachable: open the last verified account; the periodic check verifies it once it answers.
+      if (error instanceof AccountUnavailableError && cached) { this.user = cached; return true }
+      throw error
+    }
   }
 
   private assertEncryption(): void {
@@ -142,8 +166,9 @@ export class DesktopAccount {
     this.assertEncryption()
     await mkdir(dirname(this.file), { recursive: true, mode: 0o700 })
     const temporary = this.file + '.' + random() + '.tmp'
-    await writeFile(temporary, safeStorage.encryptString(JSON.stringify({ origin: this.config.gatewayOrigin, ...this.credential })), { mode: 0o600, flag: 'wx' })
+    await writeFile(temporary, safeStorage.encryptString(JSON.stringify({ origin: this.config.gatewayOrigin, ...this.credential, ...(this.user ? { user: this.user } : {}) })), { mode: 0o600, flag: 'wx' })
     await rename(temporary, this.file)
+    this.savedUser = this.user && identityKey(this.user)
   }
 
   /**
@@ -229,17 +254,27 @@ export class DesktopAccount {
 
   /** Refresh public identity through the server; revoked credentials are removed locally. */
   async verify(): Promise<void> {
-    const response = await this.request('/auth/me')
+    let response: Response
+    try { response = await this.request('/auth/me') }
+    catch (error) {
+      if (!this.credential) throw error
+      throw new AccountUnavailableError(this.messages.accountUnavailable, { cause: error })
+    }
     if (response.status === 401) {
       const reason = await response.json().then((body: unknown) => record(body) ? body.error : undefined, () => undefined)
       await this.forget()
       if (reason === 'Signed out everywhere') throw new AccountSignedOutError(this.messages.accountSignedOutElsewhere)
       throw new AccountSessionExpiredError(this.messages.accountSessionExpired)
     }
-    if (!response.ok) throw new Error(this.messages.accountUnavailable)
+    if (!response.ok) throw new AccountUnavailableError(this.messages.accountUnavailable)
     const next = parseUser(await response.json())
     if (this.user && (next.subject !== this.user.subject || next.issuer !== this.user.issuer)) throw new Error('Account identity changed')
     this.user = next
+    // Keep the verified identity for an offline start; a failed write only loses that convenience.
+    if (this.savedUser !== identityKey(next)) {
+      await this.save().catch((error: unknown) => { console.error('Could not store the verified account', error) })
+      this.savedUser = identityKey(next)
+    }
   }
 
   /** Revoke the shared server session before removing the locally encrypted credential. */
@@ -260,7 +295,10 @@ export class DesktopAccount {
     await this.openBrowser(url.href).catch(() => {})
   }
 
-  private async forget(): Promise<void> { this.credential = undefined; this.user = undefined; await rm(this.file, { force: true }) }
+  private async forget(): Promise<void> {
+    this.credential = undefined; this.user = undefined; this.savedUser = undefined
+    await rm(this.file, { force: true })
+  }
 
   /**
    * Serve the verified account and capability API with a per-process local key; upstream credentials stay in main.

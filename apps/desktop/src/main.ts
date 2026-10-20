@@ -66,7 +66,7 @@ import { DesktopTray } from './tray.ts'
 import { DesktopBackgroundNotice } from './background-notice.ts'
 import { readWorkbenchDeployment, prepareWorkbenchDesktopProfile, type WorkbenchDeployment } from './workbench-deployment.ts'
 import { signInWorkbenchDesktop, installWorkbenchAccountBridge, DesktopPlatformChangeRequested } from './workbench-account-window.ts'
-import { AccountSignedOutError, type DesktopAccount } from './workbench-account.ts'
+import { AccountSignedOutError, AccountUnavailableError, type DesktopAccount } from './workbench-account.ts'
 import { readNativeDesktopBrand, type DesktopBrand } from './desktop-brand.ts'
 import { readPackagedProduct, prepareProductProfile } from './product-deployment.ts'
 import { readProductPlatform, saveProductPlatform, ProductPlatformConfigurationError } from './product-platform.ts'
@@ -1403,6 +1403,8 @@ async function main(): Promise<void> {
     if (checkingWorkbenchAccount || quitting) return
     checkingWorkbenchAccount = true
     void activeWorkbenchAccount.verify().catch(async (error: unknown) => {
+      // A restart, network drop or sleep is not a sign-out: keep running and check again on the next tick.
+      if (error instanceof AccountUnavailableError) { console.warn('Account service unavailable; retrying', error.message); return }
       if (error instanceof AccountSignedOutError) {
         await browserGuests.clearAccountStorage().catch((cause: unknown) => { console.error(cause) })
       }
