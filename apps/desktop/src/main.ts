@@ -34,6 +34,7 @@ import { installMicrophonePermissions } from './microphone-permissions.ts'
 import { DesktopBackendController } from './backend-controller.ts'
 import { DESKTOP_IPC, SCHEME, assertDesktopSender, type DesktopUpdateState } from './ipc.ts'
 import { readDeviceInfo } from './device-info.ts'
+import { confirmRestart } from './restart-request.ts'
 import { brandDesktopLocale, desktopUpdateReadyConfirmation, formatDesktopMessage, resolveDesktopLocale, resolveDesktopStartupLocale } from './locale.ts'
 import { claimDesktopSingleInstance } from './single-instance.ts'
 import { desktopUpdateChannel } from './update-channel.ts'
@@ -821,6 +822,17 @@ async function main(): Promise<void> {
   ipcMain.handle(DESKTOP_IPC.deviceInfo, (event) => {
     assertProductSender(event)
     return readDeviceInfo()
+  })
+  // The page asks (for example after a plugin update that needs a restart); the user decides in Desktop's own dialog.
+  ipcMain.handle(DESKTOP_IPC.restartRequest, async (event, reason: unknown) => {
+    assertProductSender(event)
+    if (quitting) return false
+    const show = (box: Electron.MessageBoxOptions): Promise<Electron.MessageBoxReturnValue> =>
+      mainWindow !== undefined && !mainWindow.isDestroyed() ? dialog.showMessageBox(mainWindow, box) : dialog.showMessageBox(box)
+    if (!await confirmRestart({ show, messages: currentDesktopLocale().messages, reason })) return false
+    app.relaunch()
+    quitWithoutConfirmation()
+    return true
   })
   ipcMain.handle(DESKTOP_IPC.onboardingApiKey, async (event) => {
     assertProductSender(event)

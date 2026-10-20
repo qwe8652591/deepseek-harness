@@ -854,6 +854,24 @@ describe('desktop main startup', () => {
     }
   })
 
+  it('restarts on a page request only after the user confirms in the Desktop dialog', async () => {
+    await readyForUpdate()
+    const sender = harness.windows[0]!.webContents
+    const handler = harness.handlers.get(DESKTOP_IPC.restartRequest)!
+    await expect(handler({ sender: {}, senderFrame: sender.mainFrame }, 'x')).rejects.toThrow('unowned renderer')
+    harness.dialog.showMessageBox.mockResolvedValueOnce({ response: 1 })
+    await expect(handler({ sender, senderFrame: sender.mainFrame }, '测试中心已更新')).resolves.toBe(false)
+    expect(harness.dialog.showMessageBox).toHaveBeenLastCalledWith(harness.windows[0], expect.objectContaining({
+      message: '测试中心已更新', buttons: [en.restartRequestNow, en.restartRequestLater],
+    }))
+    expect(harness.app.relaunch).not.toHaveBeenCalled()
+    harness.dialog.showMessageBox.mockResolvedValueOnce({ response: 0 })
+    await expect(handler({ sender, senderFrame: sender.mainFrame }, undefined)).resolves.toBe(true)
+    expect(harness.dialog.showMessageBox)
+      .toHaveBeenLastCalledWith(harness.windows[0], expect.objectContaining({ message: en.restartRequestDefault }))
+    expect(harness.app.relaunch).toHaveBeenCalledOnce()
+  })
+
   it.each(['darwin', 'win32', 'linux'] as const)('limits native titlebar styling to macOS on %s', async (platform) => {
     vi.spyOn(process, 'platform', 'get').mockReturnValue(platform)
     await import('../src/main.ts')
