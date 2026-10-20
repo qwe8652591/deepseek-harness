@@ -90,6 +90,8 @@ export function apply(ctx: Context): void {
 
 `close(tabId)` 关闭一个 tab；`active()` 返回活动 pane 的活动 tab；`isExpanded()` 与 `toggleExpanded()` 读取与翻转这一列，翻转记入序列。无会话时读操作返回 `undefined` 或 `false`；写操作需要已挂载的会话面，没有时抛错而不是写进没人绘制的面。
 
+`lend(panelId, sessionId)` 在某个主面板占据主栏期间把一个会话放上屏幕，于是嵌入该会话对话的面板会在旁边显示这一列，对话里的文件链接在这里打开。没有出借时，全局面板让这一列保持隐藏。一个面板最多持有一次出借，第二次会抛错；返回的释放函数可重复调用。
+
 `focus(tabId)` 让一个 tab 成为其 pane 的活动 tab；`split(paneId?)` 分割活动的停靠 pane 或点名的 pane，返回新 pane 的 id——pane 数预算或列宽不允许时返回 `undefined` 且不记账；`float(tabId, rect?)` 把一个 tab 浮出为浮窗 pane；`dock(paneId)` 把浮窗 pane 收回停靠区。四者都走 store 既有动作、各记一条历史；目标不存在或已处于目标状态时是空操作，与 `open` 一样在没有已挂载会话面时抛错。`TabId`、`PaneId`、`TabRecord`、`FloatRect` 自本包 `/client` 入口再导出，调用方无需引 dockkit。
 
 `focusedTarget(element?)` 从实时 DOM 焦点（包括内嵌 iframe）捕获可见页面；侧栏外部或过期的侧栏标记不产生目标。`commandTarget(element?)` 还允许侧栏外部发起的打开操作使用已挂载 Session 的活动停靠窗格。`SidebarRightTarget` 捕获 Session、窗格、host、tab occurrence 和导航 revision。`isTargetCurrent(target)` 在执行前检查这些身份，因此重新打开记录或再次导航都会使已捕获的动作失效；它不会改为操作其他页面。关闭与落位结果见[控制器方法](../../packages/client/ui-sidebar-right/src/client/service.ts)。

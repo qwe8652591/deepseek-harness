@@ -8,7 +8,11 @@ import css from './SidebarRight.module.css'
 
 /** Root-only retained Session targets and their committed mount lifetimes. */
 export interface RightbarRootInjected {
-  readonly hooks: { readonly views: HostObservable<readonly SidebarSessionViewSnapshot[]> }
+  readonly hooks: {
+    readonly views: HostObservable<readonly SidebarSessionViewSnapshot[]>
+    /** Whether the selected View is drawn: the Conversation, or a panel lending a Session, fills the main column. */
+    readonly foreground: HostObservable<boolean>
+  }
   readonly mountView: (reference: SessionReference) => () => void
 }
 
@@ -27,12 +31,12 @@ function SessionView({ view, visible, SessionProvider, renderSlot, mountView, wi
 }
 
 /**
- * Keep independent Session subtrees and hide those outside the selected Conversation.
+ * Keep independent Session subtrees and hide all but the selected View while it is in the foreground.
  * @param props - frame geometry, view targets and the authorized Session renderer.
  * @returns the foreground and retained background Sidebars.
  */
-export function RightbarRoot({ usePanelInfo, useViews, ...props }: RootProps) {
-  const visible = usePanelInfo(info => info.activePanelId === null)
+export function RightbarRoot({ useForeground, useViews, ...props }: RootProps) {
+  const visible = useForeground(value => value)
   const views = useViews(value => value)
   return <>{views.map(view => <SessionView key={view.sessionId} {...props} view={view} visible={visible} />)}</>
 }

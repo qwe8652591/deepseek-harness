@@ -8,8 +8,9 @@
  * syncs the Tab domain from that store's commits, on screen or not.
  *
  * The plugin also names the Session on screen — the selected Session while the
- * Conversation fills the main column — from the selection and the main panel,
- * before React renders either change, and publishes it as `mounted`. Every
+ * Conversation fills the main column, or the Session a main panel lends while
+ * that panel fills it — from the selection, the main panel and the loans,
+ * before React renders any of those changes, and publishes it as `mounted`. Every
  * command on the public face acts on that Session through its adopted store; a
  * command with no Session on screen, or with one whose store the runtime has not
  * minted, has nothing to act on and fails loudly rather than writing into a
@@ -35,11 +36,12 @@
  */
 import { sidebarTargetFromElement, type SidebarRightTarget } from './focus.ts'
 import { randomUUID } from '@deepseek-ai/dsh-util-crypto'
-import { createSnapshotStore, type ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
+import { createSnapshotStore, type ObservableSnapshot, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { FloatRect, PaneId, TabId, TabRecord } from '@deepseek-ai/dsh-client-ui-dockkit'
 import { activeDockPaneId, canSplit, findContentTab, findPaneContentTab, dockPaneIds, findTabPane, getPane } from '@deepseek-ai/dsh-client-ui-dockkit'
 import type { BoundActions } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { MainPanelId } from '@deepseek-ai/dsh-client-ui-layout/client'
 import type { SidebarRightNavigationParams, SidebarRightResourceParams, SidebarRightTabParamsFor } from './contract/params.ts'
 import { pageAddress } from './contract/seed.ts'
 import type { SidebarRightTabClaim, SidebarRightTabRegistry } from './tab-registry.ts'
@@ -75,6 +77,8 @@ interface SidebarRightSessions {
   readonly rooms: ReadonlyMap<SessionId, RoomRule>
   /** The Session the plugin names as on screen. */
   readonly onScreen: ObservableSnapshot<SessionId | undefined>
+  /** The Session each main panel lends the column while it fills the main column. */
+  readonly loans: SnapshotStore<ReadonlyMap<MainPanelId, SessionId>>
   /** Open tab metadata across saved and adopted Sessions. */
   readonly openTabs: SidebarTabInventory['source']
 }
@@ -85,7 +89,8 @@ interface SidebarRightSessions {
  * @param tabs - registered tab types.
  * @param pin - resource retention for an occurrence's lifetime.
  * @param host - the viewport rule and focus continuity the commands use.
- * @returns the controller; store adoption and scope removal; naming the on-screen Session; and recording a seat's room rule.
+ * @returns the controller; store adoption and scope removal; naming the on-screen Session;
+ *   recording a seat's room rule; and the main panels' loans.
  */
 export function createSidebarRightController(tabs: SidebarRightTabRegistry, pin: PinResource, host: SidebarRightHost): {
   controller: SidebarRightController
@@ -93,14 +98,17 @@ export function createSidebarRightController(tabs: SidebarRightTabRegistry, pin:
   forget: (sessionId: SessionId) => void
   show: (sessionId: SessionId | undefined) => void
   measure: (sessionId: SessionId, canSplitPane: RoomRule) => void
+  loans: ObservableSnapshot<ReadonlyMap<MainPanelId, SessionId>>
 } {
   const adopted = new Map<SessionId, Adoption>()
   const rooms = new Map<SessionId, RoomRule>()
   const onScreen = createSnapshotStore<SessionId | undefined>(undefined)
+  const loans = createSnapshotStore<ReadonlyMap<MainPanelId, SessionId>>(new Map())
   const inventory = new SidebarTabInventory()
-  const controller = new SidebarRightController(tabs, pin, host, { adopted, rooms, onScreen, openTabs: inventory.source })
+  const controller = new SidebarRightController(tabs, pin, host, { adopted, rooms, onScreen, loans, openTabs: inventory.source })
   return {
     controller,
+    loans,
     forget: (sessionId) => {
       inventory.remove(sessionId)
       rooms.delete(sessionId)
@@ -195,6 +203,19 @@ export interface ISidebarRight {
    */
   readonly mounted: ObservableSnapshot<SessionId | undefined>
   /**
+   * Lend a Session to the column for one main panel. While that panel fills the
+   * main column the Session is on screen exactly as the selected Session is for
+   * the Conversation: the column draws its surface and every command acts on it.
+   * A panel that embeds a Session's conversation lends it so the conversation's
+   * file links and tool references open beside it. Other panels keep the
+   * column hidden. A panel lends at most one Session at a time.
+   * @param panelId - the main panel that lends the Session.
+   * @param sessionId - the Session the column shows while the panel is active.
+   * @returns idempotent release of the loan; the column follows the main panel again.
+   * @throws Error when the panel already lends a Session.
+   */
+  lend(panelId: MainPanelId, sessionId: SessionId): () => void
+  /**
    * Open a resource: claim it, place it, reveal the column, record the navigation.
    *
    * Without `options.kind` the registry ranks the types whose globs and
@@ -266,6 +287,7 @@ export class SidebarRightController implements ISidebarRight {
   readonly mounted: ObservableSnapshot<SessionId | undefined>
   private readonly adopted: ReadonlyMap<SessionId, Adoption>
   private readonly rooms: ReadonlyMap<SessionId, RoomRule>
+  private readonly loans: SnapshotStore<ReadonlyMap<MainPanelId, SessionId>>
   private readonly closeHandlers = new Map<string, SidebarRightCloseHandler>()
 
   /**
@@ -290,7 +312,7 @@ export class SidebarRightController implements ISidebarRight {
    * @param tabs - the tab-type registry consulted to claim an address.
    * @param pin - `ctx.resources.pin`, which the Tab domain holds addresses with.
    * @param host - the viewport rule and focus continuity the commands use.
-   * @param sessions - plugin-owned adopted stores, room rules, on-screen Session, and open tab metadata.
+   * @param sessions - plugin-owned adopted stores, room rules, on-screen Session, main panel loans, and open tab metadata.
    */
   constructor(
     private readonly tabs: SidebarRightTabRegistry,
@@ -301,8 +323,29 @@ export class SidebarRightController implements ISidebarRight {
     this.adopted = sessions.adopted
     this.rooms = sessions.rooms
     this.mounted = sessions.onScreen
+    this.loans = sessions.loans
     this.openTabs = sessions.openTabs
     this.tabDomain = new TabDomain(this, pin)
+  }
+
+  /**
+   * Lend a Session to the column while a main panel fills the main column.
+   * @param panelId - the main panel that lends the Session.
+   * @param sessionId - the Session the column shows while the panel is active.
+   * @returns idempotent release of the loan.
+   */
+  lend(panelId: MainPanelId, sessionId: SessionId): () => void {
+    const loans = this.loans.getSnapshot()
+    if (loans.has(panelId)) throw new Error(`sidebarRight: main panel ${panelId} already lends a Session`)
+    this.loans.set(new Map(loans).set(panelId, sessionId))
+    let held = true
+    return () => {
+      if (!held) return
+      held = false
+      const next = new Map(this.loans.getSnapshot())
+      next.delete(panelId)
+      this.loans.set(next)
+    }
   }
 
   /**

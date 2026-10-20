@@ -13,6 +13,7 @@ import { Context } from '@deepseek-ai/cordis'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { MainPanelId } from '@deepseek-ai/dsh-client-ui-layout/client'
 import type { Shortcuts, ShortcutCommand } from '@deepseek-ai/dsh-client-shortcuts/client'
 import { apply, inject } from '../src/client/index.ts'
 import type { GuideInjected, SidebarRightInjected } from '../src/client/index.ts'
@@ -158,6 +159,28 @@ describe('ui-sidebar-right apply', () => {
     expect(ctx.sidebarRight.mounted.getSnapshot()).toBe(SESSION)
     current.set({ key: undefined })
     expect(ctx.sidebarRight.mounted.getSnapshot()).toBeUndefined()
+  })
+
+  it('names the Session the active main panel lends as on screen until the loan is released', async () => {
+    const { ctx, layout, current } = await boot()
+    const lent = 's-lent' as SessionId
+    const app = 'app' as MainPanelId
+    current.set({ key: SESSION })
+    const release = ctx.sidebarRight.lend(app, lent)
+    expect(ctx.sidebarRight.mounted.getSnapshot()).toBe(SESSION)
+    layout.panelInfo.set({ activePanelId: app })
+    expect(ctx.sidebarRight.mounted.getSnapshot()).toBe(lent)
+    expect(() => ctx.sidebarRight.lend(app, SESSION)).toThrow('main panel app already lends a Session')
+    // A panel that lends nothing keeps the column hidden.
+    layout.panelInfo.set({ activePanelId: 'plugins' })
+    expect(ctx.sidebarRight.mounted.getSnapshot()).toBeUndefined()
+    layout.panelInfo.set({ activePanelId: app })
+    release()
+    expect(ctx.sidebarRight.mounted.getSnapshot()).toBeUndefined()
+    release()
+    const again = ctx.sidebarRight.lend(app, SESSION)
+    expect(ctx.sidebarRight.mounted.getSnapshot()).toBe(SESSION)
+    again()
   })
 
   it('hands the panel seat the frame report, the room rule, the opens, the observable registry, and the Tab domain', async () => {

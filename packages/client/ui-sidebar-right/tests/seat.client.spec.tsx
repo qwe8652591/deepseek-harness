@@ -421,6 +421,29 @@ describe('RightbarSeat presentation', () => {
     expect(h.layout()).toBe(retained)
   })
 
+  it('draws the Session a main panel lends while that panel fills the main column', async () => {
+    const h = await mountSeat()
+    h.open('conversation.txt')
+    const retained = h.layout()
+    await act(async () => { await h.runtime.sessions.add({ id: OTHER }) })
+    const app = 'app' as MainPanelId
+    const release = h.controller.lend(app, OTHER)
+    act(() => { h.runtime.panelInfo.set({ activePanelId: app }) })
+    expect(h.controller.mounted.getSnapshot()).toBe(OTHER)
+    act(() => { h.controller.openResource('dsh-resource://file/session/s-other/lent.txt', { params: { line: 3 } }) })
+    const lent = element(h.view.container, `[data-sidebar-right-session="${OTHER}"]`)
+    expect(lent.hidden).toBe(false)
+    expect(lent.querySelector('[data-sidebar-right-panel]')).not.toBeNull()
+    expect(h.controller.active()?.contentId).toBe('dsh-resource://file/session/s-other/lent.txt')
+    expect(h.bodies.get(h.controller.active()!.id)?.tab.navigation.params).toEqual({ line: 3 })
+    act(() => { release() })
+    expect(h.controller.mounted.getSnapshot()).toBeUndefined()
+    expect(h.view.container.querySelector(`[data-sidebar-right-session="${OTHER}"]`)).toBeNull()
+    act(() => { h.runtime.panelInfo.set({ activePanelId: null }) })
+    expect(h.controller.mounted.getSnapshot()).toBe(SESSION)
+    expect(h.layout()).toBe(retained)
+  })
+
   it('names the on-screen Session before a Conversation opener acts in the commit that returns from a global panel', async () => {
     const h = await mountSeat(1440, true, 0, true)
     const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
