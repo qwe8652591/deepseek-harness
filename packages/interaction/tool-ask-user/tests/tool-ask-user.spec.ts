@@ -186,6 +186,7 @@ describe('ask_user_question tool', () => {
     expect(parameters.properties.questions.items.properties).toMatchObject({
       id: { type: 'string' },
       question: { type: 'string' },
+      detail: { type: 'string' },
       header: { type: 'string' },
       options: { type: 'array' },
       multi_select: { type: 'boolean' },
@@ -447,6 +448,33 @@ describe('ask_user_question tool', () => {
       questions: [{ id: 'continue', header: 'Confirm', question: 'Continue?' }],
       agent: { id: agent.id },
     })
+  })
+
+  it.each([
+    ['timed', { mode: 'timed', timeout: -1 }],
+    ['legacy', { mode: 'legacy' }],
+  ] as const)('passes the optional Markdown detail through to the %s user-questions request', async (_mode, config) => {
+    const ctx = await setup(config)
+    const seen: AskUserQuestionRequest[] = []
+    registerQuestionAnswerer(ctx, {
+      async ask(request) {
+        seen.push(request)
+        return { answers: [{ id: 'confirm', selected: ['Create'] }] }
+      },
+    })
+    const agent = stubAgent(`detail-${config.mode}`)
+    ctx.agents.enter(agent, undefined)
+    const detail = 'Found:\n- login page only\n\nCases:\n- **Login** › wrong password is rejected'
+
+    await ctx.tools.execute({
+      signal: testToolSignal,
+      callId: ToolCallId(`ask-detail-${config.mode}`),
+      name: 'ask_user_question',
+      arguments: { questions: [{ id: 'confirm', question: 'Create these cases?', detail, options: [{ label: 'Create' }] }] },
+      agent,
+    })
+
+    expect(seen[0]?.questions).toEqual([{ id: 'confirm', question: 'Create these cases?', detail, options: [{ label: 'Create' }] }])
   })
 
   it('reports a pending question when the Client settles the configured deadline', async () => {
