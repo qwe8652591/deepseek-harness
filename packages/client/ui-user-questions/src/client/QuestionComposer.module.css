@@ -96,14 +96,7 @@
   line-height: 16px;
 }
 
-/* The header never shrinks, so an over-long question in a narrow column
-   (a right-sidebar Copilot) would push the options and the submit row out
-   of the capped card. Cap the title at nine lines and let it scroll on its
-   own; the options and footer keep the rest of the card. */
 .title {
-  max-height: min(30vh, 198px);
-  overflow-y: auto;
-  overscroll-behavior: contain;
   margin: 0;
   font-size: 16px;
   line-height: 22px;
