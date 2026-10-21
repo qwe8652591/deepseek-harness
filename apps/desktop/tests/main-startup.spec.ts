@@ -854,21 +854,23 @@ describe('desktop main startup', () => {
     }
   })
 
-  it('restarts on a page request only after the user confirms in the Desktop dialog', async () => {
-    await readyForUpdate()
+  it('restarts on a page request through the running-task quit confirmation, with no dialog of its own', async () => {
+    const host = await readyWorkspace()
     const sender = harness.windows[0]!.webContents
     const handler = harness.handlers.get(DESKTOP_IPC.restartRequest)!
-    await expect(handler({ sender: {}, senderFrame: sender.mainFrame }, 'x')).rejects.toThrow('unowned renderer')
-    harness.dialog.showMessageBox.mockResolvedValueOnce({ response: 1 })
-    await expect(handler({ sender, senderFrame: sender.mainFrame }, '测试中心已更新')).resolves.toBe(false)
-    expect(harness.dialog.showMessageBox).toHaveBeenLastCalledWith(harness.windows[0], expect.objectContaining({
-      message: '测试中心已更新', buttons: [en.restartRequestNow, en.restartRequestLater],
-    }))
-    expect(harness.app.relaunch).not.toHaveBeenCalled()
-    harness.dialog.showMessageBox.mockResolvedValueOnce({ response: 0 })
-    await expect(handler({ sender, senderFrame: sender.mainFrame }, undefined)).resolves.toBe(true)
+    await expect(handler({ sender: {}, senderFrame: sender.mainFrame })).rejects.toThrow('unowned renderer')
+    // A running task: the usual quit confirmation asks, and cancelling keeps the application running.
+    host.inspectQuit.mockResolvedValue({ activeTasks: true, scheduledTasks: false })
+    harness.dialog.showMessageBox.mockResolvedValueOnce({ response: 1, checkboxChecked: false })
+    await expect(handler({ sender, senderFrame: sender.mainFrame })).resolves.toBe(false)
     expect(harness.dialog.showMessageBox)
-      .toHaveBeenLastCalledWith(harness.windows[0], expect.objectContaining({ message: en.restartRequestDefault }))
+      .toHaveBeenCalledWith(expect.objectContaining({ message: en.quitTitle, detail: en.quitActiveTasks }))
+    expect(harness.app.relaunch).not.toHaveBeenCalled()
+    // Nothing to interrupt: the page already asked the user, so Desktop restarts without another box.
+    harness.dialog.showMessageBox.mockClear()
+    host.inspectQuit.mockResolvedValue({ activeTasks: false, scheduledTasks: false })
+    await expect(handler({ sender, senderFrame: sender.mainFrame })).resolves.toBe(true)
+    expect(harness.dialog.showMessageBox).not.toHaveBeenCalled()
     expect(harness.app.relaunch).toHaveBeenCalledOnce()
   })
 

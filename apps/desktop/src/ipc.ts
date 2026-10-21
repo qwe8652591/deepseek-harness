@@ -87,12 +87,12 @@ export interface DshDesktopProductApi {
    */
   deviceInfo(): Promise<string>
   /**
-   * Ask the user to restart now, for a change that only takes effect after a restart (such as a plugin update).
-   * Desktop shows the confirmation itself; the page cannot restart without the user's answer.
-   * @param reason - one line shown in the dialog; Desktop's default text when empty or too long.
-   * @returns whether the user chose to restart; the application is quitting when true.
+   * Restart the application after the page has asked the user in its own dialog, for a change that only takes
+   * effect after a restart (such as a plugin update). Restarting is a quit: when work is running, the usual quit
+   * confirmation still asks first.
+   * @returns whether the application is restarting; false when the user kept running work going.
    */
-  restart(reason?: string): Promise<boolean>
+  restart(): Promise<boolean>
   readonly updates: {
     status(): Promise<DesktopUpdatePresentation>
     open(): Promise<void>

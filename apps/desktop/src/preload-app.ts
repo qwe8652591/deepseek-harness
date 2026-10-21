@@ -16,7 +16,7 @@ function createProductApi(): DshDesktopProductApi {
     activate: () => ipcRenderer.invoke(DESKTOP_IPC.activate) as Promise<void>,
     browser: createDesktopBrowserBridge(),
     deviceInfo: () => ipcRenderer.invoke(DESKTOP_IPC.deviceInfo) as Promise<string>,
-    restart: (reason?: string) => ipcRenderer.invoke(DESKTOP_IPC.restartRequest, reason) as Promise<boolean>,
+    restart: () => ipcRenderer.invoke(DESKTOP_IPC.restartRequest) as Promise<boolean>,
     keyboard: {
       closeWindow: revision => ipcRenderer.invoke(DESKTOP_IPC.shortcutsCloseWindow, revision) as Promise<void>,
       subscribe: (listener) => {
