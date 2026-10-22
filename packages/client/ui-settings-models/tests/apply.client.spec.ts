@@ -234,7 +234,7 @@ describe('ui-settings-models apply', () => {
     const fiber = b.ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
     b.locale.setLocale('zh')
-    const { footer } = (b.slots.entries('settings.section')[0]!.inject as () => ModelsSectionInjected)().hooks
+    const { footer } = ((b.slots.entries('settings.section')[0]!.inject!() as object) as ModelsSectionInjected).hooks
     expect(footer.getSnapshot()).toEqual([])
     const listener = vi.fn()
     const off = footer.subscribe(listener)
