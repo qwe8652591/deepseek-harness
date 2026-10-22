@@ -109,6 +109,31 @@ describe('ui-settings-general shell', () => {
     off()
   })
 
+  it('leaves hidden sections out of the navigation until every hide of the id is disposed', async ({ start }) => {
+    const c = await start()
+    const { sections } = injectedOf(c).hooks
+    const listener = vi.fn()
+    const off = sections.subscribe(listener)
+    const service = c.ctx.get('settingsSections')!
+    const hidePlugins = service.hide('plugins')
+    const hidePluginsAgain = service.hide('plugins')
+    const hideLater = service.hide('later')
+    expect(listener).toHaveBeenCalledTimes(3)
+    expect(sections.getSnapshot().map(row => row.id)).toEqual(PRODUCT_SECTIONS.filter(id => id !== 'plugins'))
+    c.ctx.slots.register({ name: 'settings.section', id: 'later', order: 1_000, label: 'Later' } as never, () => null)
+    expect(sections.getSnapshot().map(row => row.id)).not.toContain('later')
+    hidePlugins()
+    hidePlugins()
+    expect(sections.getSnapshot().map(row => row.id)).not.toContain('plugins')
+    hidePluginsAgain()
+    hideLater()
+    expect(sections.getSnapshot().map(row => row.id)).toEqual([...PRODUCT_SECTIONS, 'later'])
+    off()
+    const calls = listener.mock.calls.length
+    service.hide('plugins')()
+    expect(listener).toHaveBeenCalledTimes(calls)
+  })
+
   it('shows Account first only while signed in and removes it on sign-out', async ({ start }) => {
     const c = await start()
     const { sections } = injectedOf(c).hooks
@@ -173,5 +198,6 @@ describe('ui-settings-general shell', () => {
     await c.flush()
     expect(c.ctx.slots.entries('sidebar.settings')).toHaveLength(0)
     for (const name of CHILD_NAMES) expect(c.ctx.slots.spec(name)).toBeUndefined()
+    expect(c.ctx.get('settingsSections')).toBeUndefined()
   })
 })

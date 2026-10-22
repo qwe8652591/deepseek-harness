@@ -103,8 +103,50 @@
   font-weight: 500;
 }
 
+/* Supporting detail under the title: indented to the title's 24px inset, one
+   step quieter than the title and the options, with Markdown blocks packed
+   tight so a findings list and a case list read as one compact note. */
 .detail {
-  margin: 0 2px 8px;
+  margin: 6px 0 2px;
+  padding: 0 16px 0 24px;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.detail.detail :global(p),
+.detail.detail :global(ul),
+.detail.detail :global(ol) {
+  margin: 0 0 6px;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.detail.detail :global(li) {
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.detail.detail :global(li + li) {
+  margin-top: 2px;
+}
+
+.detail.detail :global(strong),
+.detail.detail :global(h1),
+.detail.detail :global(h2),
+.detail.detail :global(h3),
+.detail.detail :global(h4) {
+  color: var(--dsw-alias-label-primary);
+  font-weight: 600;
+}
+
+.detail.detail :global(h1),
+.detail.detail :global(h2),
+.detail.detail :global(h3),
+.detail.detail :global(h4) {
+  margin: 8px 0 2px;
+  font-size: 13px;
+  line-height: 20px;
 }
 
 .footerActions {

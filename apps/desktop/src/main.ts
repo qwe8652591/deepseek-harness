@@ -822,6 +822,17 @@ async function main(): Promise<void> {
     assertProductSender(event)
     return readDeviceInfo()
   })
+  // The page has already asked the user in its own dialog (for example after a plugin update that needs a
+  // restart). Restarting is a quit, so it goes through the usual quit confirmation: running work is never
+  // interrupted silently, and with nothing running no second box appears.
+  ipcMain.handle(DESKTOP_IPC.restartRequest, async (event) => {
+    assertProductSender(event)
+    if (quitting) return false
+    if (!await quitConfirmation.confirm()) return false
+    app.relaunch()
+    quitWithoutConfirmation()
+    return true
+  })
   ipcMain.handle(DESKTOP_IPC.onboardingApiKey, async (event) => {
     assertProductSender(event)
     return (await readWelcomeState()).hasApiKey

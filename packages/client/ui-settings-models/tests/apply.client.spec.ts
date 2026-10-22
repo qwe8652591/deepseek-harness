@@ -15,6 +15,7 @@ import {
   WELCOME_NOTICE_ACK_FIELD, WELCOME_NOTICE_SETTINGS_NAMESPACE, WELCOME_NOTICE_VERSION,
 } from '../src/onboarding-copy.ts'
 import { ModelsSection } from '../src/client/ModelsSection.tsx'
+import type { ModelsSectionInjected } from '../src/client/ModelsSection.tsx'
 import { DeepSeekOnboardingDialog } from '../src/client/DeepSeekOnboardingDialog.tsx'
 import { WelcomeNotice } from '../src/client/WelcomeNotice.tsx'
 import type { IndexInjection } from '@deepseek-ai/dsh-host-webserver'
@@ -225,6 +226,29 @@ describe('ui-settings-models apply', () => {
     // Declarer unload cascades whatever extension entries remain.
     await fiber.dispose()
     expect(b.slots.entries('settings.models.footer')).toHaveLength(0)
+  })
+
+  it('projects footer entries in order with resolved labels, refreshing on ledger and locale changes', async () => {
+    const b = await bench()
+    declare(b.slots)
+    const fiber = b.ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    b.locale.setLocale('zh')
+    const { footer } = (b.slots.entries('settings.section')[0]!.inject as () => ModelsSectionInjected)().hooks
+    expect(footer.getSnapshot()).toEqual([])
+    const listener = vi.fn()
+    const off = footer.subscribe(listener)
+    b.slots.register({ name: 'settings.models.footer', id: 'later', order: 20, label: 'Later' } as never, () => null)
+    b.slots.register({ name: 'settings.models.footer', id: 'images', order: 10, label: () => String(b.locale.getSnapshot().active) } as never, () => null)
+    b.slots.register({ name: 'settings.models.footer', id: 'bare' } as never, () => null)
+    await vi.waitFor(() => { expect(listener).toHaveBeenCalled() })
+    const groups = footer.getSnapshot()
+    expect(groups).toEqual([{ id: 'bare', label: '' }, { id: 'images', label: 'zh' }, { id: 'later', label: 'Later' }])
+    expect(footer.getSnapshot()).toBe(groups)
+    b.locale.setLocale('en')
+    expect(footer.getSnapshot()[1]).toEqual({ id: 'images', label: 'en' })
+    b.locale.setLocale('zh')
+    off()
   })
 
   it('registers the zh/en nav dictionaries and disposes everything with the fiber', async () => {

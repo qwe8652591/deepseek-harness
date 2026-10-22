@@ -23,6 +23,7 @@ export const DESKTOP_IPC = {
   browserOpenRequested: 'dsh-desktop:browser-open-requested',
   directoryPick: 'dsh-desktop:directory-pick',
   deviceInfo: 'dsh-desktop:device-info',
+  restartRequest: 'dsh-desktop:restart-request',
   localeBootstrap: 'dsh-desktop:locale-bootstrap',
   localeChanged: 'dsh-desktop:locale-changed',
   updatesStatus: 'dsh-desktop:updates-status',
@@ -85,6 +86,13 @@ export interface DshDesktopProductApi {
    * @returns `name=value` fields separated by `; `, with no hostname, user name, or serial number.
    */
   deviceInfo(): Promise<string>
+  /**
+   * Restart the application after the page has asked the user in its own dialog, for a change that only takes
+   * effect after a restart (such as a plugin update). Restarting is a quit: when work is running, the usual quit
+   * confirmation still asks first.
+   * @returns whether the application is restarting; false when the user kept running work going.
+   */
+  restart(): Promise<boolean>
   readonly updates: {
     status(): Promise<DesktopUpdatePresentation>
     open(): Promise<void>

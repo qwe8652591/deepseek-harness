@@ -176,6 +176,27 @@ describe('sidebar global panels', () => {
     }
   })
 
+  it('leaves hidden panels out of the list until every hide of the id is disposed', async () => {
+    const { runtime, locale, layout, sidebar, view } = await bench()
+    const panels = runtime.ctx.get('sidebarPanels')!
+    const hideAlpha = panels.hide(ALPHA)
+    const hideAlphaAgain = panels.hide(ALPHA)
+    await mountPanels(runtime, locale)
+    const navigation = await view.findByRole('navigation', { name: 'Global panels' })
+    expect(within(navigation).getAllByRole('button').map(row => row.textContent)).toEqual(['Beta panel'])
+    act(() => { layout.selectPanel(ALPHA) })
+    expect(view.getByRole('heading', { name: 'Alpha content' })).toBeTruthy()
+
+    act(() => { hideAlpha() })
+    act(() => { hideAlpha() })
+    expect(within(navigation).getAllByRole('button').map(row => row.textContent)).toEqual(['Beta panel'])
+    act(() => { hideAlphaAgain() })
+    expect(within(navigation).getAllByRole('button').map(row => row.textContent)).toEqual(['Beta panel', 'Alpha panel'])
+
+    await sidebar.dispose()
+    expect(runtime.ctx.get('sidebarPanels')).toBeUndefined()
+  })
+
   it('keeps registration order when panel rows have equal order', async () => {
     const { runtime, locale, view } = await bench()
     await mountPanels(runtime, locale, 20)

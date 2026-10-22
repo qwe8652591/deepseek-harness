@@ -49,6 +49,7 @@ export function apply(ctx: Context, config: Config = {}): void {
           properties: {
             id: { type: 'string', required: true, description: 'Stable id for this question; echoed in the answer.' },
             question: { type: 'string', required: true, description: 'The specific question to ask the user.' },
+            detail: { type: 'string', description: 'Optional supporting detail shown in the card body above the options, rendered as Markdown: what you found, the proposal, a list to confirm. Keep `question` itself to one short sentence and put everything the user needs to read here.' },
             header: {
               type: 'string',
               description: 'Optional short heading for the question, such as "Confirm" or "Choose Mode".',
@@ -101,6 +102,7 @@ export function apply(ctx: Context, config: Config = {}): void {
           id: question.id,
           question: question.question,
           ...question.header !== undefined ? { header: question.header } : {},
+          ...question.detail !== undefined ? { detail: question.detail } : {},
           ...question.options !== undefined ? { options: question.options } : {},
           ...question.multi_select !== undefined ? { multiSelect: question.multi_select } : {},
         })),

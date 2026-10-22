@@ -61,6 +61,23 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
   }
 }
 
+declare module '@deepseek-ai/cordis' {
+  interface Context {
+    /** Which registered settings sections the settings navigation lists. */
+    settingsSections: SettingsSections
+  }
+}
+
+/** Lets a product leave registered `settings.section` entries out of the settings navigation. */
+export interface SettingsSections {
+  /**
+   * Leave a section out of the settings navigation, including an entry registered later.
+   * @param id - the `settings.section` entry id.
+   * @returns disposer; the section is listed again once every hide of the id is disposed.
+   */
+  hide(id: string): () => void
+}
+
 /** Dictionary namespace owned by this plugin (shell chrome + General copy). */
 const NS = 'settings'
 
@@ -120,6 +137,34 @@ export function apply(ctx: ClientContext): void {
   // key includes the locale revision and subscribers ride both sources.
   let rowsVersion = -1
   let rowsRevision = -1
+  // Hide count per section id; overlapping hides of one id release independently.
+  const hiddenSections = new Map<string, number>()
+  let hiddenVersion = 0
+  let rowsHiddenVersion = -1
+  const hiddenListeners = new Set<() => void>()
+  const changeHidden = (id: string, delta: 1 | -1): void => {
+    const count = (hiddenSections.get(id) ?? 0) + delta
+    if (count === 0) hiddenSections.delete(id)
+    else hiddenSections.set(id, count)
+    hiddenVersion++
+    for (const listener of [...hiddenListeners]) listener()
+  }
+  const settingsSections: SettingsSections = {
+    hide: (id) => {
+      changeHidden(id, 1)
+      let released = false
+      return () => {
+        if (released) return
+        released = true
+        changeHidden(id, -1)
+      }
+    },
+  }
+  // provide()'s disposer settles asynchronously; teardown is synchronous fire-and-forget.
+  ctx.effect(() => {
+    const dispose = ctx.reflect.provide('settingsSections', settingsSections)
+    return () => { void dispose() }
+  }, 'ui-settings-general: section visibility service')
   let rows: readonly SettingsSectionRow[] = []
   let onboardingVersion = -1
   let onboardingSteps: readonly SettingsOnboardingStep[] = []
@@ -134,9 +179,10 @@ export function apply(ctx: ClientContext): void {
         getSnapshot: () => {
           const version = ctx.slots.getVersion('settings.section')
           const revision = ctx.locale.getSnapshot().revision
-          if (version !== rowsVersion || revision !== rowsRevision) {
+          if (version !== rowsVersion || revision !== rowsRevision || hiddenVersion !== rowsHiddenVersion) {
             rowsVersion = version
             rowsRevision = revision
+            rowsHiddenVersion = hiddenVersion
             rows = ctx.slots.entries('settings.section')
               .map(e => ({
                 /* v8 ignore next -- list-slot registration requires id (SlotCore rejects an entry without one) */
@@ -144,6 +190,7 @@ export function apply(ctx: ClientContext): void {
                 order: e.options.order ?? 0,
                 label: resolveSlotLabel(e.options.label) ?? '',
               }))
+              .filter(row => !hiddenSections.has(row.id))
               .sort((a, b) => a.order - b.order)
           }
           return rows
@@ -151,9 +198,11 @@ export function apply(ctx: ClientContext): void {
         subscribe: (listener) => {
           const offLedger = ctx.slots.subscribe('settings.section', listener)
           const offLocale = ctx.locale.subscribe(listener)
+          hiddenListeners.add(listener)
           return () => {
             offLedger()
             offLocale()
+            hiddenListeners.delete(listener)
           }
         },
       },

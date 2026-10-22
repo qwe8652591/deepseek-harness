@@ -57,6 +57,10 @@ On a loopback browser, the shell renders **Open configuration file** only when t
 
 The onboarding ledger projects in ascending order and mounts exactly one step at a time. Registrants own durable completion, capability readiness, copy, mutations, and their visible wrapper, so independently registered flows cannot stack and the shell does not become a second configuration fact source. Visible steps own their dialog chrome and app-root `inert` lifecycle.
 
+### Hiding sections
+
+A product can leave a registered section out of the navigation through the `ctx.settingsSections` service: `hide(id)` removes the `settings.section` row for that id, including an entry registered later, and returns a disposer. The row returns once every hide of the id is disposed. The section's registration is unchanged; while it is hidden, `openSection(id)` selects the first listed section instead.
+
 -----
 
 <a id="understand-the-implementation"></a>
