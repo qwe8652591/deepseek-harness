@@ -29,6 +29,26 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
   }
 }
 
+declare module '@deepseek-ai/cordis' {
+  interface Context {
+    /** Which registered global panels the sidebar lists. */
+    sidebarPanels: SidebarPanels
+  }
+}
+
+/**
+ * Lets a product leave registered global panels out of the sidebar list; a hidden
+ * panel stays selectable through `ctx.layout.selectPanel`.
+ */
+export interface SidebarPanels {
+  /**
+   * Leave a panel out of the sidebar list, including a `sidebar.panellist` entry registered later.
+   * @param id - the panel id of the `sidebar.panellist` entry.
+   * @returns disposer; the panel is listed again once every hide of the id is disposed.
+   */
+  hide(id: MainPanelId): () => void
+}
+
 /** Dictionary namespace owned by this plugin. */
 const NS = 'sidebar'
 
@@ -46,12 +66,14 @@ export function apply(ctx: ClientContext): void {
   const workspaceNavigation = ctx.get('uiWorkspace') as unknown as WorkspaceNavigation
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-sidebar: dictionaries')
   const panels = createSnapshotStore<readonly SidebarPanelMetadata[]>([])
+  // Hide count per panel id; overlapping hides of one id release independently.
+  const hidden = new Map<string, number>()
   const syncPanels = (): void => {
     const next = ctx.slots.entriesOfSlot('sidebar.panellist').map(({ options }) => {
       // The list registration requires an id; StoredEntry erases the slot kind.
       const id = options.id as MainPanelId
       return { id, order: options.order ?? 0, label: resolveSlotLabel(options.label) ?? id }
-    }).sort((a, b) => a.order - b.order)
+    }).filter(panel => !hidden.has(panel.id)).sort((a, b) => a.order - b.order)
     const previous = panels.getSnapshot()
     if (previous.length === next.length && previous.every((panel, index) => {
       const candidate = next[index] as SidebarPanelMetadata
@@ -61,6 +83,26 @@ export function apply(ctx: ClientContext): void {
   }
   ctx.effect(() => ctx.slots.subscribe('sidebar.panellist', syncPanels), 'ui-sidebar: panel entries')
   ctx.effect(() => ctx.locale.subscribe(syncPanels), 'ui-sidebar: panel labels')
+  const sidebarPanels: SidebarPanels = {
+    hide: (id) => {
+      hidden.set(id, (hidden.get(id) ?? 0) + 1)
+      syncPanels()
+      let released = false
+      return () => {
+        if (released) return
+        released = true
+        const count = hidden.get(id) as number
+        if (count === 1) hidden.delete(id)
+        else hidden.set(id, count - 1)
+        syncPanels()
+      }
+    },
+  }
+  // provide()'s disposer settles asynchronously; teardown is synchronous fire-and-forget.
+  ctx.effect(() => {
+    const dispose = ctx.reflect.provide('sidebarPanels', sidebarPanels)
+    return () => { void dispose() }
+  }, 'ui-sidebar: panel visibility service')
 
   const injectProps = (): SidebarRootInjected => ({
     // The shell's New Session button rides the Workspace UI's shared action

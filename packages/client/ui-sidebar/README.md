@@ -39,6 +39,8 @@ The layout can render the shell a second time as a hover-revealed float over a h
 
 Plugins add an icon component to the root-scoped `sidebar.panellist` list with an `id`, optional `order`, and a string or locale-aware `label`. The same id addresses the component registered in the layout's root-scoped `main` keyed slot; selecting a missing main entry throws without changing the current selection. The label supplies plain visible text, the accessible name, and the collapsed tooltip. Each row reads its own selected state through `usePanelInfo`; moving DOM focus to search or a directory picker does not change the displayed panel or its selected row. With no registrations, neither the list nor spacing for it is rendered. The shipped composition registers no example panel.
 
+A product can leave a registered panel out of the list through the `ctx.sidebarPanels` service: `hide(id)` removes the row for that id, including an entry registered later, and returns a disposer. The row returns once every hide of the id is disposed. A hidden panel's main entry stays registered, so `ctx.layout.selectPanel` and plugin navigation still open it.
+
 A plugin can also register a trailing control for a row in the root-scoped `sidebar.panellist.action` list under the same `id`; it receives `active` and the resolved `label`. The shell renders it beside the row button in the expanded sidebar only, shows it on row hover, keyboard focus, or selection, and omits it from the collapsed rail. The control owns its own button and must stop click propagation when it acts, for example to close an opened application.
 
 ### Collapse behavior
