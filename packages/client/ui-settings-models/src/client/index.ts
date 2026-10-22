@@ -17,7 +17,8 @@ import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 // (settings/credentials invalidations ride the allowlist) into this program.
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import { ModelsSection } from './ModelsSection.tsx'
-import type { ModelsSectionInjected } from './ModelsSection.tsx'
+import type { ModelsFooterGroup, ModelsSectionInjected } from './ModelsSection.tsx'
+import { resolveSlotLabel } from '@deepseek-ai/dsh-client-ui-slots'
 import { DeepSeekOnboardingDialog } from './DeepSeekOnboardingDialog.tsx'
 import type { DeepSeekOnboardingInjected } from './DeepSeekOnboardingDialog.tsx'
 import { WelcomeNotice } from './WelcomeNotice.tsx'
@@ -30,7 +31,7 @@ import { en, zh, type ModelsKey } from './locales.ts'
 import { WELCOME_NOTICE_SETTINGS_NAMESPACE } from '../onboarding-copy.ts'
 import { Config, ONBOARDING_CONFIG_GLOBAL } from '../onboarding-config.ts'
 
-export type { ModelsSectionInjected, ModelsSectionProps } from './ModelsSection.tsx'
+export type { ModelsFooterGroup, ModelsSectionInjected, ModelsSectionProps } from './ModelsSection.tsx'
 export type { ModelsFooterOwnerProps, ProviderCardExtrasOwnerProps } from './slot-contract.ts'
 export type { ModelsKey } from './locales.ts'
 
@@ -90,9 +91,42 @@ export function apply(ctx: ClientContext): void {
   // Registration-time text (the nav label thunk) and the inject faces share
   // one bound translate; copy freshness rides the locale revision.
   const t = ctx.locale.bind(NS) as ModelsSectionInjected['t']
+  // Footer entries projected for the page's grouping, cached until the ledger
+  // or the locale moves (labels may be locale-following thunks).
+  let footerVersion = -1
+  let footerRevision = -1
+  let footer: readonly ModelsFooterGroup[] = []
+  const footerSource: ModelsSectionInjected['hooks']['footer'] = {
+    getSnapshot: () => {
+      const version = ctx.slots.getVersion('settings.models.footer')
+      const revision = ctx.locale.getSnapshot().revision
+      if (version !== footerVersion || revision !== footerRevision) {
+        footerVersion = version
+        footerRevision = revision
+        footer = ctx.slots.entriesOfSlot('settings.models.footer')
+          .map(entry => ({
+            /* v8 ignore next -- list-slot registration requires id */
+            id: entry.options.id ?? '',
+            order: entry.options.order ?? 0,
+            label: resolveSlotLabel(entry.options.label) ?? '',
+          }))
+          .sort((a, b) => a.order - b.order)
+          .map(({ id, label }) => ({ id, label }))
+      }
+      return footer
+    },
+    subscribe: (listener) => {
+      const offLedger = ctx.slots.subscribe('settings.models.footer', listener)
+      const offLocale = ctx.locale.subscribe(listener)
+      return () => {
+        offLedger()
+        offLocale()
+      }
+    },
+  }
   const injected = (): ModelsSectionInjected => ({
     controller,
-    hooks: { snapshot: controller.store },
+    hooks: { snapshot: controller.store, footer: footerSource },
     operations,
     schema,
     t,

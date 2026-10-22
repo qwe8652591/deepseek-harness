@@ -25,6 +25,7 @@ import { useId, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Button, IconPlusOutlineRegular, Modal, SegmentedControl } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
+import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
 import type { LlmNativeAuth, SettingsNamespaceView } from '@deepseek-ai/dsh-api-remotes/client'
 // Type-only: pulls this package's SlotMap merge (the two Models child slots).
 import type {} from './slot-contract.ts'
@@ -44,6 +45,8 @@ export interface ModelsSectionInjected {
   hooks: {
     /** Page snapshot bound by the UI renderer as useSnapshot. */
     snapshot: ModelsSettingsStore['store']
+    /** `settings.models.footer` entries in display order, bound as useFooter. */
+    footer: ObservableSnapshot<readonly ModelsFooterGroup[]>
   }
   /** The Host operations the section and its cards invoke. */
   operations: ModelsOperations
@@ -52,6 +55,19 @@ export interface ModelsSectionInjected {
   /** Section copy. */
   t: (key: keyof typeof en) => string
 }
+
+/** One `settings.models.footer` entry as the page lists it. */
+export interface ModelsFooterGroup {
+  /** The entry id. */
+  id: string
+  /** The resolved entry label; empty when the entry has none. */
+  label: string
+}
+
+const NO_FOOTER: readonly ModelsFooterGroup[] = []
+
+/** Footer hook used when the face carries none: no footer entries. */
+const useNoFooter: ModelsSectionFace['useFooter'] = selector => selector(NO_FOOTER)
 
 /**
  * The two ways the add card gains a provider: adopt a directory row the
@@ -236,17 +252,21 @@ export function providerCopy(template: string, target: ProviderIdentity): string
  * @returns the section, or null while the shell has not injected yet.
  */
 export function ModelsSection(props: ModelsSectionProps): ReactNode {
-  const { controller, useSnapshot, operations, schema, t, renderSlot } = props
+  const { controller, useSnapshot, useFooter = useNoFooter, operations, schema, t, renderSlot } = props
   if (
     controller === undefined || useSnapshot === undefined || operations === undefined
     || schema === undefined || t === undefined
   ) return null
-  return <Loaded injected={{ controller, useSnapshot, operations, schema, t }} renderSlot={renderSlot} />
+  return <Loaded injected={{ controller, useSnapshot, useFooter, operations, schema, t }} renderSlot={renderSlot} />
 }
 
 function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderSlot: ModelsRenderSlot }): ReactNode {
   const { controller, operations, schema, t } = injected
   const snapshot = injected.useSnapshot(value => value)
+  // With footer entries the page groups its content: the provider list under a
+  // chat-models heading, then each footer entry under its own label.
+  const footer = injected.useFooter(value => value)
+  const grouped = footer.length > 0
   const state = { ...snapshot, rows: snapshot.rows.map(row => row.entry.provider === 'deepseek-account'
     ? { ...row, entry: { ...row.entry, displayName: t('deepSeekAccount') } } : row) }
   /** A new or failed surface waits for a current snapshot; background refreshes preserve its drafts. */
@@ -422,6 +442,7 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
             {providerCopy(t('savedProvider'), savedIdentity)}
           </p>
         )}
+      {grouped ? <h3 className={styles['groupTitle']}>{t('chatModels')}</h3> : null}
       <ul className={styles['rows']}>
         {configured.map((row) => {
           const target = targetOf(row)
@@ -717,7 +738,14 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
             )
             : null}
       </div>
-      {renderSlot('settings.models.footer', {})}
+      {grouped
+        ? footer.map(group => (
+          <section key={group.id} className={styles['group']}>
+            {group.label === '' ? null : <h3 className={styles['groupTitle']}>{group.label}</h3>}
+            {renderSlot('settings.models.footer', {}, { only: group.id })}
+          </section>
+        ))
+        : renderSlot('settings.models.footer', {})}
       <Modal
         open={deleteTarget !== undefined}
         onClose={closeDelete}

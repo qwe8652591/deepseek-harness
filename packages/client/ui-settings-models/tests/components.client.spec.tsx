@@ -672,6 +672,29 @@ describe('ModelsSection', () => {
     ])
   })
 
+  it('groups the page under a chat-models heading and one labelled group per footer entry', async () => {
+    const scripted = scriptedFace()
+    const ctx = ctxWith(scripted.face)
+    const controller = new ModelsSettingsStore(ctx, settingsSchema, new SettingsDescribeMirror(ctx))
+    await controller.load()
+    const renderSlot = stubRenderSlot()
+    const groups = [{ id: 'images', label: 'Image models' }, { id: 'bare', label: '' }]
+    render(<ModelsSection
+      controller={controller}
+      useSnapshot={bindSnapshotSelector(controller.store)}
+      useFooter={selector => selector(groups)}
+      operations={operationsWith(scripted.face)}
+      schema={settingsSchema}
+      t={t}
+      renderSlot={renderSlot as unknown as ModelsSectionProps['renderSlot']}
+    />)
+    expect(screen.getAllByRole('heading', { level: 3 }).map(heading => heading.textContent)).toEqual([en.chatModels, 'Image models'])
+    expect(renderSlot.mock.calls.filter(call => call[0] === 'settings.models.footer')).toEqual([
+      ['settings.models.footer', {}, { only: 'images' }],
+      ['settings.models.footer', {}, { only: 'bare' }],
+    ])
+  })
+
   it('dispatches the provider-card seat inside the first-run setup card', async () => {
     const { renderSlot } = await mountFirstRun()
     expect(cardSeatCalls(renderSlot)).toContainEqual(['deepseek-official', true, false, 'llm-deepseek'])

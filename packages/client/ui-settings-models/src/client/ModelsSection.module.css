@@ -40,6 +40,26 @@
   color: var(--dsw-alias-state-success-primary);
 }
 
+/* Shown only when footer entries group the page: the provider list under the
+   chat-models heading, each footer entry under its own label. */
+.groupTitle {
+  margin: 12px 0 0;
+  font-size: 14px;
+  line-height: 22px;
+  font-weight: 500;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.groupTitle + .rows {
+  margin-top: 0;
+}
+
 .rows {
   list-style: none;
   /* Extra air between the title/intro block and the first provider card. */
