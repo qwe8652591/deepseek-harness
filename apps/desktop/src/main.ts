@@ -28,6 +28,7 @@ import {
 import { resolveDesktopPaths } from './paths.ts'
 import { DesktopProjectManager } from './project-manager.ts'
 import { DesktopHostFatalError, DesktopHostProcess, DesktopHostUncleanExitError } from './host-process.ts'
+import { DesktopClientView, DesktopWebView } from './client-view.ts'
 import { DesktopPlatformView, PLATFORM_IPC, platformBounds } from './platform-view.ts'
 import { installDesktopDirectoryPicker } from './directory-picker.ts'
 import { installMicrophonePermissions } from './microphone-permissions.ts'
@@ -435,6 +436,19 @@ async function main(): Promise<void> {
   const applicationUrl = `${SCHEME}://app/`
   let hostUrl: string | undefined
   let hostCookie: string | undefined
+  const clientView = new DesktopClientView({ url: applicationUrl, preload: appPreload,
+    additionalArguments: workbenchAccount === undefined ? [] : ['--workbench-platform-account'] })
+  // Website sign-ins persist per account, apart from the application, the Host and the sidebar browser.
+  const webView = new DesktopWebView({
+    partition: workbenchAccount === undefined ? 'web-ui'
+      : `persist:web-ui-${createHash('sha256').update(workbenchAccount.home()).digest('hex').slice(0, 32)}`,
+    loginTitle: origin => currentDesktopLocale().id === 'zh-CN' ? `登录 ${origin}` : `Sign in to ${origin}`,
+  })
+  /** Read-only product IPC that the offscreen client view also needs to render the same page: profile and update status. */
+  const assertProductReader = (event: IpcMainInvokeEvent): void => {
+    if (clientView.owns(event.sender) && event.senderFrame === event.sender.mainFrame) { assertDesktopSender(event, ['app']); return }
+    assertProductSender(event)
+  }
   // Signed-in accounts keep guest storage per account (unified login inside app panels survives restarts).
   const browserGuests = new DesktopBrowserGuests(() => hostUrl,
     workbenchAccount === undefined ? undefined : createHash('sha256').update(workbenchAccount.home()).digest('hex').slice(0, 32))
@@ -482,7 +496,8 @@ async function main(): Promise<void> {
     const host = new DesktopHostProcess(resources.node, resources.dsh, activeProject,
       hostInspectPort, { ...hostEnvironment, DSH_CLIENT_VERSION: desktopClientVersion() }, onFailure,
       primaryRuntime,
-      resources, (next) => { platformView.setSession(next) })
+      resources, (next) => { platformView.setSession(next) },
+      request => (typeof request === 'object' && request !== null && 'view' in request && request.view === 'web' ? webView : clientView).handle(request))
     return {
       start: async () => {
         const ready = await host.start()
@@ -536,6 +551,9 @@ async function main(): Promise<void> {
       stop: async () => {
         analyticsEnabled = false
         stopAccount?.()
+        // The views belong to this Host run; a restarted Host starts without them.
+        clientView.close()
+        webView.close()
         try { await host.stop(requireCleanStop) }
         catch (error) {
           if (!requireCleanStop || !(error instanceof DesktopHostUncleanExitError)) throw error
@@ -758,7 +776,8 @@ async function main(): Promise<void> {
   })
 
   session.defaultSession.webRequest.onBeforeSendHeaders({ urls: ['ws://127.0.0.1/*', 'wss://127.0.0.1/*'] }, (details, callback) => {
-    if (hostUrl === undefined || hostCookie === undefined || details.webContentsId !== mainWindow?.webContents.id) {
+    if (hostUrl === undefined || hostCookie === undefined
+      || (details.webContentsId !== mainWindow?.webContents.id && details.webContentsId !== clientView.webContentsId)) {
       callback({})
       return
     }
@@ -796,7 +815,9 @@ async function main(): Promise<void> {
     if (source === 'light' || source === 'dark' || source === 'system') nativeTheme.themeSource = source
   })
   ipcMain.handle(DESKTOP_IPC.localeBootstrap, async (event) => {
-    if (event.sender !== mainWindow?.webContents || event.senderFrame !== mainWindow.webContents.mainFrame
+    // The offscreen client view boots the same page and reads the locale the same way.
+    const owner = clientView.owns(event.sender) ? event.sender : mainWindow?.webContents
+    if (event.sender !== owner || event.senderFrame !== owner.mainFrame
       || new URL(event.senderFrame.url).origin !== new URL(applicationUrl).origin) {
       throw new Error('desktop welcome: rejected locale request from an unowned frame')
     }
@@ -815,7 +836,7 @@ async function main(): Promise<void> {
     refreshApplicationMenu()
   })
   ipcMain.handle(DESKTOP_IPC.updatesStatus, (event) => {
-    assertProductSender(event)
+    assertProductReader(event)
     return presentDesktopUpdate(updates.state)
   })
   ipcMain.handle(DESKTOP_IPC.deviceInfo, (event) => {
@@ -1409,7 +1430,7 @@ async function main(): Promise<void> {
   // Signing out, here or anywhere else (unified sign-out), also erases this account's app panel storage;
   // an expired session alone keeps it for the same account.
   if (activeWorkbenchAccount !== undefined) installWorkbenchAccountBridge(activeWorkbenchAccount, assertProductSender, restartWorkbench,
-    () => browserGuests.clearAccountStorage())
+    () => browserGuests.clearAccountStorage(), assertProductReader)
   workbenchAccountPoll.timer = activeWorkbenchAccount === undefined ? undefined : setInterval(() => {
     if (checkingWorkbenchAccount || quitting) return
     checkingWorkbenchAccount = true
