@@ -456,6 +456,8 @@ export interface WebViewOptions {
 export class DesktopWebView extends OffscreenView {
   private loginWindow: BrowserWindow | undefined
   private prepared: Session | undefined
+  /** Address of the latest `open`; after sign-in the hidden page returns here instead of replaying a stale sign-in URL. */
+  private target: string | undefined
 
   /** @param options - partition and login window title. */
   constructor(private readonly options: WebViewOptions) { super('web') }
@@ -499,6 +501,7 @@ export class DesktopWebView extends OffscreenView {
 
   protected async load(window: BrowserWindow, url: string | undefined): Promise<void> {
     if (url === undefined) throw new Error('web view: open needs a url')
+    this.target = url
     try { await window.loadURL(url) }
     catch (error) {
       // An aborted load means the page redirected itself; a failed one is reported with the network error.
@@ -528,9 +531,12 @@ export class DesktopWebView extends OffscreenView {
     login.once('ready-to-show', () => { login.show(); login.focus() })
     login.on('closed', () => {
       if (this.loginWindow === login) this.loginWindow = undefined
-      // The hidden page picks up the new sign-in.
+      // The hidden page picks up the new sign-in at the address the agent asked for.
       const view = this.window
-      if (view !== undefined && !view.isDestroyed()) view.webContents.reload()
+      if (view !== undefined && !view.isDestroyed()) {
+        if (this.target === undefined) view.webContents.reload()
+        else void view.loadURL(this.target).catch(() => undefined)
+      }
     })
     void login.loadURL(target).catch(() => undefined)
     return { op: 'login', page: await this.outline() }
