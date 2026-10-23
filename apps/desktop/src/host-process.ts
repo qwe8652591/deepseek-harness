@@ -23,7 +23,14 @@ interface PlatformSessionEvent {
   readonly session: PlatformSession | null
 }
 
-type DesktopHostEvent = ReadyEvent | FatalEvent | PlatformSessionEvent | { readonly type: 'shutdown-complete' } | {
+/** Host request for the offscreen client view; the payload is validated by the view. */
+interface ClientViewEvent {
+  readonly type: 'client-view'
+  readonly requestId: number
+  readonly request: unknown
+}
+
+type DesktopHostEvent = ReadyEvent | FatalEvent | PlatformSessionEvent | ClientViewEvent | { readonly type: 'shutdown-complete' } | {
   readonly type: 'update-tasks'
   readonly requestId: number
   readonly active: boolean
@@ -37,7 +44,7 @@ type DesktopHostEvent = ReadyEvent | FatalEvent | PlatformSessionEvent | { reado
 }
 
 /** Correlated answer to one shell control request. */
-type DesktopHostControlResponse = Extract<DesktopHostEvent, { readonly requestId: number }>
+type DesktopHostControlResponse = Extract<DesktopHostEvent, { readonly type: 'update-tasks' | 'quit-inspection' }>
 
 /** What quitting now would affect, as reported by the Host. */
 export interface DesktopQuitInspection {
@@ -79,6 +86,8 @@ function isDesktopHostEvent(message: unknown): message is DesktopHostEvent {
     }
     case 'fatal':
       return typeof candidate.message === 'string' && (candidate.diagnostic === undefined || typeof candidate.diagnostic === 'string')
+    case 'client-view':
+      return Number.isSafeInteger(candidate.requestId) && 'request' in candidate
     case 'update-tasks':
       return Number.isSafeInteger(candidate.requestId) && typeof candidate.active === 'boolean'
         && (candidate.error === undefined || typeof candidate.error === 'string')
@@ -167,6 +176,7 @@ export class DesktopHostProcess {
    *   `office-skills` resources fail Host startup.
    * @param packageManager - Bundled pnpm entry and Node launcher directory, scoped to package operations.
    * @param onPlatformSession - Private credential updates for embedded Platform views.
+   * @param onClientView - Runs one offscreen client-view request; its result or error message is sent back to the Host.
    */
   constructor(
     private readonly node: string,
@@ -179,6 +189,7 @@ export class DesktopHostProcess {
     private readonly packageManager?: { readonly pnpm: string; readonly nodeBin: string },
 
     private readonly onPlatformSession?: (session: PlatformSession | null) => void,
+    private readonly onClientView?: (request: unknown) => Promise<unknown>,
   ) {}
 
   /**
@@ -213,6 +224,15 @@ export class DesktopHostProcess {
       }
       if (message.type === 'ready') this.readyResolve({ url: message.url, injections: message.injections })
       else if (message.type === 'platform-session') this.onPlatformSession?.(message.session)
+      else if (message.type === 'client-view') {
+        const { requestId } = message
+        const reply = (answer: object): void => { if (child.connected) child.send({ type: 'client-view-result', requestId, ...answer }, () => undefined) }
+        if (this.onClientView === undefined) { reply({ error: 'client view: unavailable in this shell' }); return }
+        this.onClientView(message.request).then(
+          (value) => { reply({ value }) },
+          (error: unknown) => { reply({ error: error instanceof Error ? error.message : String(error) }) },
+        )
+      }
       else if (message.type === 'shutdown-complete') {
         if (this.stopping) this.shutdownCompleted = true
         else this.fail(new Error('dsh desktop host acknowledged an unrequested shutdown'))

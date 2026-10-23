@@ -15,6 +15,8 @@ import { installDesktopUpdateTaskControl } from './update-tasks.ts'
 import { installDesktopQuitInspection } from './quit-inspection.ts'
 import { installPlatformSessionPublisher } from './platform-session.ts'
 import { installOfficeEngineResolution } from './office-engine.ts'
+import { createClientViewChannel } from './client-view-channel.ts'
+import { installClientView } from './client-view-tool.ts'
 
 async function main(): Promise<void> {
   const runtimeDir = process.argv[2] as string
@@ -60,9 +62,12 @@ async function main(): Promise<void> {
     await send({ type: 'shutdown-complete' })
     if (process.connected) process.disconnect()
   })()
+  const clientView = createClientViewChannel(message => process.connected
+    ? send(message) : Promise.reject(new Error('client view: the desktop shell is not connected')))
   process.on('message', (message: unknown) => {
     if (typeof message !== 'object' || message === null || !('type' in message)) return
     if (message.type === 'shutdown') { void stop(); return }
+    if (message.type === 'client-view-result') { clientView.receive(message); return }
     if (message.type === 'quit-inspection') {
       if (!('requestId' in message) || !Number.isSafeInteger(message.requestId)) return
       const requestId = message.requestId
@@ -104,6 +109,7 @@ async function main(): Promise<void> {
   installPlatformSessionPublisher(ctx, (session) => {
     if (process.connected) process.send?.({ type: 'platform-session', session })
   })
+  installClientView(ctx, clientView.request)
   const url = ctx.connection.authenticatedUrl(`${ctx.webServer.protocol}//127.0.0.1:${String(ctx.webServer.port)}`)
   if (process.connected) process.send?.({ type: 'ready', url, injections: ctx.webServer.collectIndexInjections() }, (error) => { if (error !== null) console.error(error) })
 }

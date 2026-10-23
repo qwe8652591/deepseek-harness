@@ -13,11 +13,13 @@ import { DESKTOP_IPC, assertDesktopSender } from './ipc.ts'
  * @param platform - local device platform.
  * @param updateMenu - rebuild the application menu when the close accelerator or availability changes.
  * @param overlayInput - Current shell-owned input blocking state for the product window.
+ * @param isReadOnlyView - Admits a read-only copy of the application page to shortcut reads; it never edits or records.
  * @returns menu construction, editor key delivery, window attachment, and teardown operations.
  */
 export function installDesktopShortcuts(
   getWindow: () => BrowserWindow | undefined, userData: string, platform: ShortcutPlatform, updateMenu: () => void,
   overlayInput: (window: BrowserWindow) => { readonly revision: number; readonly blocked: boolean },
+  isReadOnlyView: (event: IpcMainInvokeEvent) => boolean = () => false,
 ): {
   fileMenu(labels: { fileMenu: string; closePage: string }): MenuItemConstructorOptions
   /**
@@ -78,6 +80,8 @@ export function installDesktopShortcuts(
     return window
   }
   ipcMain.handle(DESKTOP_IPC.shortcutsGet, async (event, input: unknown) => {
+    // The read-only view shares the primary window's definitions; only the primary window replaces them.
+    if (isReadOnlyView(event)) { assertDesktopSender(event, ['app']); return persistence.readCurrent() }
     assertSender(event)
     definitions = parseShortcutDefinitions(input)
     persistence.setDefinitions(definitions)

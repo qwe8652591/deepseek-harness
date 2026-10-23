@@ -22,12 +22,14 @@ import {
   protocol,
   session,
   shell,
+  type IpcMainEvent,
   type IpcMainInvokeEvent,
   type MenuItemConstructorOptions,
 } from 'electron'
 import { resolveDesktopPaths } from './paths.ts'
 import { DesktopProjectManager } from './project-manager.ts'
 import { DesktopHostFatalError, DesktopHostProcess, DesktopHostUncleanExitError } from './host-process.ts'
+import { DesktopClientView } from './client-view.ts'
 import { DesktopPlatformView, PLATFORM_IPC, platformBounds } from './platform-view.ts'
 import { installDesktopDirectoryPicker } from './directory-picker.ts'
 import { installMicrophonePermissions } from './microphone-permissions.ts'
@@ -435,6 +437,11 @@ async function main(): Promise<void> {
   const applicationUrl = `${SCHEME}://app/`
   let hostUrl: string | undefined
   let hostCookie: string | undefined
+  const clientView = new DesktopClientView({ url: applicationUrl, preload: appPreload,
+    additionalArguments: workbenchAccount === undefined ? [] : ['--workbench-platform-account'] })
+  /** The offscreen client view's main frame; it may use read-only shell IPC only. */
+  const isClientView = (event: IpcMainInvokeEvent | IpcMainEvent): boolean =>
+    clientView.owns(event.sender) && event.senderFrame === event.sender.mainFrame
   // Signed-in accounts keep guest storage per account (unified login inside app panels survives restarts).
   const browserGuests = new DesktopBrowserGuests(() => hostUrl,
     workbenchAccount === undefined ? undefined : createHash('sha256').update(workbenchAccount.home()).digest('hex').slice(0, 32))
@@ -460,6 +467,11 @@ async function main(): Promise<void> {
       throw new Error('dsh desktop: rejected IPC from an unowned renderer')
     }
   }
+  /** Read-only product IPC: the primary window or the offscreen client view. */
+  const assertProductReader = (event: IpcMainInvokeEvent): void => {
+    if (isClientView(event)) { assertDesktopSender(event, ['app']); return }
+    assertProductSender(event)
+  }
   let navigation: { window: BrowserWindow; url: string; promise: Promise<void> } | undefined
   const navigateMain = (url: string): Promise<void> => {
     const window = mainWindow
@@ -482,7 +494,7 @@ async function main(): Promise<void> {
     const host = new DesktopHostProcess(resources.node, resources.dsh, activeProject,
       hostInspectPort, { ...hostEnvironment, DSH_CLIENT_VERSION: desktopClientVersion() }, onFailure,
       primaryRuntime,
-      resources, (next) => { platformView.setSession(next) })
+      resources, (next) => { platformView.setSession(next) }, request => clientView.handle(request))
     return {
       start: async () => {
         const ready = await host.start()
@@ -536,6 +548,8 @@ async function main(): Promise<void> {
       stop: async () => {
         analyticsEnabled = false
         stopAccount?.()
+        // The view belongs to this Host run; a restarted Host starts without one.
+        clientView.close()
         try { await host.stop(requireCleanStop) }
         catch (error) {
           if (!requireCleanStop || !(error instanceof DesktopHostUncleanExitError)) throw error
@@ -729,7 +743,8 @@ async function main(): Promise<void> {
   app.once('will-quit', stopActivation)
   installMicrophonePermissions(session.defaultSession, () => mainWindow?.webContents)
   const shortcuts = installDesktopShortcuts(() => mainWindow, app.getPath('userData'),
-    process.platform === 'darwin' ? 'macos' : process.platform === 'win32' ? 'windows' : 'linux', () => { refreshApplicationMenu() }, window => updateOverlays.input(window))
+    process.platform === 'darwin' ? 'macos' : process.platform === 'win32' ? 'windows' : 'linux', () => { refreshApplicationMenu() }, window => updateOverlays.input(window),
+    isClientView)
   app.on('will-quit', () => { shortcuts.dispose() })
 
   ipcMain.handle(DESKTOP_IPC.boot, async (event) => {
@@ -758,7 +773,8 @@ async function main(): Promise<void> {
   })
 
   session.defaultSession.webRequest.onBeforeSendHeaders({ urls: ['ws://127.0.0.1/*', 'wss://127.0.0.1/*'] }, (details, callback) => {
-    if (hostUrl === undefined || hostCookie === undefined || details.webContentsId !== mainWindow?.webContents.id) {
+    if (hostUrl === undefined || hostCookie === undefined
+      || (details.webContentsId !== mainWindow?.webContents.id && details.webContentsId !== clientView.webContentsId)) {
       callback({})
       return
     }
@@ -796,7 +812,8 @@ async function main(): Promise<void> {
     if (source === 'light' || source === 'dark' || source === 'system') nativeTheme.themeSource = source
   })
   ipcMain.handle(DESKTOP_IPC.localeBootstrap, async (event) => {
-    if (event.sender !== mainWindow?.webContents || event.senderFrame !== mainWindow.webContents.mainFrame
+    const owner = isClientView(event) ? event.sender : mainWindow?.webContents
+    if (event.sender !== owner || event.senderFrame !== owner.mainFrame
       || new URL(event.senderFrame.url).origin !== new URL(applicationUrl).origin) {
       throw new Error('desktop welcome: rejected locale request from an unowned frame')
     }
@@ -815,11 +832,11 @@ async function main(): Promise<void> {
     refreshApplicationMenu()
   })
   ipcMain.handle(DESKTOP_IPC.updatesStatus, (event) => {
-    assertProductSender(event)
+    assertProductReader(event)
     return presentDesktopUpdate(updates.state)
   })
   ipcMain.handle(DESKTOP_IPC.deviceInfo, (event) => {
-    assertProductSender(event)
+    assertProductReader(event)
     return readDeviceInfo()
   })
   // The page has already asked the user in its own dialog (for example after a plugin update that needs a
@@ -1409,7 +1426,7 @@ async function main(): Promise<void> {
   // Signing out, here or anywhere else (unified sign-out), also erases this account's app panel storage;
   // an expired session alone keeps it for the same account.
   if (activeWorkbenchAccount !== undefined) installWorkbenchAccountBridge(activeWorkbenchAccount, assertProductSender, restartWorkbench,
-    () => browserGuests.clearAccountStorage())
+    () => browserGuests.clearAccountStorage(), assertProductReader)
   workbenchAccountPoll.timer = activeWorkbenchAccount === undefined ? undefined : setInterval(() => {
     if (checkingWorkbenchAccount || quitting) return
     checkingWorkbenchAccount = true
