@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { CLIENT_VIEW_IDLE_MS, decideClientUi, forbiddenWord, type ClientVisit, type OutlinePage } from '../src/client-view-policy.ts'
 
 const page: OutlinePage = {
-  title: '工作台', path: '/',
+  title: '查看工作台页面并截图 — DSH', heading: '工作台', path: '/',
   elements: [
     { ref: 'e1', role: 'button', text: '工作台' },
     { ref: 'e2', role: 'button', text: '退出登录' },

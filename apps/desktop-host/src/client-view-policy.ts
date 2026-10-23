@@ -38,6 +38,8 @@ export interface OutlineElement {
 /** The page a visit last saw. */
 export interface OutlinePage {
   readonly title: string
+  /** First visible heading on the page; empty when there is none. */
+  readonly heading?: string
   readonly path: string
   readonly elements: readonly OutlineElement[]
 }
@@ -90,7 +92,7 @@ export function isLive(visit: ClientVisit | undefined, now: number): visit is Cl
 }
 
 const clip = (text: string, length: number): string => text.length > length ? `${text.slice(0, length)}…` : text
-const where = (page: OutlinePage): string => `${page.title || page.path}`
+const where = (page: OutlinePage): string => page.heading || page.title || page.path
 
 /**
  * Decide one `client_ui` call.

@@ -38,6 +38,8 @@ export interface ClientViewElement {
 /** What the page shows now. */
 export interface ClientViewPage {
   readonly title: string
+  /** First visible heading, or empty. */
+  readonly heading: string
   readonly path: string
   readonly width: number
   readonly height: number
@@ -54,7 +56,10 @@ export type ClientViewResponse =
 
 const PAGE_TEXT_LIMIT = 4000
 const READY_TIMEOUT_MS = 20_000
+/** Below the Host channel deadline, so the Host receives this message rather than its own timeout. */
+const OPERATION_TIMEOUT_MS = 45_000
 const SETTLE_MS = 600
+const CLICK_SETTLE_MS = 1200
 const REF_ATTRIBUTE = 'data-client-view-ref'
 
 const KEY_CODES: Record<ClientViewKey, number> = {
@@ -120,13 +125,17 @@ const OUTLINE_SCRIPT = `(() => {
     if (!text) continue
     const ref = 'e' + (elements.length + 1)
     element.setAttribute(attribute, ref)
-    elements.push({ ref, role: element.getAttribute('role') || (element.tagName.toLowerCase() + (element.type ? ':' + element.type : '')), text,
+    const role = element.getAttribute('role') || (element.tagName.toLowerCase() + (element.tagName === 'INPUT' ? ':' + element.type : ''))
+    elements.push({ ref, role, text,
       x: Math.round(box.x), y: Math.round(box.y), width: Math.round(box.width), height: Math.round(box.height),
       disabled: element.disabled === true || element.getAttribute('aria-disabled') === 'true' })
     if (elements.length >= 300) break
   }
-  return { title: document.title, path: location.pathname + location.hash, width: innerWidth, height: innerHeight,
-    text: (document.body ? document.body.innerText : '').replace(/\\n{3,}/g, '\\n\\n').slice(0, ${String(PAGE_TEXT_LIMIT)}), elements }
+  const heading = [...document.querySelectorAll('h1,h2,[role=heading]')]
+    .find(node => { const box = node.getBoundingClientRect(); return box.width > 0 && box.height > 0 && box.top < innerHeight })
+  return { title: document.title, heading: heading ? heading.innerText.replace(/\\s+/g, ' ').trim().slice(0, 80) : '',
+    path: location.pathname + location.hash, width: innerWidth, height: innerHeight,
+    text:(document.body ? document.body.innerText : '').replace(/\\n{3,}/g, '\\n\\n').slice(0, ${String(PAGE_TEXT_LIMIT)}), elements }
 })()`
 
 /** Page script: locate one numbered element, scroll it into view, and report its current text and centre. */
@@ -184,9 +193,23 @@ export class DesktopClientView {
    * @returns the operation result; rejects with a message the Host shows to the agent.
    */
   handle(input: unknown): Promise<ClientViewResponse> {
-    const run = this.#queue.then(() => this.#run(parseClientViewRequest(input)), () => this.#run(parseClientViewRequest(input)))
+    const start = (): Promise<ClientViewResponse> => this.#bounded(parseClientViewRequest(input))
+    const run = this.#queue.then(start, start)
     this.#queue = run.catch(() => undefined)
     return run
+  }
+
+  /** One operation within {@link OPERATION_TIMEOUT_MS}; a stuck page is destroyed so later requests are not queued behind it. */
+  async #bounded(request: ClientViewRequest): Promise<ClientViewResponse> {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const timeout = new Promise<never>((_resolve, reject) => {
+      timer = setTimeout(() => {
+        this.close()
+        reject(new Error(`client view: ${request.op} did not finish in time; the view was closed`))
+      }, OPERATION_TIMEOUT_MS)
+    })
+    try { return await Promise.race([this.#run(request), timeout]) }
+    finally { clearTimeout(timer) }
   }
 
   /** Destroy the window; the next `open` loads a fresh copy. */
@@ -231,7 +254,8 @@ export class DesktopClientView {
             await this.#input('Input.dispatchMouseEvent', { type, x: target.x, y: target.y, button: 'left', clickCount: 1 })
           }
         }
-        await delay(SETTLE_MS)
+        // A click often opens a page whose content renders in a second pass.
+        await delay(request.op === 'click' ? CLICK_SETTLE_MS : SETTLE_MS)
         return { op: request.op, page: await this.#outline() }
       }
       case 'type': {
@@ -281,14 +305,15 @@ export class DesktopClientView {
     contents.on('will-navigate', (event, url) => { if (!url.startsWith(this.options.url)) event.preventDefault() })
     contents.on('will-redirect', (event, url) => { if (!url.startsWith(this.options.url)) event.preventDefault() })
     window.on('closed', () => { if (this.#window === window) this.#window = undefined })
-    contents.debugger.attach('1.3')
-    contents.debugger.on('message', (_event, method) => {
-      // Page dialogs would block the renderer; the view dismisses them.
-      if (method === 'Page.javascriptDialogOpening') void contents.debugger.sendCommand('Page.handleJavaScriptDialog', { accept: false }).catch(() => undefined)
-    })
-    await contents.debugger.sendCommand('Page.enable')
     try {
       await window.loadURL(this.options.url)
+      // The DevTools session attaches after the first load: Page.enable on a never-navigated offscreen page does not answer.
+      contents.debugger.attach('1.3')
+      contents.debugger.on('message', (_event, method) => {
+        // Page dialogs would block the renderer; the view dismisses them.
+        if (method === 'Page.javascriptDialogOpening') void contents.debugger.sendCommand('Page.handleJavaScriptDialog', { accept: false }).catch(() => undefined)
+      })
+      await contents.debugger.sendCommand('Page.enable')
       const deadline = Date.now() + READY_TIMEOUT_MS
       while ((await contents.executeJavaScript('document.querySelectorAll(\'button,[role=button],[role=treeitem]\').length') as number) < 3) {
         if (Date.now() > deadline) throw new Error('client view: the application page did not finish loading')

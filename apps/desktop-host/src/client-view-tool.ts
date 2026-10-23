@@ -29,6 +29,7 @@ interface ViewElement {
 
 /** A page outline returned by the shell. */
 interface ViewPage extends OutlinePage {
+  readonly heading: string
   readonly width: number
   readonly height: number
   readonly text: string
@@ -62,7 +63,7 @@ const clamp = (value: unknown, low: number, high: number, fallback: number): num
 export function renderOutline(page: ViewPage): string {
   const elements = page.elements.map(element => `${element.ref} ${element.role}${element.disabled ? ' (disabled)' : ''} "${element.text}"`)
   return [
-    `Page: ${page.title} (${page.path}), ${String(page.width)}×${String(page.height)}`,
+    `Page: ${page.heading || page.title} (${page.path}), ${String(page.width)}×${String(page.height)}`,
     `Elements (${String(page.elements.length)}):`, ...elements,
     'Visible text:', page.text,
   ].join('\n')
