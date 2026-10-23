@@ -39,6 +39,11 @@ describe('client_ui approval rules', () => {
     expect(decideClientUi({ action: 'press', key: 'Escape' }, me, visit('s1'), now).kind).toBe('ask')
   })
 
+  it('names the page by its heading, or by the window title without the conversation name', () => {
+    const untitled = { ...visit('s1'), page: { ...page, heading: '' } }
+    expect(decideClientUi({ action: 'click', ref: 'e1' }, me, untitled, now)).toMatchObject({ display: { zh: '在客户端界面点击「工作台」（button，页面：DSH）' } })
+  })
+
   it('refuses forbidden controls, Enter, stale refs and operations before a visit, without asking', () => {
     expect(decideClientUi({ action: 'click', ref: 'e2' }, me, visit('s1'), now)).toMatchObject({ kind: 'deny' })
     expect(decideClientUi({ action: 'click', ref: 'e4' }, me, visit('s1'), now)).toMatchObject({ kind: 'deny' })

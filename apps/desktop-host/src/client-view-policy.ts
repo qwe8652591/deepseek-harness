@@ -92,7 +92,8 @@ export function isLive(visit: ClientVisit | undefined, now: number): visit is Cl
 }
 
 const clip = (text: string, length: number): string => text.length > length ? `${text.slice(0, length)}…` : text
-const where = (page: OutlinePage): string => page.heading || page.title || page.path
+/** The window title is "<conversation> — <app>"; the conversation part is not the page's name. */
+const where = (page: OutlinePage): string => page.heading || page.title.split(' — ').at(-1) || page.path
 
 /**
  * Decide one `client_ui` call.
