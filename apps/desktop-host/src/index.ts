@@ -16,7 +16,7 @@ import { installDesktopQuitInspection } from './quit-inspection.ts'
 import { installPlatformSessionPublisher } from './platform-session.ts'
 import { installOfficeEngineResolution } from './office-engine.ts'
 import { createClientViewChannel } from './client-view-channel.ts'
-import { installClientView } from './client-view-tool.ts'
+import { provideDesktopViews } from './desktop-views.ts'
 
 async function main(): Promise<void> {
   const runtimeDir = process.argv[2] as string
@@ -109,7 +109,7 @@ async function main(): Promise<void> {
   installPlatformSessionPublisher(ctx, (session) => {
     if (process.connected) process.send?.({ type: 'platform-session', session })
   })
-  installClientView(ctx, clientView.request)
+  provideDesktopViews(ctx, clientView)
   const url = ctx.connection.authenticatedUrl(`${ctx.webServer.protocol}//127.0.0.1:${String(ctx.webServer.port)}`)
   if (process.connected) process.send?.({ type: 'ready', url, injections: ctx.webServer.collectIndexInjections() }, (error) => { if (error !== null) console.error(error) })
 }

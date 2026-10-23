@@ -22,7 +22,6 @@ import {
   protocol,
   session,
   shell,
-  type IpcMainEvent,
   type IpcMainInvokeEvent,
   type MenuItemConstructorOptions,
 } from 'electron'
@@ -445,9 +444,11 @@ async function main(): Promise<void> {
       : `persist:web-ui-${createHash('sha256').update(workbenchAccount.home()).digest('hex').slice(0, 32)}`,
     loginTitle: origin => currentDesktopLocale().id === 'zh-CN' ? `登录 ${origin}` : `Sign in to ${origin}`,
   })
-  /** The offscreen client view's main frame; it may use read-only shell IPC only. */
-  const isClientView = (event: IpcMainInvokeEvent | IpcMainEvent): boolean =>
-    clientView.owns(event.sender) && event.senderFrame === event.sender.mainFrame
+  /** Read-only product IPC that the offscreen client view also needs to render the same page: profile and update status. */
+  const assertProductReader = (event: IpcMainInvokeEvent): void => {
+    if (clientView.owns(event.sender) && event.senderFrame === event.sender.mainFrame) { assertDesktopSender(event, ['app']); return }
+    assertProductSender(event)
+  }
   // Signed-in accounts keep guest storage per account (unified login inside app panels survives restarts).
   const browserGuests = new DesktopBrowserGuests(() => hostUrl,
     workbenchAccount === undefined ? undefined : createHash('sha256').update(workbenchAccount.home()).digest('hex').slice(0, 32))
@@ -472,11 +473,6 @@ async function main(): Promise<void> {
       || event.senderFrame === null || event.senderFrame !== mainWindow.webContents.mainFrame) {
       throw new Error('dsh desktop: rejected IPC from an unowned renderer')
     }
-  }
-  /** Read-only product IPC: the primary window or the offscreen client view. */
-  const assertProductReader = (event: IpcMainInvokeEvent): void => {
-    if (isClientView(event)) { assertDesktopSender(event, ['app']); return }
-    assertProductSender(event)
   }
   let navigation: { window: BrowserWindow; url: string; promise: Promise<void> } | undefined
   const navigateMain = (url: string): Promise<void> => {
@@ -751,8 +747,7 @@ async function main(): Promise<void> {
   app.once('will-quit', stopActivation)
   installMicrophonePermissions(session.defaultSession, () => mainWindow?.webContents)
   const shortcuts = installDesktopShortcuts(() => mainWindow, app.getPath('userData'),
-    process.platform === 'darwin' ? 'macos' : process.platform === 'win32' ? 'windows' : 'linux', () => { refreshApplicationMenu() }, window => updateOverlays.input(window),
-    isClientView)
+    process.platform === 'darwin' ? 'macos' : process.platform === 'win32' ? 'windows' : 'linux', () => { refreshApplicationMenu() }, window => updateOverlays.input(window))
   app.on('will-quit', () => { shortcuts.dispose() })
 
   ipcMain.handle(DESKTOP_IPC.boot, async (event) => {
@@ -820,7 +815,8 @@ async function main(): Promise<void> {
     if (source === 'light' || source === 'dark' || source === 'system') nativeTheme.themeSource = source
   })
   ipcMain.handle(DESKTOP_IPC.localeBootstrap, async (event) => {
-    const owner = isClientView(event) ? event.sender : mainWindow?.webContents
+    // The offscreen client view boots the same page and reads the locale the same way.
+    const owner = clientView.owns(event.sender) ? event.sender : mainWindow?.webContents
     if (event.sender !== owner || event.senderFrame !== owner.mainFrame
       || new URL(event.senderFrame.url).origin !== new URL(applicationUrl).origin) {
       throw new Error('desktop welcome: rejected locale request from an unowned frame')
@@ -844,7 +840,7 @@ async function main(): Promise<void> {
     return presentDesktopUpdate(updates.state)
   })
   ipcMain.handle(DESKTOP_IPC.deviceInfo, (event) => {
-    assertProductReader(event)
+    assertProductSender(event)
     return readDeviceInfo()
   })
   // The page has already asked the user in its own dialog (for example after a plugin update that needs a

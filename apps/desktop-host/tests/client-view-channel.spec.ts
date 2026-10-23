@@ -1,7 +1,5 @@
-import { join, resolve } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { createClientViewChannel } from '../src/client-view-channel.ts'
-import { renderOutline, screenshotFolder, screenshotName } from '../src/client-view-tool.ts'
 
 describe('client view channel', () => {
   it('matches answers to requests and rejects with the shell error', async () => {
@@ -29,27 +27,5 @@ describe('client view channel', () => {
   it('rejects at once when the shell is gone', async () => {
     const channel = createClientViewChannel(() => Promise.reject(new Error('client view: the desktop shell is not connected')))
     await expect(channel.request({ op: 'look' })).rejects.toThrow('not connected')
-  })
-})
-
-describe('client_ui files and text', () => {
-  const root = resolve('/workspace')
-
-  it('keeps screenshots inside the workspace', () => {
-    expect(screenshotFolder(root, 'videos/demo/ref')).toBe(join(root, 'videos', 'demo', 'ref'))
-    expect(() => screenshotFolder(root, '../outside')).toThrow('inside the workspace')
-    expect(() => screenshotFolder(root, resolve('/elsewhere'))).toThrow('inside the workspace')
-  })
-
-  it('accepts plain names and defaults to a timestamp', () => {
-    expect(screenshotName('模板库-首页')).toBe('模板库-首页')
-    expect(screenshotName(undefined)).toMatch(/^page-\d{8}T\d{6}$/)
-    expect(() => screenshotName('../x')).toThrow()
-  })
-
-  it('renders the outline as numbered elements and visible text', () => {
-    const text = renderOutline({ title: 'DSH', heading: '工作台', origin: 'dsh-app://app', path: '/', width: 1440, height: 900, text: '探索未至之境',
-      elements: [{ ref: 'e1', role: 'button', text: '新会话', x: 0, y: 0, width: 10, height: 10, disabled: false }] })
-    expect(text).toBe('Page: 工作台 (/), 1440×900\nElements (1):\ne1 button "新会话"\nVisible text:\n探索未至之境')
   })
 })
