@@ -29,7 +29,7 @@ import {
 import { resolveDesktopPaths } from './paths.ts'
 import { DesktopProjectManager } from './project-manager.ts'
 import { DesktopHostFatalError, DesktopHostProcess, DesktopHostUncleanExitError } from './host-process.ts'
-import { DesktopClientView } from './client-view.ts'
+import { DesktopClientView, DesktopWebView } from './client-view.ts'
 import { DesktopPlatformView, PLATFORM_IPC, platformBounds } from './platform-view.ts'
 import { installDesktopDirectoryPicker } from './directory-picker.ts'
 import { installMicrophonePermissions } from './microphone-permissions.ts'
@@ -439,6 +439,12 @@ async function main(): Promise<void> {
   let hostCookie: string | undefined
   const clientView = new DesktopClientView({ url: applicationUrl, preload: appPreload,
     additionalArguments: workbenchAccount === undefined ? [] : ['--workbench-platform-account'] })
+  // Website sign-ins persist per account, apart from the application, the Host and the sidebar browser.
+  const webView = new DesktopWebView({
+    partition: workbenchAccount === undefined ? 'web-ui'
+      : `persist:web-ui-${createHash('sha256').update(workbenchAccount.home()).digest('hex').slice(0, 32)}`,
+    loginTitle: origin => currentDesktopLocale().id === 'zh-CN' ? `登录 ${origin}` : `Sign in to ${origin}`,
+  })
   /** The offscreen client view's main frame; it may use read-only shell IPC only. */
   const isClientView = (event: IpcMainInvokeEvent | IpcMainEvent): boolean =>
     clientView.owns(event.sender) && event.senderFrame === event.sender.mainFrame
@@ -494,7 +500,8 @@ async function main(): Promise<void> {
     const host = new DesktopHostProcess(resources.node, resources.dsh, activeProject,
       hostInspectPort, { ...hostEnvironment, DSH_CLIENT_VERSION: desktopClientVersion() }, onFailure,
       primaryRuntime,
-      resources, (next) => { platformView.setSession(next) }, request => clientView.handle(request))
+      resources, (next) => { platformView.setSession(next) },
+      request => (typeof request === 'object' && request !== null && 'view' in request && request.view === 'web' ? webView : clientView).handle(request))
     return {
       start: async () => {
         const ready = await host.start()
@@ -548,8 +555,9 @@ async function main(): Promise<void> {
       stop: async () => {
         analyticsEnabled = false
         stopAccount?.()
-        // The view belongs to this Host run; a restarted Host starts without one.
+        // The views belong to this Host run; a restarted Host starts without them.
         clientView.close()
+        webView.close()
         try { await host.stop(requireCleanStop) }
         catch (error) {
           if (!requireCleanStop || !(error instanceof DesktopHostUncleanExitError)) throw error

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CLIENT_VIEW_IDLE_MS, decideClientUi, forbiddenWord, type ClientVisit, type OutlinePage } from '../src/client-view-policy.ts'
+import { CLIENT_VIEW_IDLE_MS, decideClientUi, decideWebUi, forbiddenWord, type ClientVisit, type OutlinePage } from '../src/client-view-policy.ts'
 
 const page: OutlinePage = {
   title: '查看工作台页面并截图 — DSH', heading: '工作台', path: '/',
@@ -49,7 +49,7 @@ describe('client_ui approval rules', () => {
     expect(decideClientUi({ action: 'click', ref: 'e4' }, me, visit('s1'), now)).toMatchObject({ kind: 'deny' })
     expect(decideClientUi({ action: 'press', key: 'Enter' }, me, visit('s1'), now)).toMatchObject({ kind: 'deny' })
     expect(decideClientUi({ action: 'click', ref: 'e9' }, me, visit('s1'), now)).toMatchObject({ kind: 'deny', reason: expect.stringContaining('look again') })
-    expect(decideClientUi({ action: 'click', ref: 'e1' }, me, undefined, now)).toMatchObject({ kind: 'deny', reason: expect.stringContaining('Open the client view first') })
+    expect(decideClientUi({ action: 'click', ref: 'e1' }, me, undefined, now)).toMatchObject({ kind: 'deny', reason: expect.stringContaining('Open a page first') })
   })
 
   it('lets read-only conversations look but not operate or save', () => {
@@ -68,5 +68,39 @@ describe('client_ui approval rules', () => {
     expect(forbiddenWord('Sign Out')).toBe('sign out')
     expect(forbiddenWord('卸载插件')).toBe('卸载')
     expect(forbiddenWord('应用中心')).toBeUndefined()
+  })
+})
+
+describe('web_ui approval rules', () => {
+  const site = 'https://kb.example.com'
+  const webPage: OutlinePage = { ...page, origin: site, heading: '知识库' }
+  const web = (approved: string[], current = webPage): ClientVisit => ({ owner: 's1', lastUsed: now - 1000, page: current, approved: new Set(approved) })
+
+  it('asks once per website and lets the approved website be read', () => {
+    expect(decideWebUi({ action: 'open', url: `${site}/kb` }, me, undefined, now))
+      .toMatchObject({ kind: 'ask', display: { zh: expect.stringContaining(`查看网站 ${site}`) } })
+    expect(decideWebUi({ action: 'open', url: `${site}/other` }, me, web([site]), now)).toEqual({ kind: 'allow' })
+    expect(decideWebUi({ action: 'shot' }, me, web([site]), now)).toEqual({ kind: 'allow' })
+    expect(decideWebUi({ action: 'open', url: 'https://other.example.com' }, me, web([site]), now).kind).toBe('ask')
+  })
+
+  it('asks again before reading a page that moved to an unapproved origin, and refuses to operate it', () => {
+    const moved = web([site], { ...webPage, origin: 'https://sso.example.com' })
+    expect(decideWebUi({ action: 'look' }, me, moved, now)).toMatchObject({ kind: 'ask', reason: 'web_ui: view https://sso.example.com' })
+    expect(decideWebUi({ action: 'click', ref: 'e1' }, me, moved, now)).toMatchObject({ kind: 'deny', reason: expect.stringContaining('not approved') })
+  })
+
+  it('refuses bad addresses and reading before open', () => {
+    expect(decideWebUi({ action: 'open', url: 'file:///C:/secret.txt' }, me, undefined, now).kind).toBe('deny')
+    expect(decideWebUi({ action: 'open', url: 'https://user:pw@example.com' }, me, undefined, now).kind).toBe('deny')
+    expect(decideWebUi({ action: 'look' }, me, undefined, now)).toMatchObject({ kind: 'deny', reason: expect.stringContaining('Open a website first') })
+  })
+
+  it('asks before opening a sign-in window, and asks for every click with the website named', () => {
+    expect(decideWebUi({ action: 'login' }, me, web([site]), now)).toMatchObject({ kind: 'ask', display: { zh: expect.stringContaining(`登录网站 ${site}`) } })
+    expect(decideWebUi({ action: 'login' }, me, undefined, now).kind).toBe('deny')
+    expect(decideWebUi({ action: 'click', ref: 'e1' }, me, web([site]), now))
+      .toMatchObject({ kind: 'ask', display: { zh: `在网站 ${site} 点击「工作台」（button，页面：知识库）` } })
+    expect(decideWebUi({ action: 'click', ref: 'e2' }, me, web([site]), now).kind).toBe('deny')
   })
 })
