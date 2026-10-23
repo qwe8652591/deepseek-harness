@@ -81,12 +81,14 @@ export async function signInWorkbenchDesktop(deployment: WorkbenchDeployment, co
  * @param assertSender - rejects calls outside the product window's main frame.
  * @param restart - stops the Host and restarts admission after logout.
  * @param forgetLocal - erases account-scoped local browser storage after the server session is revoked.
+ * @param assertReader - rejects profile reads; may also admit read-only windows. Defaults to `assertSender`.
  */
 export function installWorkbenchAccountBridge(
   account: DesktopAccount, assertSender: (event: IpcMainInvokeEvent) => void, restart: () => Promise<void>,
   forgetLocal: () => Promise<void> = async () => {},
+  assertReader: (event: IpcMainInvokeEvent) => void = assertSender,
 ): void {
-  ipcMain.handle('workbench:account:get', (event) => { assertSender(event); return account.profile() })
+  ipcMain.handle('workbench:account:get', (event) => { assertReader(event); return account.profile() })
   ipcMain.handle('workbench:account:logout', async (event) => {
     assertSender(event)
     await account.logout()

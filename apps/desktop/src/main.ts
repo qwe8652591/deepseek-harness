@@ -374,6 +374,10 @@ async function main(): Promise<void> {
   let startup: Promise<void> | undefined
   let workspaceRecovery: Promise<void> | undefined
   let mainWindow: BrowserWindow | undefined
+  // Prototype (DSH_DESKTOP_CLIENT_VIEW=1): an offscreen copy of the application page for agents to read; it gets read-only IPC only.
+  let clientView: BrowserWindow | undefined
+  const isClientView = (event: { sender: Electron.WebContents }): boolean =>
+    clientView !== undefined && !clientView.isDestroyed() && event.sender === clientView.webContents
   let welcomeWindow: BrowserWindow | undefined
   let enteredWorkspace = false
   // NSIS passes --updated when it launches the application after installation.
@@ -459,6 +463,11 @@ async function main(): Promise<void> {
       || event.senderFrame === null || event.senderFrame !== mainWindow.webContents.mainFrame) {
       throw new Error('dsh desktop: rejected IPC from an unowned renderer')
     }
+  }
+  /** Read-only product IPC: the primary window, or the offscreen client view's main frame. */
+  const assertProductReader = (event: IpcMainInvokeEvent): void => {
+    if (isClientView(event) && event.senderFrame === clientView?.webContents.mainFrame) { assertDesktopSender(event, ['app']); return }
+    assertProductSender(event)
   }
   let navigation: { window: BrowserWindow; url: string; promise: Promise<void> } | undefined
   const navigateMain = (url: string): Promise<void> => {
@@ -758,7 +767,8 @@ async function main(): Promise<void> {
   })
 
   session.defaultSession.webRequest.onBeforeSendHeaders({ urls: ['ws://127.0.0.1/*', 'wss://127.0.0.1/*'] }, (details, callback) => {
-    if (hostUrl === undefined || hostCookie === undefined || details.webContentsId !== mainWindow?.webContents.id) {
+    if (hostUrl === undefined || hostCookie === undefined
+      || (details.webContentsId !== mainWindow?.webContents.id && details.webContentsId !== clientView?.webContents.id)) {
       callback({})
       return
     }
@@ -796,7 +806,8 @@ async function main(): Promise<void> {
     if (source === 'light' || source === 'dark' || source === 'system') nativeTheme.themeSource = source
   })
   ipcMain.handle(DESKTOP_IPC.localeBootstrap, async (event) => {
-    if (event.sender !== mainWindow?.webContents || event.senderFrame !== mainWindow.webContents.mainFrame
+    const owner = isClientView(event) ? clientView : mainWindow
+    if (event.sender !== owner?.webContents || event.senderFrame !== owner.webContents.mainFrame
       || new URL(event.senderFrame.url).origin !== new URL(applicationUrl).origin) {
       throw new Error('desktop welcome: rejected locale request from an unowned frame')
     }
@@ -815,11 +826,11 @@ async function main(): Promise<void> {
     refreshApplicationMenu()
   })
   ipcMain.handle(DESKTOP_IPC.updatesStatus, (event) => {
-    assertProductSender(event)
+    assertProductReader(event)
     return presentDesktopUpdate(updates.state)
   })
   ipcMain.handle(DESKTOP_IPC.deviceInfo, (event) => {
-    assertProductSender(event)
+    assertProductReader(event)
     return readDeviceInfo()
   })
   // The page has already asked the user in its own dialog (for example after a plugin update that needs a
@@ -1184,6 +1195,24 @@ async function main(): Promise<void> {
     })
     return window
   }
+  // Prototype: never shown; it renders offscreen and stays on the application origin.
+  const openClientView = (): void => {
+    if (process.env.DSH_DESKTOP_CLIENT_VIEW !== '1' || clientView !== undefined || quitting) return
+    const view = new BrowserWindow({
+      show: false, width: 1440, height: 900,
+      webPreferences: {
+        preload: appPreload, nodeIntegration: false, contextIsolation: true, sandbox: true, webSecurity: true,
+        webviewTag: false, offscreen: true,
+        ...(workbenchAccount === undefined ? {} : { additionalArguments: ['--workbench-platform-account'] }), devTools: true,
+      },
+    })
+    view.webContents.setFrameRate(10)
+    view.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+    view.webContents.on('will-navigate', (event, url) => { if (!url.startsWith(applicationUrl)) event.preventDefault() })
+    view.on('closed', () => { if (clientView === view) clientView = undefined })
+    clientView = view
+    void view.loadURL(applicationUrl).catch((error: unknown) => { console.error('client view: load failed', error) })
+  }
   const enterWorkspace = async ({ activate = true }: { activate?: boolean } = {}): Promise<void> => {
     if (quitting) return
     const window = mainWindow ?? createMainWindow()
@@ -1192,6 +1221,7 @@ async function main(): Promise<void> {
     if (activate) window.show()
     else window.showInactive()
     enteredWorkspace = true
+    openClientView()
     if (welcomeWindow !== undefined) {
       welcomeWindow.close()
       window.webContents.send(DESKTOP_IPC.enterWorkspace)
@@ -1409,7 +1439,7 @@ async function main(): Promise<void> {
   // Signing out, here or anywhere else (unified sign-out), also erases this account's app panel storage;
   // an expired session alone keeps it for the same account.
   if (activeWorkbenchAccount !== undefined) installWorkbenchAccountBridge(activeWorkbenchAccount, assertProductSender, restartWorkbench,
-    () => browserGuests.clearAccountStorage())
+    () => browserGuests.clearAccountStorage(), assertProductReader)
   workbenchAccountPoll.timer = activeWorkbenchAccount === undefined ? undefined : setInterval(() => {
     if (checkingWorkbenchAccount || quitting) return
     checkingWorkbenchAccount = true
