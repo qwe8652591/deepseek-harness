@@ -281,7 +281,8 @@ export class DesktopAccount {
   async logout(): Promise<void> {
     const issuer = this.user?.issuer
     const response = await this.request('/auth/logout', { method: 'POST' })
-    // Sign-out ends every session of the account. A 502 still means this session ended; only other sessions may linger.
+    // Sign-out ends only this device's session (the gateway answers 303 to its signed-out page, which is not opened).
+    // Older gateways ended every session of the account; a 502 there still means this session ended.
     if (response.status !== 303 && response.status !== 401 && response.status !== 502) throw new Error(this.messages.accountLogoutFailed)
     if (response.status === 502) console.error('Unified sign-out did not reach the identity provider; this device is signed out')
     await this.forget()

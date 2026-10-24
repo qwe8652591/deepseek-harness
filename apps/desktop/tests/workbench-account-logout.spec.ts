@@ -63,6 +63,16 @@ describe('DesktopAccount.logout', () => {
     expect(await account.restore()).toBe(false)
   })
 
+  it('signs out only this device when the gateway answers with its signed-out page', async () => {
+    logoutLocation = origin + '/auth/signed-out'
+    const openBrowser = vi.fn(async () => {})
+    const account = await signedIn(openBrowser)
+    await expect(account.logout()).resolves.toBeUndefined()
+    expect(openBrowser).not.toHaveBeenCalled()
+    expect(account.profile()).toBeNull()
+    expect(await account.restore()).toBe(false)
+  })
+
   it('opens the issuer end-session URL so the browser clears its sign-in session', async () => {
     logoutLocation = issuer() + '/protocol/openid-connect/logout?client_id=desktop'
     const openBrowser = vi.fn(async () => {})
@@ -97,7 +107,7 @@ describe('DesktopAccount.verify', () => {
     me = { status: 401, body: { error: 'Signed out everywhere' } }
     const signedOut = account.verify()
     await expect(signedOut).rejects.toBeInstanceOf(AccountSignedOutError)
-    await expect(signedOut).rejects.toThrow('已在其它设备或应用中退出登录')
+    await expect(signedOut).rejects.toThrow('这个账号已在别处选择「退出所有设备」')
     expect(account.profile()).toBeNull()
     expect(await account.restore()).toBe(false)
   })

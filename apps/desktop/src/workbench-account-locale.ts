@@ -36,7 +36,7 @@ const en = {
   accountLoginTimeout: 'Sign-in timed out. Please try again.',
   accountSignInAgain: 'Please sign in again.',
   accountSessionExpired: 'Your session expired. Please sign in again.',
-  accountSignedOutElsewhere: 'You signed out on another device or app. Please sign in again.',
+  accountSignedOutElsewhere: 'This account was signed out of all devices. Please sign in again.',
   accountUnavailable: 'The account service is unavailable. Please try again later.',
   accountLogoutFailed: 'Sign-out failed. Check your connection and try again.',
 }
@@ -77,7 +77,7 @@ const zh: typeof en = {
   accountLoginTimeout: '登录等待超时，请重试。',
   accountSignInAgain: '请重新登录。',
   accountSessionExpired: '登录已过期，请重新登录。',
-  accountSignedOutElsewhere: '已在其它设备或应用中退出登录，请重新登录。',
+  accountSignedOutElsewhere: '这个账号已在别处选择「退出所有设备」，请重新登录。',
   accountUnavailable: '账号服务暂时不可用，请稍后重试。',
   accountLogoutFailed: '退出登录失败，请检查网络后重试。',
 }
