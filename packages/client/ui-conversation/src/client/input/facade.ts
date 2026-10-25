@@ -15,9 +15,9 @@ import {
 } from '@deepseek-ai/dsh-client-store'
 import type { LexicalEditor } from 'lexical'
 import type {
-  CommandClaim, ConsumeTokenRequest, DraftAttachmentId, DraftInitializationOptions, DraftInitializationResult,
+  CommandClaim, ConsumeTokenRequest, DraftAttachmentId, DraftContextItem, DraftInitializationOptions, DraftInitializationResult,
   InputActions, InputEffect, InputNotice, InputState, InputTriggerController, PickOutcome,
-  SessionInput, SubmitAttempt, SubmitAttachment, SubmitOutcome,
+  SessionInput, SetContextRequest, SubmitAttempt, SubmitAttachment, SubmitOutcome,
 } from '../contract/input.ts'
 import type {
   ArbitrateKey, ArbitrateOutcome, ComposerKeyboard, DraftInput, DraftSnapshot, Occurrence, ReferenceInsert, TokenSpan,
@@ -104,6 +104,7 @@ interface DetachedDraft {
   readonly draft: string
   readonly occurrences: readonly Occurrence[]
   readonly attachmentIds: readonly DraftAttachmentId[]
+  readonly context: readonly DraftContextItem[]
 }
 
 /**
@@ -147,6 +148,8 @@ export class SessionInputShell implements SessionInput {
   private lastPublishedDraft: DraftSnapshot | undefined
   private draftSnapshotCache: { revision: number; value: DraftSnapshot } | undefined
   private attachmentIds: readonly DraftAttachmentId[] = []
+  /** Draft context items; a default send takes them with the text. */
+  private context: readonly DraftContextItem[] = []
   private disposed = false
   /** Conversation store writer for the current semantic document. */
   private persistDraft: ((draft: DraftSnapshot) => void) | undefined
@@ -291,9 +294,11 @@ export class SessionInputShell implements SessionInput {
   requestDraftInitialization(options: DraftInitializationOptions): DraftInitializationResult {
     if (this.draftInitializationBlocked()) return 'blocked'
     if (options.prompt === undefined && options.clearPreviousDraft !== true) return 'preserved'
-    if (options.clearPreviousDraft !== true && (this.snapshot.draft !== '' || this.attachmentIds.length > 0)) {
+    if (options.clearPreviousDraft !== true
+      && (this.snapshot.draft !== '' || this.attachmentIds.length > 0 || this.context.length > 0)) {
       return 'preserved'
     }
+    if (this.context.length > 0) this.context = []
     this.setDraft(options.prompt ?? '')
     return 'applied'
   }
@@ -323,6 +328,26 @@ export class SessionInputShell implements SessionInput {
     if (this.snapshot.phase === 'adjudicating' || this.snapshot.phase === 'submitting') return false
     if (!this.draftEditor.insertFileReferences(references)) return false
     this.attachmentIds = [...this.attachmentIds, ...ids]
+    this.publish()
+    return true
+  }
+
+  /**
+   * Put or remove one draft context item while admission is editable. A put
+   * replaces the item in the same source and key slot in place.
+   * @param request - source, slot and item; no item removes the slot.
+   * @returns false when admission is locked, after disposal, or when a removal finds no item.
+   */
+  setContext(request: SetContextRequest): boolean {
+    if (this.disposed || this.snapshot.phase === 'adjudicating' || this.snapshot.phase === 'submitting') return false
+    const index = this.context.findIndex(item => item.source === request.source && item.key === request.key)
+    if (request.item === undefined) {
+      if (index < 0) return false
+      this.context = this.context.filter((_item, i) => i !== index)
+    } else {
+      const item: DraftContextItem = { source: request.source, key: request.key, ref: request.item.ref, label: request.item.label }
+      this.context = index < 0 ? [...this.context, item] : this.context.map((current, i) => i === index ? item : current)
+    }
     this.publish()
     return true
   }
@@ -736,27 +761,29 @@ export class SessionInputShell implements SessionInput {
     this.notifySubmission(attempt.submission)
     const attachmentIds = [...this.attachmentIds]
     this.attachmentIds = []
+    const context = this.context
+    this.context = []
     const occurrences = this.projection.occurrences
-    const record = { draft, occurrences, attachmentIds }
+    const record = { draft, occurrences, attachmentIds, context }
     this.detachedDrafts.set(attempt.seq, record)
     if (this.failedRestoreRev === this.rev) {
       this.failedDetached.clear()
       this.failedRestoreRev = undefined
     }
-    if (occurrences.length === 0) {
+    if (occurrences.length === 0 && context.length === 0) {
       this.settleSink(attempt, this.deps.defaultSink(draft.trim(), attachmentIds, mode, attempt.signal))
       return
     }
     const inputTriggers = this.deps.inputTriggers?.()
-    void Promise.all(occurrences.map(async (o) => {
-      if (inputTriggers === undefined) throw new Error(`no serializer for reference source "${o.source}"`)
-      return {
-        offset: o.offset,
-        length: o.length,
-        text: await inputTriggers.serializeReference(o.source, o.ref, attempt.signal),
-      }
-    })).then(
-      (parts) => {
+    const serialize = async (source: string, ref: string): Promise<string> => {
+      if (inputTriggers === undefined) throw new Error(`no serializer for reference source "${source}"`)
+      return inputTriggers.serializeReference(source, ref, attempt.signal)
+    }
+    void Promise.all([
+      Promise.all(context.map(item => serialize(item.source, item.ref))),
+      Promise.all(occurrences.map(async o => ({ offset: o.offset, length: o.length, text: await serialize(o.source, o.ref) }))),
+    ]).then(
+      ([lines, parts]) => {
         if (this.disposed) return
         // Splice model forms over their clipboard ranges (offsets are
         // clipboard-projection; parts arrive offset-sorted since chips walk in
@@ -768,7 +795,9 @@ export class SessionInputShell implements SessionInput {
           cursor = part.offset + part.length
         }
         out += draft.slice(cursor)
-        this.settleSink(attempt, this.deps.defaultSink(out.trim(), attachmentIds, mode, attempt.signal))
+        // Context lines precede the text, one per item, separated from it by a blank line.
+        const text = [lines.join('\n'), out.trim()].filter(part => part !== '').join('\n\n')
+        this.settleSink(attempt, this.deps.defaultSink(text, attachmentIds, mode, attempt.signal))
       },
       (error: unknown) => {
         if (this.dead(attempt)) return
@@ -811,6 +840,7 @@ export class SessionInputShell implements SessionInput {
     if (record === undefined) return
     this.detachedDrafts.delete(attempt.seq)
     this.restoreAttachments(record.attachmentIds)
+    this.restoreContext(record.context)
     this.failedDetached.set(attempt.seq, record)
     if (this.projection.clipboardText === '' || this.failedRestoreRev === this.rev) {
       this.restoreFailedDrafts()
@@ -841,6 +871,15 @@ export class SessionInputShell implements SessionInput {
     } finally {
       this.restoringFailures = false
     }
+  }
+
+  /** Return failed-send context items to slots still empty; an item put since the send keeps its slot. */
+  private restoreContext(context: readonly DraftContextItem[]): void {
+    const restored = context.filter(item =>
+      !this.context.some(current => current.source === item.source && current.key === item.key))
+    if (restored.length === 0) return
+    this.context = [...restored, ...this.context]
+    this.publish()
   }
 
   /** Return failed-send attachments to the head of the rail; release happens only after success. */
@@ -930,6 +969,7 @@ export class SessionInputShell implements SessionInput {
       phase: core.phase,
       ...(core.claim !== undefined ? { claim: core.claim } : {}),
       occurrences: this.projection.occurrences,
+      context: this.context,
       queue: this.deps.inbox?.getSnapshot()?.['next-turn'] ?? EMPTY_QUEUE,
     }
   }

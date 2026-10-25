@@ -73,6 +73,31 @@ export interface InsertReferenceRequest {
   readonly span: TokenSpan
 }
 
+/**
+ * One item a reference source keeps beside the draft text, such as a picked
+ * template shown as a card. A default send serializes each item through its
+ * source's reference codec and puts the lines before the message text, then
+ * empties the list; a failed send restores it. Command submits leave it alone.
+ */
+export interface DraftContextItem {
+  /** Reference source whose codec serializes the item. */
+  readonly source: string
+  /** Source-local slot; the draft holds at most one item per source and key. */
+  readonly key: string
+  /** Source-local reference id handed to `serializeReference` at submit. */
+  readonly ref: string
+  /** Display label. */
+  readonly label: string
+}
+
+/** Scoped request to put or remove one draft context item. */
+export interface SetContextRequest {
+  readonly source: string
+  readonly key: string
+  /** Reference and label of the item; absent removes the slot. */
+  readonly item?: { readonly ref: string; readonly label: string }
+}
+
 /** Scoped request to consume a command token after business settlement. */
 export interface ConsumeTokenRequest {
   readonly guard:
@@ -162,6 +187,12 @@ declare module '@deepseek-ai/cordis' {
      * @mode bail
      */
     'slash/input-insert-text'(request: InsertTextRequest): true | undefined
+    /**
+     * Put or remove one draft context item beside the draft text.
+     * @param request - source, slot and item.
+     * @mode bail
+     */
+    'slash/input-set-context'(request: SetContextRequest): true | undefined
   }
 }
 
@@ -291,6 +322,8 @@ export interface InputState {
   readonly claim?: { readonly name: string; readonly token: string; readonly hint?: string; readonly attachments?: boolean }
   /** Reference occurrence view of the editor's chips, sorted by offset. */
   readonly occurrences: readonly Occurrence[]
+  /** Draft context items in insertion order; absent in states built outside the input shell. */
+  readonly context?: readonly DraftContextItem[]
   /** Messages still waiting for their own turn. */
   readonly queue: InboxState['next-turn']
 }
