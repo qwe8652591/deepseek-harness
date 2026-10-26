@@ -6,7 +6,7 @@ import { installDesktopActivation, revealDesktopWindow } from './window-activati
 import { createHash } from 'node:crypto'
 import { readFile, writeFile } from 'node:fs/promises'
 import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   app,
@@ -43,6 +43,7 @@ import { DesktopCommandManager } from './command-management.ts'
 import { serveWebDocument, authenticateWebHost, forwardWebRequest } from './web-document.ts'
 import { DesktopFatalRecovery } from './fatal-recovery.ts'
 import { pruneCrashReports, RendererConsoleTail, writeCrashReport, type CrashReportSource } from './crash-report.ts'
+import { defaultStaleShortcutEnvironment, removeStaleShortcuts } from './stale-shortcuts.ts'
 import { openWelcomeWindow } from './welcome-window.ts'
 import { WELCOME_IPC, needsWelcome, type WelcomeNotice } from './welcome-api.ts'
 import { connectDesktopWelcome, type DesktopWelcomeBackend } from './welcome-backend.ts'
@@ -1320,6 +1321,12 @@ async function main(): Promise<void> {
 
   const launchProtocol = desktopProduct === undefined ? 'dsh' : PRODUCT_PROTOCOL
   if (app.isPackaged || process.env.DSH_DESKTOP_DEV_APP === '1') app.setAsDefaultProtocolClient(launchProtocol)
+  // A product rename installs `<new name>.exe`; shortcuts named after the old executable stay behind and no longer open.
+  if (app.isPackaged && process.platform === 'win32') {
+    void removeStaleShortcuts(dirname(process.execPath), [app.getPath('desktop'), join(app.getPath('appData'), 'Microsoft', 'Windows', 'Start Menu', 'Programs')],
+      defaultStaleShortcutEnvironment(path => shell.readShortcutLink(path)))
+      .catch((error: unknown) => { console.error('desktop: stale shortcut cleanup failed', error) })
+  }
   app.on('open-url', (event, url) => {
     event.preventDefault()
     if (url === `${launchProtocol}://open` || url === `${launchProtocol}://open/`) focusPrimaryWindow()
