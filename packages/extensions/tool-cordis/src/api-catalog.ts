@@ -4841,7 +4841,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'AskUserQuestionIntent',
-    declaration: 'export type AskUserQuestionIntent = {\n    kind: \'plan-review\';\n    approve: string;\n    callId?: ToolCallId;\n};',
+    declaration: 'export type AskUserQuestionIntent = {\n    kind: \'plan-review\';\n    approve: string;\n    callId?: ToolCallId;\n} | {\n    kind: \'card\';\n    type: string;\n    data: QuestionCardData;\n};',
   },
   {
     name: 'AskUserQuestionItem',
@@ -6650,6 +6650,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'QueueAction',
     declaration: 'export type QueueAction = {\n    readonly kind: \'edit\';\n    readonly content: readonly TextBlock[];\n} | {\n    readonly kind: \'remove\';\n} | {\n    readonly kind: \'steer\';\n};',
+  },
+  {
+    name: 'QuestionCardData',
+    declaration: 'export interface QuestionCardData {\n    readonly [key: string]: QuestionCardValue;\n}',
+  },
+  {
+    name: 'QuestionCardValue',
+    declaration: 'export type QuestionCardValue = null | boolean | number | string | readonly QuestionCardValue[] | QuestionCardData;',
   },
   {
     name: 'ReadFileLine',

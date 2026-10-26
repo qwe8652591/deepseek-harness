@@ -5,7 +5,9 @@ import UserQuestionService, {
   TIMED_WAIT_PARAMETER,
   UserQuestionError,
   type AskUserQuestionAnswer,
+  type AskUserQuestionIntent,
   type AskUserQuestionRequest,
+  type QuestionCardValue,
 } from '@deepseek-ai/dsh-user-questions'
 import { createToolResultMessage, createUserMessage, ToolCallId, type ToolSchema, type UserMessage } from '@deepseek-ai/dsh-llm'
 import { Session, SessionId, TOOL_OUTCOME_UNKNOWN } from '@deepseek-ai/dsh-session'
@@ -354,6 +356,45 @@ describe('UserQuestionService', () => {
       { id: 'plan-review', selected: ['Approve'] },
     ])
     expect(p.seen[0]?.questions[1]?.intent).toEqual(intent)
+  })
+
+  it('passes a card intent through without an approve label or detail', async () => {
+    const ctx = new Context()
+    await ctx.plugin(UserQuestionService)
+    const p = provider('Download')
+    registerAnswerer(ctx, p)
+    const intent = { kind: 'card', type: 'resource-packs', data: { packs: [{ id: 'piano', size: 1024 }] } } as const
+
+    const result = await ctx.userQuestions.ask({
+      questions: [{
+        id: 'packs', question: 'Download the missing packs?',
+        options: [{ label: 'Download' }, { label: 'Cancel' }], intent,
+      }],
+    })
+
+    expect(result.answers).toEqual([{ id: 'packs', selected: ['Download'] }])
+    expect(p.seen[0]?.questions[0]?.intent).toEqual(intent)
+  })
+
+  it('rejects a card intent without a type or an object of display data', async () => {
+    const ctx = new Context()
+    await ctx.plugin(UserQuestionService)
+    const p = { ask: vi.fn(async () => ({ answers: [] })) }
+    registerAnswerer(ctx, p)
+    const question = { id: 'packs', question: 'Download?', options: [{ label: 'Download' }] }
+
+    const intents: Array<{ kind: 'card'; type: string; data: QuestionCardValue }> = [
+      { kind: 'card', type: '', data: {} },
+      { kind: 'card', type: 'resource-packs', data: [] },
+      { kind: 'card', type: 'resource-packs', data: null },
+    ]
+    for (const intent of intents) {
+      await expect(ctx.userQuestions.ask({
+        // Untyped plugin callers can send these; the declared type cannot.
+        questions: [{ ...question, intent: intent as AskUserQuestionIntent }],
+      })).rejects.toMatchObject({ name: 'UserQuestionError', code: 'BAD_INTENT' })
+    }
+    expect(p.ask).not.toHaveBeenCalled()
   })
 })
 

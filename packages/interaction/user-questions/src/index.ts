@@ -31,8 +31,8 @@ import type {
 
 export type {
   AskUserQuestionAnswer, AskUserQuestionAnswerItem, AskUserQuestionIntent, AskUserQuestionItem,
-  AskUserQuestionOption, PendingUserQuestion, SettledUserQuestion, UserQuestionProjectionView,
-  UserQuestionState,
+  AskUserQuestionOption, PendingUserQuestion, QuestionCardData, QuestionCardValue, SettledUserQuestion,
+  UserQuestionProjectionView, UserQuestionState,
 } from './types.ts'
 export { isTimedAskUserQuestionSchema, TIMED_WAIT_PARAMETER } from './projection.ts'
 
@@ -303,6 +303,13 @@ export class UserQuestionService extends TypertRemoteService {
     for (const question of request.questions) {
       const intent = question.intent
       if (intent === undefined) continue
+      // A card only changes presentation; its answer is one of the question's own option labels.
+      if (intent.kind === 'card') {
+        if (intent.type === '' || typeof intent.data !== 'object' || intent.data === null || Array.isArray(intent.data)) {
+          throw new UserQuestionError(`question ${question.id} declares a card intent without a type or an object of display data`, 'BAD_INTENT')
+        }
+        continue
+      }
       if (!(question.options ?? []).some(option => option.label === intent.approve)) {
         throw new UserQuestionError(
           `question ${question.id} declares intent ${intent.kind} whose approve label `

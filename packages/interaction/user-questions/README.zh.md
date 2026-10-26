@@ -28,7 +28,7 @@ kind: "package-reference"
 
 对于单选题，`custom` 会覆盖选中的选项，且 `selected` 为空。对于多选题，`custom` 可以补充 `selected` 中的标签。UI 可以把跳过的条目保留为 `{ id, selected: [] }`，既维持现有回答形态，也保留该批次中的其他回答。
 
-问题可以携带呈现意图 `intent`，声明它就是某种已知决策，识别该标记的 UI 可以按该决策呈现；目前唯一的标记是 `plan-review`，其 `detail` 是待审阅的计划，`approve` 指明表示同意的选项。意图只改变呈现：遵循它的 UI 回答的选项标签与通用 UI 相同，不认识该标记的 UI 则渲染通用选项列表。`ask()` 会以 `BAD_INTENT` 拒绝两种类型无法表达的断言：`approve` 未命名该问题自己的任何选项，以及没有 `detail` 的问题声明了意图。`dsh-plan-mode` 在 `exit_plan_mode` 的审阅问题上设置它。
+问题可以携带呈现意图 `intent`，声明它就是某种已知决策，识别该标记的 UI 可以按该决策呈现。`plan-review` 表示计划审阅：`detail` 是计划，`approve` 指明表示同意的选项。`card` 指定一个由 Client 插件登记的卡片类型 `type`，并携带供它显示的 JSON 数据 `data`；两者的含义由提问方决定。意图只改变呈现：遵循它的 UI 回答的选项标签与通用 UI 相同，不认识该标记或卡片类型的 UI 则渲染通用选项列表。`ask()` 会以 `BAD_INTENT` 拒绝类型无法表达的断言：`plan-review` 的 `approve` 未命名该问题自己的任何选项或问题没有 `detail`，以及 `card` 的 `type` 为空或 `data` 不是 JSON 对象。`dsh-plan-mode` 在 `exit_plan_mode` 的审阅问题上设置它。
 
 请求包含 agent 时，`ask()` 会通过当前 `AgentRegistry` 验证该 agent 与注册表中的存活实例是同一对象，并且只允许运行时根调用。存活子级不能发起人机交互。不含 agent 的程序化请求仍会交给本地未限定 scope 的 waterfall listener，若无人接受则以 `NO_PROVIDER` 失败。
 

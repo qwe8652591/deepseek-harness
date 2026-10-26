@@ -32,7 +32,23 @@ export type AskUserQuestionIntent = {
   approve: string
   /** Logged tool invocation whose arguments contain the reviewed plan. */
   callId?: ToolCallId
+} | {
+  /**
+   * A card a Client plugin registered for `type` presents this question, using `data` for its display.
+   * The answer still selects option labels of this question, so a UI without that card renders the generic option list.
+   */
+  kind: 'card'
+  /** Card type a Client plugin registers; non-empty. */
+  type: string
+  /** Display data for the card, JSON only. */
+  data: QuestionCardData
 }
+
+/** A JSON value carried as card display data. */
+export type QuestionCardValue = null | boolean | number | string | readonly QuestionCardValue[] | QuestionCardData
+
+/** JSON object carried by a `card` presentation intent. */
+export interface QuestionCardData { readonly [key: string]: QuestionCardValue }
 
 /** One question in a user-questions request. */
 export interface AskUserQuestionItem {
