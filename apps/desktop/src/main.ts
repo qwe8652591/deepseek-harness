@@ -33,7 +33,7 @@ import { DesktopPlatformView, PLATFORM_IPC, platformBounds } from './platform-vi
 import { installDesktopDirectoryPicker } from './directory-picker.ts'
 import { installMicrophonePermissions } from './microphone-permissions.ts'
 import { DesktopBackendController } from './backend-controller.ts'
-import { DESKTOP_IPC, SCHEME, assertDesktopSender, type DesktopUpdateState } from './ipc.ts'
+import { DESKTOP_IPC, SCHEME, assertDesktopSender, readRestartAcknowledgement, type DesktopUpdateState } from './ipc.ts'
 import { readDeviceInfo } from './device-info.ts'
 import { brandDesktopLocale, desktopUpdateReadyConfirmation, formatDesktopMessage, resolveDesktopLocale, resolveDesktopStartupLocale } from './locale.ts'
 import { claimDesktopSingleInstance } from './single-instance.ts'
@@ -844,13 +844,18 @@ async function main(): Promise<void> {
     assertProductSender(event)
     return readDeviceInfo()
   })
-  // The page has already asked the user in its own dialog (for example after a plugin update that needs a
-  // restart). Restarting is a quit, so it goes through the usual quit confirmation: running work is never
-  // interrupted silently, and with nothing running no second box appears.
-  ipcMain.handle(DESKTOP_IPC.restartRequest, async (event) => {
+  ipcMain.handle(DESKTOP_IPC.restartTasks, async (event) => {
     assertProductSender(event)
+    return quitConfirmation.tasks()
+  })
+  // The page has already asked the user in its own dialog (for example after a plugin update that needs a
+  // restart). Restarting is a quit: running work is never interrupted silently. A page that showed the
+  // restartTasks result in its dialog skips the native box unless new kinds of work started since.
+  ipcMain.handle(DESKTOP_IPC.restartRequest, async (event, value: unknown) => {
+    assertProductSender(event)
+    const acknowledged = readRestartAcknowledgement(value)
     if (quitting) return false
-    if (!await quitConfirmation.confirm()) return false
+    if (!await (acknowledged === undefined ? quitConfirmation.confirm() : quitConfirmation.confirmAcknowledged(acknowledged))) return false
     app.relaunch()
     quitWithoutConfirmation()
     return true

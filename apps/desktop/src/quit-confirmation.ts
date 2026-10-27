@@ -59,19 +59,47 @@ export class DesktopQuitConfirmation {
   }
 
   /**
+   * Report what quitting now would interrupt, for a page that warns about it in its own dialog.
+   * @returns both false while no Host is ready; a failed or late inspection counts as running tasks.
+   */
+  async tasks(): Promise<DesktopQuitInspection> {
+    const inspection = await this.inspect()
+    return inspection === 'unknown' ? { activeTasks: true, scheduledTasks: false } : inspection
+  }
+
+  /**
+   * Decide a quit the page already confirmed after showing `acknowledged` from {@link tasks}. The quit proceeds
+   * without a native box when the current work is covered by what the user saw; work of a kind that appeared
+   * after the page looked goes through {@link confirm}.
+   * @param acknowledged - The work the page told the user would be interrupted.
+   * @returns true to quit now, false when the user cancelled or the confirmation was disposed.
+   */
+  async confirmAcknowledged(acknowledged: DesktopQuitInspection): Promise<boolean> {
+    const current = await this.tasks()
+    if (this.disposed) return false
+    const covered = (!current.activeTasks || acknowledged.activeTasks) && (!current.scheduledTasks || acknowledged.scheduledTasks)
+    return covered ? true : this.confirm()
+  }
+
+  /**
    * The application is quitting through a path that does not ask: a pending decision resolves to
    * false without opening a box, and later requests do the same. An already open native box has no
    * close API and disappears with the process.
    */
   dispose(): void { this.disposed = true }
 
-  private async decide(): Promise<boolean> {
+  /** One Host inspection; nothing can be running while no Host is ready. */
+  private async inspect(): Promise<DesktopQuitInspection | 'unknown'> {
     const inspection = this.options.inspect()
-    if (inspection === undefined) return true
-    const prompt = resolveDesktopQuitPrompt(await inspection.catch((error: unknown) => {
+    if (inspection === undefined) return { activeTasks: false, scheduledTasks: false }
+    return inspection.catch((error: unknown) => {
       console.warn('desktop quit: task inspection unavailable', error)
       return 'unknown' as const
-    }))
+    })
+  }
+
+  private async decide(): Promise<boolean> {
+    const prompt = resolveDesktopQuitPrompt(await this.inspect())
     if (this.disposed) return false
     if (prompt === undefined) return true
     const { messages } = this.options.locale()

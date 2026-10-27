@@ -874,6 +874,26 @@ describe('desktop main startup', () => {
     expect(harness.app.relaunch).toHaveBeenCalledOnce()
   })
 
+  it('reports running work to the page and restarts without a native box when the page already warned about it', async () => {
+    const host = await readyWorkspace()
+    const sender = harness.windows[0]!.webContents
+    const tasks = harness.handlers.get(DESKTOP_IPC.restartTasks)!
+    const restart = harness.handlers.get(DESKTOP_IPC.restartRequest)!
+    await expect(tasks({ sender: {}, senderFrame: sender.mainFrame })).rejects.toThrow('unowned renderer')
+    host.inspectQuit.mockResolvedValue({ activeTasks: true, scheduledTasks: false })
+    await expect(tasks({ sender, senderFrame: sender.mainFrame })).resolves.toEqual({ activeTasks: true, scheduledTasks: false })
+    await expect(restart({ sender, senderFrame: sender.mainFrame }, { activeTasks: 'yes' })).rejects.toThrow('restart acknowledgement')
+    // Work started after the page looked: the native confirmation still asks.
+    harness.dialog.showMessageBox.mockResolvedValueOnce({ response: 1, checkboxChecked: false })
+    await expect(restart({ sender, senderFrame: sender.mainFrame }, { activeTasks: false, scheduledTasks: false })).resolves.toBe(false)
+    expect(harness.dialog.showMessageBox).toHaveBeenCalledOnce()
+    expect(harness.app.relaunch).not.toHaveBeenCalled()
+    harness.dialog.showMessageBox.mockClear()
+    await expect(restart({ sender, senderFrame: sender.mainFrame }, { activeTasks: true, scheduledTasks: false })).resolves.toBe(true)
+    expect(harness.dialog.showMessageBox).not.toHaveBeenCalled()
+    expect(harness.app.relaunch).toHaveBeenCalledOnce()
+  })
+
   it.each(['darwin', 'win32', 'linux'] as const)('limits native titlebar styling to macOS on %s', async (platform) => {
     vi.spyOn(process, 'platform', 'get').mockReturnValue(platform)
     await import('../src/main.ts')

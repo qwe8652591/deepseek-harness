@@ -98,6 +98,29 @@ describe('DesktopQuitConfirmation', () => {
     expect(f.focus).not.toHaveBeenCalled()
   })
 
+  it('reports the work a restart would interrupt, counting a failed inspection as running tasks', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    expect(await setup('win32', async () => ({ activeTasks: false, scheduledTasks: true })).confirmation.tasks())
+      .toEqual({ activeTasks: false, scheduledTasks: true })
+    expect(await setup('win32', () => undefined).confirmation.tasks()).toEqual({ activeTasks: false, scheduledTasks: false })
+    expect(await setup('win32', async () => { throw new Error('desktop quit: inspection timed out') }).confirmation.tasks())
+      .toEqual({ activeTasks: true, scheduledTasks: false })
+  })
+
+  it('skips the native box when the page already told the user about all current work, and asks for anything new', async () => {
+    let current: DesktopQuitInspection = { activeTasks: true, scheduledTasks: false }
+    const f = setup('win32', async () => current)
+    expect(await f.confirmation.confirmAcknowledged({ activeTasks: true, scheduledTasks: true })).toBe(true)
+    expect(f.shown).toEqual([])
+    // A task started after the page looked: the usual native confirmation asks.
+    current = { activeTasks: true, scheduledTasks: true }
+    f.answer(1)
+    expect(await f.confirmation.confirmAcknowledged({ activeTasks: true, scheduledTasks: false })).toBe(false)
+    expect(f.shown.map(options => options.detail)).toEqual(['当前正在运行的任务将会中断，且应用关闭期间，定时任务不会运行'])
+    f.confirmation.dispose()
+    expect(await f.confirmation.confirmAcknowledged({ activeTasks: true, scheduledTasks: true })).toBe(false)
+  })
+
   it('does not approve a quit from a box answered after disposal', async () => {
     const answered = Promise.withResolvers<MessageBoxReturnValue>()
     const confirmation = new DesktopQuitConfirmation({

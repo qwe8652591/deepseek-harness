@@ -2,7 +2,7 @@
 
 import type { DesktopShortcutInput, ShortcutConfigSnapshot, ShortcutSaveResult } from '@deepseek-ai/dsh-client-shortcuts/protocol'
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
-import { DESKTOP_IPC, SCHEME, type DshDesktopProductApi, type DesktopUpdatePresentation } from './ipc.ts'
+import { DESKTOP_IPC, SCHEME, type DshDesktopProductApi, type DesktopRestartTasks, type DesktopUpdatePresentation } from './ipc.ts'
 import { PLATFORM_IPC } from './platform-ipc.ts'
 import { markDocumentPlatform, syncWindowFullscreen } from './preload-platform.ts'
 import { syncNativeTheme } from './preload-theme.ts'
@@ -16,7 +16,8 @@ function createProductApi(): DshDesktopProductApi {
     activate: () => ipcRenderer.invoke(DESKTOP_IPC.activate) as Promise<void>,
     browser: createDesktopBrowserBridge(),
     deviceInfo: () => ipcRenderer.invoke(DESKTOP_IPC.deviceInfo) as Promise<string>,
-    restart: () => ipcRenderer.invoke(DESKTOP_IPC.restartRequest) as Promise<boolean>,
+    restartTasks: () => ipcRenderer.invoke(DESKTOP_IPC.restartTasks) as Promise<DesktopRestartTasks>,
+    restart: acknowledged => ipcRenderer.invoke(DESKTOP_IPC.restartRequest, acknowledged) as Promise<boolean>,
     keyboard: {
       closeWindow: revision => ipcRenderer.invoke(DESKTOP_IPC.shortcutsCloseWindow, revision) as Promise<void>,
       subscribe: (listener) => {

@@ -24,6 +24,7 @@ export const DESKTOP_IPC = {
   directoryPick: 'dsh-desktop:directory-pick',
   deviceInfo: 'dsh-desktop:device-info',
   restartRequest: 'dsh-desktop:restart-request',
+  restartTasks: 'dsh-desktop:restart-tasks',
   localeBootstrap: 'dsh-desktop:locale-bootstrap',
   localeChanged: 'dsh-desktop:locale-changed',
   updatesStatus: 'dsh-desktop:updates-status',
@@ -71,6 +72,26 @@ export interface DesktopUpdatePresentation {
 }
 
 /** Product documents cannot supply update versions, package URLs, or installation authorization. */
+/** Work a restart would interrupt: running tasks, and scheduled tasks that do not run while the app is closed. */
+export interface DesktopRestartTasks {
+  readonly activeTasks: boolean
+  readonly scheduledTasks: boolean
+}
+
+/**
+ * Read the `acknowledged` argument of a restart request sent by a page.
+ * @param value - The IPC argument.
+ * @returns undefined when absent.
+ * @throws {TypeError} when present without both boolean fields.
+ */
+export function readRestartAcknowledgement(value: unknown): DesktopRestartTasks | undefined {
+  if (value === undefined) return undefined
+  if (typeof value !== 'object' || value === null) throw new TypeError('invalid restart acknowledgement')
+  const { activeTasks, scheduledTasks } = value as Partial<Record<keyof DesktopRestartTasks, unknown>>
+  if (typeof activeTasks !== 'boolean' || typeof scheduledTasks !== 'boolean') throw new TypeError('invalid restart acknowledgement')
+  return { activeTasks, scheduledTasks }
+}
+
 export interface DshDesktopProductApi {
   readonly protocolVersion: 1
   /**
@@ -87,12 +108,19 @@ export interface DshDesktopProductApi {
    */
   deviceInfo(): Promise<string>
   /**
+   * Report what a restart would interrupt now, so the page can say so in its own restart dialog.
+   * @returns running and scheduled work; an inspection that fails counts as running tasks.
+   */
+  restartTasks(): Promise<DesktopRestartTasks>
+  /**
    * Restart the application after the page has asked the user in its own dialog, for a change that only takes
-   * effect after a restart (such as a plugin update). Restarting is a quit: when work is running, the usual quit
-   * confirmation still asks first.
+   * effect after a restart (such as a plugin update). Restarting is a quit: without `acknowledged`, the usual native
+   * quit confirmation asks first when work is running. With it, no native box appears unless work of a kind the page
+   * did not mention is running now.
+   * @param acknowledged - The {@link restartTasks} result the page's dialog told the user would be interrupted.
    * @returns whether the application is restarting; false when the user kept running work going.
    */
-  restart(): Promise<boolean>
+  restart(acknowledged?: DesktopRestartTasks): Promise<boolean>
   readonly updates: {
     status(): Promise<DesktopUpdatePresentation>
     open(): Promise<void>
