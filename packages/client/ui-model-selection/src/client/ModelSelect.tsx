@@ -52,6 +52,31 @@ interface EffortChoice {
   label: string
 }
 
+/** The standard thinking levels the locale names; an adapter's other effort ids keep the adapter's name. */
+const STANDARD_EFFORTS = new Set(['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'])
+
+/**
+ * The menu's name for an effort level.
+ * @param effort - the adapter's level.
+ * @param t - the model namespace translator.
+ * @returns the localized name for a standard level, else the adapter's name.
+ */
+function effortName(effort: ModelReasoningEffort, t: PropsLocale<'model'>['t']): string {
+  return STANDARD_EFFORTS.has(effort.id) ? t(`effort.level.${effort.id}` as 'effort.level.off') : effort.name
+}
+
+/**
+ * The retained name shown while the catalog reloads: the directory keeps the adapter's name
+ * (pi-ai capitalizes the level id), so a standard level reads in the locale like the menu.
+ * @param name - the retained adapter name.
+ * @param t - the model namespace translator.
+ * @returns the localized name for a standard level, else the name.
+ */
+function retainedName(name: string, t: PropsLocale<'model'>['t']): string {
+  const id = name.toLowerCase()
+  return STANDARD_EFFORTS.has(id) ? t(`effort.level.${id}` as 'effort.level.off') : name
+}
+
 /** Unplaced portal card: hidden but laid out at a fixed origin so offsetWidth/offsetHeight are real (Menu primitive's measure pass). */
 const MEASURE_STYLE: CSSProperties = { visibility: 'hidden', left: 0, top: 0 }
 
@@ -130,10 +155,13 @@ export function ModelSelect(
   const effortLabel = currentChoice === undefined
     ? undefined
     : reasoning === undefined
-      ? state.retainedEffort
+      ? state.retainedEffort === undefined ? undefined : retainedName(state.retainedEffort, t)
       : effectiveEffort === undefined
         ? t('effort.providerDefault')
-        : reasoning.efforts.find(level => level.id === effectiveEffort)?.name ?? effectiveEffort
+        : (() => {
+          const level = reasoning.efforts.find(item => item.id === effectiveEffort)
+          return level === undefined ? effectiveEffort : effortName(level, t)
+        })()
   const effortChoices = useMemo<readonly EffortChoice[]>(() => reasoning === undefined
     ? []
     : [
@@ -143,7 +171,7 @@ export function ModelSelect(
       ...reasoning.efforts.map((effort: ModelReasoningEffort) => ({
         key: `effort:${effort.id}`,
         effort: effort.id,
-        label: effort.name,
+        label: effortName(effort, t),
       })),
     ], [reasoning, t])
   const { pending } = state

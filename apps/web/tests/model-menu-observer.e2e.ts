@@ -148,7 +148,7 @@ describe.skipIf(webSnapshotMode() === 'record').each([
     for (const entry of ['button', 'command'] as const) {
       const composer = page.locator('[data-composer-input]').first()
       const surface = entry === 'button'
-        ? page.getByRole('group', { name: '模型与推理等级', exact: true })
+        ? page.getByRole('group', { name: '模型与思考强度', exact: true })
         : page.locator('[aria-label="/model 选项"]')
       const viewport = entry === 'button'
         ? surface.getByRole('menu', { name: '模型', exact: true })
