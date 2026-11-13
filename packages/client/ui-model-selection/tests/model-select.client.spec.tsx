@@ -8,6 +8,7 @@ import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { ComponentProps } from 'react'
 import type { ModelDirectoryState } from '../src/client/directory.ts'
 import { ModelSelect } from '../src/client/ModelSelect.tsx'
+import type { ModelScopeSource } from '../src/client/scopes.ts'
 import { en, zh } from '../src/client/locales.ts'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 
@@ -989,4 +990,65 @@ it('restores the account model name after login without changing the saved route
   act(() => { directory.update((snapshot) => { snapshot.groups = groups; snapshot.routable = true }) })
   expect(screen.getByRole('button', { name: /选择模型，当前/ }).textContent).toBe('DeepSeek Flash高')
   expect(directory.getSnapshot().current).toEqual(selected)
+})
+
+describe('ModelSelect scopes', () => {
+  const routes = [
+    { id: 'deepseek-official', name: 'DeepSeek', models: [{ id: 'deepseek-v4-flash', name: 'DeepSeek-V4-Flash' }] },
+    { id: 'gateway', name: 'Gateway · Everyone', models: [{ id: 'preset/fast', name: 'Fast' }, { id: 'pro', name: 'Pro' }] },
+    { id: 'gateway-p1', name: 'Gateway · Park', models: [{ id: 'p/p1/pro', name: 'Pro' }, { id: 'p/p1/flash', name: 'Flash' }] },
+    { id: 'gateway-p2', name: 'Gateway · Bids', models: [{ id: 'p/p2/flash', name: 'Flash' }] },
+  ]
+  const names: Record<string, string> = { gateway: 'Everyone', 'gateway-p1': 'Park', 'gateway-p2': 'Bids' }
+  const source: ModelScopeSource = {
+    label: 'Billing project',
+    scopeOf: provider => provider.id.startsWith('gateway')
+      ? { id: provider.id, name: names[provider.id]!, ...provider.id === 'gateway' ? { detail: '991 left' } : {} }
+      : undefined,
+    groupName: () => 'Gateway',
+  }
+  const mount = (current: ModelSelection, registered: readonly ModelScopeSource[] = [source]) => {
+    const select = vi.fn<(selection: ModelSelection) => Promise<undefined>>(async () => undefined)
+    render(<ModelSelect renderSlot={renderLabel} locked={false} available
+      directory={createSnapshotStore(state({ current, groups: routes }))} scopes={createSnapshotStore(registered)}
+      load={vi.fn()} select={select} t={t} />)
+    fireEvent.click(screen.getByRole('button', { name: /选择模型，当前/ }))
+    fireEvent.click(screen.getByRole('menuitem', { name: /模型/ }))
+    return select
+  }
+  const rows = () => screen.getAllByRole('menuitemradio').map(row => [row.textContent, row.getAttribute('aria-checked')])
+
+  it('offers the scopes first and lists only the scope in use plus unowned routes', () => {
+    const select = mount({ provider: 'gateway-p1', model: 'p/p1/flash' })
+    expect({
+      scopes: screen.getByRole('group', { name: 'Billing project' }).textContent,
+      rows: rows(),
+      headings: ['Billing project', 'DeepSeek', 'Gateway', 'Gateway · Park'].map(name => screen.queryByRole('group', { name }) !== null),
+    }).toEqual({
+      scopes: 'Billing projectEveryone991 leftParkBids',
+      rows: [
+        ['Everyone991 left', 'false'], ['Park', 'true'], ['Bids', 'false'],
+        ['DeepSeek-V4-Flash', 'false'], ['Pro', 'false'], ['Flash', 'true'],
+      ],
+      // Owned routes are headed by the source's group name.
+      headings: [true, true, true, false],
+    })
+    // The same-named model in the other scope, else its first model.
+    fireEvent.click(screen.getByRole('menuitemradio', { name: /Bids/ }))
+    expect(select).toHaveBeenLastCalledWith({ provider: 'gateway-p2', model: 'p/p2/flash' })
+  })
+
+  it('switches to the first model when the target scope has no same-named one, and ignores the scope in use', () => {
+    const select = mount({ provider: 'gateway-p1', model: 'p/p1/pro' })
+    fireEvent.click(screen.getByRole('menuitemradio', { name: /Park/ }))
+    expect(select).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('menuitemradio', { name: /Bids/ }))
+    expect(select).toHaveBeenLastCalledWith({ provider: 'gateway-p2', model: 'p/p2/flash' })
+  })
+
+  it('shows every route as before without a source or with a single scope', () => {
+    mount({ provider: 'gateway', model: 'pro' }, [])
+    expect(screen.queryByRole('group', { name: 'Billing project' })).toBeNull()
+    expect(rows().length).toBe(6)
+  })
 })

@@ -20,6 +20,7 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { WeakMapWithValues } from '@deepseek-ai/dsh-util-values'
 import { ModelCatalogDirectory } from './catalog.ts'
 import { ModelDirectory } from './directory.ts'
+import { ModelScopes } from './scopes.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -39,6 +40,8 @@ export class ModelDirectoryResolver extends Service {
 
   private readonly live: LiveState = { directories: new WeakMapWithValues() }
   private readonly catalog: ModelCatalogDirectory
+  /** Plugin-registered scopes that group provider routes above the composer's model list. */
+  readonly scopes = new ModelScopes()
 
   /**
    * @param ctx - owning root context (the service registers itself as `models`).

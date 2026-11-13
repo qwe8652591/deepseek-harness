@@ -34,6 +34,8 @@ export { ModelDirectory } from './directory.ts'
 export type { ModelDirectoryState } from './directory.ts'
 export { ModelDirectoryResolver } from './service.ts'
 export type { ModelLabelOwner, ModelSelectInjected } from './slots.ts'
+export { ModelScopes } from './scopes.ts'
+export type { ModelScope, ModelScopeSource } from './scopes.ts'
 export type { ModelKey } from './locales.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
@@ -181,6 +183,7 @@ export function apply(ctx: ClientContext): void {
         return {
           available,
           directory: directory.store,
+          scopes: models.scopes.store,
           load: () => {
             if (available) directory.load().catch(() => { /* surfaced on the store */ })
           },

@@ -4,6 +4,8 @@ import type { ModelSelection } from '@deepseek-ai/dsh-api-remotes/client'
 import type { ModelCatalogModel, ModelProviderGroup } from '@deepseek-ai/dsh-api-session-controller/types'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { ModelDirectoryState } from './directory.ts'
+import type { ModelScopeSource } from './scopes.ts'
+import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
 
 /** Catalog data for a model name inside the composer's existing controls. */
 export interface ModelLabelOwner {
@@ -50,6 +52,8 @@ export interface ModelSelectInjected {
   directory: SnapshotStore<ModelDirectoryState>
   /** Ensure the shared advisory catalog is loaded (errors land on the store). */
   load: () => void
+  /** Plugin-registered scope sources (`ctx.modelDirectories.scopes`); the latest one decides. */
+  scopes?: ObservableSnapshot<readonly ModelScopeSource[]>
   /**
    * Select a complete provider/model/reasoning selection.
    * @param selection - model selection and optional adapter-owned effort.

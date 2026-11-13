@@ -41,6 +41,8 @@ import type { PropsLocale, PropsRenderSlots, PropsRuntime } from '@deepseek-ai/d
 import type { ModelLabelOwner, ModelSelectInjected } from './slots.ts'
 import css from './ModelSelect.module.css'
 import { orderModelProviders } from './provider-order.ts'
+import { scopeView, type ModelScopeSource } from './scopes.ts'
+import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 
 /** Which pane the dropdown shows: the two-row root or one drilled-in list. */
 type Pane = 'root' | 'model' | 'effort'
@@ -77,6 +79,9 @@ function retainedName(name: string, t: PropsLocale<'model'>['t']): string {
   return STANDARD_EFFORTS.has(id) ? t(`effort.level.${id}` as 'effort.level.off') : name
 }
 
+/** No plugin scopes registered (seats mounted without the registry). */
+const NO_SCOPES = createSnapshotStore<readonly ModelScopeSource[]>([])
+
 /** Unplaced portal card: hidden but laid out at a fixed origin so offsetWidth/offsetHeight are real (Menu primitive's measure pass). */
 const MEASURE_STYLE: CSSProperties = { visibility: 'hidden', left: 0, top: 0 }
 
@@ -87,13 +92,18 @@ const MEASURE_STYLE: CSSProperties = { visibility: 'hidden', left: 0, top: 0 }
  * @returns the trigger and, while open, the two-level menu.
  */
 export function ModelSelect(
-  { locked, available, directory, load, select, t, renderSlot }:
+  { locked, available, directory, scopes, load, select, t, renderSlot }:
   ModelSelectInjected & Pick<PropsRuntime<'conversation.input.model'>, 'locked'> & PropsLocale<'model'>
     & Omit<PropsRenderSlots<'conversation.input.model.label'>, 'SessionProvider'>,
 ) {
   const state = useSyncExternalStore(
     fn => directory.subscribe(fn),
     () => directory.getSnapshot(),
+  )
+  const scopeStore = scopes ?? NO_SCOPES
+  const scopeSources = useSyncExternalStore(
+    fn => scopeStore.subscribe(fn),
+    () => scopeStore.getSnapshot(),
   )
   const [open, setOpen] = useState(false)
   const [pane, setPane] = useState<Pane>('root')
@@ -136,10 +146,16 @@ export function ModelSelect(
           : { reasoningEffort: model.reasoning.defaultEffort },
       } satisfies ModelSelection,
     }))), [groups])
+  // Scopes (a plugin's grouping of routes, e.g. billing projects): with two or more, the pane offers
+  // them first and lists only the scope in use; unowned routes stay listed.
+  const scoped = useMemo(
+    () => scopeView(groups, scopeSources.at(-1), state.current?.provider),
+    [groups, scopeSources, state.current?.provider],
+  )
   const showSearch = choices.length > 4
-  const filteredGroups = useMemo(() => groups.map(group => ({
-    ...group, models: rankByName(group.models, showSearch ? query.trim() : ''),
-  })).filter(group => group.models.length > 0), [groups, query, showSearch])
+  const filteredGroups = useMemo(() => scoped.groups.map(item => ({
+    ...item.group, heading: item.heading, models: rankByName(item.group.models, showSearch ? query.trim() : ''),
+  })).filter(group => group.models.length > 0), [scoped, query, showSearch])
   const visibleModels = useMemo(() => filteredGroups.flatMap(group => group.models.map(model => ({
     provider: group.id, model: model.id,
   }))), [filteredGroups])
@@ -433,6 +449,23 @@ export function ModelSelect(
     submit(selection)
   }
 
+  /** Switch scope: the same-named model there when it has one, else its first model. */
+  const chooseScope = (scopeId: string): void => {
+    if (scoped.active === scopeId) return
+    const targets = groups.filter(group => scopeSources.at(-1)?.scopeOf(group.provider)?.id === scopeId)
+    const sameName = currentChoice === undefined
+      ? undefined
+      : targets.flatMap(group => group.models.map(model => ({ group, model }))).find(item => item.model.name === currentChoice.model.name)
+    const first = targets.flatMap(group => group.models.slice(0, 1).map(model => ({ group, model })))[0]
+    const target = sameName ?? first
+    if (target === undefined) return
+    submit({
+      provider: target.group.id,
+      model: target.model.id,
+      ...target.model.reasoning?.defaultEffort === undefined ? {} : { reasoningEffort: target.model.reasoning.defaultEffort },
+    })
+  }
+
   const chooseEffort = (effort: string | undefined): void => {
     if (state.current === null) return
     if (effectiveEffort === effort) {
@@ -553,6 +586,30 @@ export function ModelSelect(
 
           {pane === 'model' && (
             <>
+              {scoped.scopes.length > 0 && (
+                <div className={css.scopes}>
+                  <MenuGroup label={scoped.label ?? ''}>
+                    {scoped.scopes.map(scope => (
+                      <button
+                        type="button"
+                        role="menuitemradio"
+                        aria-checked={scope.id === scoped.active}
+                        className={clsx(css.option, css.scopeOption, scope.id === scoped.active && css.selected)}
+                        key={scope.id}
+                        title={scope.name}
+                        disabled={busy}
+                        data-model-scope={scope.id}
+                        onClick={() => { chooseScope(scope.id) }}
+                      >
+                        <span className={css.optionCopy}>
+                          <span className={css.modelName}>{scope.name}</span>
+                        </span>
+                        {scope.detail !== undefined && <span className={css.scopeDetail}>{scope.detail}</span>}
+                      </button>
+                    ))}
+                  </MenuGroup>
+                </div>
+              )}
               {showSearch && <div className={css.searchRow}>
                 <Input
                   ref={searchRef}
@@ -607,7 +664,7 @@ export function ModelSelect(
               >
                 {filteredGroups.map((group) => {
                   return (
-                    <MenuGroup key={group.id} label={group.provider.name}>
+                    <MenuGroup key={group.id} label={group.heading}>
                       {group.models.map((model) => {
                         const index = modelIndex++
                         const selected = state.current?.provider === group.id && state.current.model === model.id
