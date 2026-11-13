@@ -605,6 +605,7 @@ export function ModelSelect(
                           <span className={css.modelName}>{scope.name}</span>
                         </span>
                         {scope.detail !== undefined && <span className={css.scopeDetail}>{scope.detail}</span>}
+                        <span className={css.check}>{scope.id === scoped.active ? <IconCheckOutlineRegular /> : null}</span>
                       </button>
                     ))}
                   </MenuGroup>
