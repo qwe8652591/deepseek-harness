@@ -156,7 +156,7 @@ describe('desktop package target', () => {
   it('records whether a product build is signed so only self-hosted feeds publish unsigned installers', () => {
     const root = mkdtempSync(join(tmpdir(), 'dsh-release-record-'))
     try {
-      const applications = ['workbench', 'workbench-market', 'workbench-md-editor', 'workbench-visio', 'workbench-drawio', 'workbench-ppt', 'workbench-image-generation', 'workbench-annotation', 'workbench-templates']
+      const applications = ['workbench', 'workbench-market', 'workbench-md-editor', 'workbench-visio', 'workbench-drawio', 'workbench-ppt', 'workbench-image-generation', 'workbench-annotation', 'workbench-templates', 'workbench-ssh-connect']
       writeFileSync(join(root, 'plugin.tgz'), 'archive')
       const integrity = 'sha512-' + createHash('sha512').update('archive').digest('base64')
       const productFile = join(root, 'blue.json')

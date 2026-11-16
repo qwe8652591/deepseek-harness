@@ -15,7 +15,7 @@ async function directory() {
   roots.push(root)
   return root
 }
-const applications = ['workbench', 'workbench-market', 'workbench-md-editor', 'workbench-visio', 'workbench-drawio', 'workbench-ppt', 'workbench-image-generation', 'workbench-annotation', 'workbench-templates']
+const applications = ['workbench', 'workbench-market', 'workbench-md-editor', 'workbench-visio', 'workbench-drawio', 'workbench-ppt', 'workbench-image-generation', 'workbench-annotation', 'workbench-templates', 'workbench-ssh-connect']
 function product(profile: 'orange' | 'blue' = 'orange'): DesktopProduct {
   return parseDesktopProduct({ schemaVersion: 1, profile, appId: 'com.workbench.dsh', productName: profile,
     repository: 'aiko-dsh-plugins/deepseek-harness', channel: 'beta',

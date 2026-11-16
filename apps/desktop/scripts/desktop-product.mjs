@@ -12,7 +12,7 @@ const themes = { orange: 'workbench-theme-orange', blue: 'workbench-theme-blue' 
 export const productInstall = Object.freeze({ appId: 'com.workbench.dsh', name: 'workbench-dsh-desktop', protocol: 'workbench-dsh' })
 // Workbench embeds the knowledge foundation; Tender, Code and the knowledge apps install from its app center.
 // The Markdown editor, Visio, draw.io, PPT, image generation, annotation and templates plugins are first-party tools every product ships enabled.
-const applications = ['workbench', 'workbench-market', 'workbench-md-editor', 'workbench-visio', 'workbench-drawio', 'workbench-ppt', 'workbench-image-generation', 'workbench-annotation', 'workbench-templates']
+const applications = ['workbench', 'workbench-market', 'workbench-md-editor', 'workbench-visio', 'workbench-drawio', 'workbench-ppt', 'workbench-image-generation', 'workbench-annotation', 'workbench-templates', 'workbench-ssh-connect']
 const official = ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', '@deepseek-ai/dsh-experimental-agent-team-profile']
 const object = value => typeof value === 'object' && value !== null && !Array.isArray(value)
 

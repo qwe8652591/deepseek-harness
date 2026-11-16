@@ -14,7 +14,7 @@ afterEach(async () => { gh.mockReset(); for (const root of roots.splice(0)) awai
 async function fixture(brand = 'orange', releases?: string) {
   const root = await mkdtemp(join(tmpdir(), 'dsh-product-release-'))
   roots.push(root)
-  const applications = ['workbench', 'workbench-market', 'workbench-md-editor', 'workbench-visio', 'workbench-drawio', 'workbench-ppt', 'workbench-image-generation', 'workbench-annotation', 'workbench-templates']
+  const applications = ['workbench', 'workbench-market', 'workbench-md-editor', 'workbench-visio', 'workbench-drawio', 'workbench-ppt', 'workbench-image-generation', 'workbench-annotation', 'workbench-templates', 'workbench-ssh-connect']
   const product = { schemaVersion: 1, profile: brand, appId: 'com.workbench.dsh', productName: brand,
     ...releases === undefined ? { repository: 'aiko-dsh-plugins/deepseek-harness' } : { releases }, channel: 'beta',
     bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', '@deepseek-ai/dsh-experimental-agent-team-profile', ...applications, `workbench-theme-${brand}`],
