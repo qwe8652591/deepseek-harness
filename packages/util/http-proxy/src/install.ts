@@ -174,17 +174,11 @@ async function createPolicyDispatcher(policy: ProxyPolicy): Promise<Dispatcher> 
 async function installGlobalProxy(policy: ProxyPolicy): Promise<() => Promise<void>> {
   const previousPolicy = active
   if (policy.source === 'none') {
-    // A direct policy mounted over an installed one must actually stop proxying. Recording the policy
-    // alone would leave the previous agent as the global dispatcher, so a plain `fetch()` would keep
-    // tunnelling while `proxyForUrl()` reported a direct connection — and `mode: 'off'` would be a
-    // silent no-op. With nothing installed there is nothing to displace.
-    if (previousPolicy === undefined) {
-      active = policy
-      return () => {
-        active = previousPolicy
-        return Promise.resolve()
-      }
-    }
+    // A direct policy still installs this package's undici as the global dispatcher. Without it a
+    // plain `fetch()` uses the undici bundled with Node, whose 7.x parser throws an uncaught
+    // `assert(!this.paused)` — exiting the process — when a server ends an unread body by closing the
+    // connection. Mounted over an installed policy, the direct agent also stops proxying, so a plain
+    // `fetch()` and `proxyForUrl()` agree and `mode: 'off'` takes effect.
     const previousInstalled = installed
     // The install underneath published its normalized policy into `process.env`, which is what a
     // spawned child copies. With no policy active there is no normalization to stand behind, so the
