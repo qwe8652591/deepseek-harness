@@ -359,6 +359,7 @@ describe('PiAiAdapter provider routing', () => {
   it.each([
     ['DeepSeek', 'Invalid max_tokens value, the valid range of max_tokens is [1, 393216]', 393_216],
     ['Volcengine Ark', 'The parameter `max_tokens` specified in the request are not valid: integer above maximum value, expected a value <= 131072, but got 500000 instead.', 131_072],
+    ['Volcengine Ark (max_completion_tokens)', 'The parameter `max_completion_tokens` specified in the request are not valid: integer above maximum value, expected a value <= 262144, but got 500000 instead.', 262_144],
   ])('resends at the output ceiling a %s rejection names, and sends it from then on', async (_provider, rejection, ceiling) => {
     const server = await mockServer([
       { status: 400, body: JSON.stringify({ error: { message: rejection, type: 'invalid_request_error' } }) },

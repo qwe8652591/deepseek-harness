@@ -11,8 +11,8 @@
 const CEILING_PATTERNS: readonly RegExp[] = [
   // DeepSeek: `Invalid max_tokens value, the valid range of max_tokens is [1, 393216]`
   /valid range of max_tokens is \[\s*\d+\s*,\s*(\d+)\s*\]/i,
-  // Volcengine Ark: `The parameter `max_tokens` ... expected a value <= 131072, but got 393216 instead.`
-  /\bmax_tokens\b[^\n]*?expected a value <= (\d+)/i,
+  // Volcengine Ark, for either field: `The parameter `max_completion_tokens` ... expected a value <= 131072, but got 995901 instead.`
+  /\bmax_(?:completion_)?tokens\b[^\n]*?expected a value <= (\d+)/i,
 ]
 
 /**
