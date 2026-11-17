@@ -60,6 +60,7 @@ import type { AttachmentStore, ImageAttachmentRef } from '@deepseek-ai/dsh-attac
 import { idleWatchdog, timeoutOf } from '@deepseek-ai/dsh-timeout'
 import type { ResolvedPiAiProviderProfile } from './config.ts'
 import { requestImageTarget, toPiContext } from './context.ts'
+import { rejectedOutputCeiling } from './output-ceiling.ts'
 import { conversationUpdates, createModels, getSupportedThinkingLevels } from './models.ts'
 import { toStreamChunks } from './stream.ts'
 
@@ -224,12 +225,29 @@ function requestHeaders(headers: Readonly<Record<string, string>> | undefined): 
 }
 
 /**
+ * The output ceiling a request rejection names.
+ * @param chunk - the first chunk after an attempt's leading usage.
+ * @returns the provider's `max_tokens` ceiling when the chunk is an invalid-request error naming
+ *   one, otherwise `undefined`.
+ */
+function outputCeilingRejectedBy(chunk: StreamChunk): number | undefined {
+  if (chunk.type !== 'finish' || chunk.reason.kind !== 'error' || chunk.reason.failure.code !== 'INVALID_REQUEST') return undefined
+  return rejectedOutputCeiling(chunk.reason.failure.message)
+}
+
+/**
  * pi-ai-backed multi-provider adapter. Each operation reads the current
  * profiles, so a configuration change reaches the next request without a
  * restart; model descriptors come from the collection those profiles built.
  */
 export class PiAiAdapter extends LlmAdapter {
   private snapshot: PiAiSnapshot | undefined
+  /**
+   * Output ceilings that providers named when rejecting a larger `max_tokens`, keyed by provider
+   * and model. Each holds for this adapter's lifetime: later requests to that model send at most
+   * the ceiling instead of being rejected again.
+   */
+  private readonly outputCeilings = new Map<string, number>()
 
   constructor(private readonly config: PiAiAdapterOptions) {
     super()
@@ -413,35 +431,69 @@ export class PiAiAdapter extends LlmAdapter {
             maxBytes: profile.requestImageMaxBytes,
           },
         }, onReplayDegrade)
-      const events = snapshot.models.streamSimple(model, context, {
-        ...profileOptions(profile, reasoning, apiKey),
-        ...options.temperature === undefined ? {} : { temperature: options.temperature },
-        ...options.maxTokens === undefined ? {} : { maxTokens: options.maxTokens },
-        ...options.sessionId === undefined ? {} : { sessionId: String(options.sessionId) },
-        signal: watchdog.signal,
-        // Profile headers are deployment-owned; attribution names are
-        // Harness-owned and therefore win collisions.
-        headers: requestHeaders(profile.headers),
-      })
-      const iterator = toStreamChunks(events, model.contextWindow, options.signal, model.id)[Symbol.asyncIterator]()
-      let exhausted = false
-      try {
-        while (true) {
-          const result = await watchdog.next(iterator)
-          if (result.done) {
-            exhausted = true
-            return
+      const ceilingKey = `${options.provider}\u0000${model.id}`
+      // At most two attempts: the second runs only when the provider rejected the first for an
+      // output size above a ceiling its error names, and sends that ceiling.
+      for (let attempt = 0; ; attempt += 1) {
+        const ceiling = this.outputCeilings.get(ceilingKey)
+        const requestModel = ceiling === undefined || ceiling >= model.maxTokens ? model : { ...model, maxTokens: ceiling }
+        const maxTokens = ceiling === undefined || options.maxTokens === undefined
+          ? options.maxTokens
+          : Math.min(options.maxTokens, ceiling)
+        const events = snapshot.models.streamSimple(requestModel, context, {
+          ...profileOptions(profile, reasoning, apiKey),
+          ...options.temperature === undefined ? {} : { temperature: options.temperature },
+          ...maxTokens === undefined ? {} : { maxTokens },
+          ...options.sessionId === undefined ? {} : { sessionId: String(options.sessionId) },
+          signal: watchdog.signal,
+          // Profile headers are deployment-owned; attribution names are
+          // Harness-owned and therefore win collisions.
+          headers: requestHeaders(profile.headers),
+        })
+        const iterator = toStreamChunks(events, model.contextWindow, options.signal, model.id)[Symbol.asyncIterator]()
+        let exhausted = false
+        // Usage chunks ahead of the first other chunk, held until that chunk shows the attempt was
+        // not rejected for its output size; a resent attempt reports only its own usage.
+        const leading: StreamChunk[] = []
+        let leadingOpen = attempt === 0
+        let resend = false
+        try {
+          while (true) {
+            const result = await watchdog.next(iterator)
+            if (result.done) {
+              exhausted = true
+              break
+            }
+            const chunk = result.value
+            if (leadingOpen) {
+              if (chunk.type === 'usage') {
+                leading.push(chunk)
+                continue
+              }
+              leadingOpen = false
+              const named = outputCeilingRejectedBy(chunk)
+              if (named !== undefined && named !== ceiling) {
+                this.outputCeilings.set(ceilingKey, named)
+                resend = true
+                // The rejection is the attempt's terminal chunk.
+                exhausted = true
+                break
+              }
+              yield* leading
+            }
+            yield chunk
           }
-          yield result.value
+        } finally {
+          if (!exhausted) {
+            consumer.abort('pi-ai stream consumer stopped')
+            // A demand the deadline abandoned can stay pending forever, and this
+            // generator queues its return behind it; the abort above owns SDK termination.
+            /* v8 ignore next -- the detached drain only rejects while unwinding an abandoned stream. */
+            void iterator.return(undefined).catch(() => {})
+          }
         }
-      } finally {
-        if (!exhausted) {
-          consumer.abort('pi-ai stream consumer stopped')
-          // A demand the deadline abandoned can stay pending forever, and this
-          // generator queues its return behind it; the abort above owns SDK termination.
-          /* v8 ignore next -- the detached drain only rejects while unwinding an abandoned stream. */
-          void iterator.return(undefined).catch(() => {})
-        }
+        // toStreamChunks ends every attempt with a finish chunk, so no held usage remains here.
+        if (!resend) return
       }
     } catch (error: unknown) {
       if (timeoutOf(watchdog.signal, 'LLM_STREAM_IDLE_TIMEOUT') !== undefined) {

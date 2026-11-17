@@ -118,6 +118,8 @@ profile 的 `models` 列表会替换而非扩展路由的已安装目录；每�
 
 pi-ai 不提供的路由需要 `api`、`baseURL` 与非空 `models` 列表；无法服务的 profile 会在写入处被拒绝，并点名路由与模型。失败携带稳定 code：无法使用的凭据以 `INVALID_CREDENTIAL` 失败并点名路由与引用，`apiKeyEnv` 引用解析为空的路由以 `MISSING_CREDENTIAL` 失败，未配置模型以 `UNKNOWN_MODEL` 失败，终止性提供方失败则区分 `QUOTA` 与暂时性 `RATE_LIMIT`。`GenerateOptions.stop` 以 `UNSUPPORTED_OPTION` 被拒绝，因为 pi-ai 的通用流式 UI 无法跨提供方保证它。
 
+提供方以 `max_tokens` 过大拒绝请求、并在错误文本里写明自身上限时，同一请求会在任何 chunk 交给调用方之前按该上限再发一次；适配器为该路由与模型记住这个上限，之后的请求直接发送它。因此路由可以不给输出设上限——`defaultMaxTokens` 不小于其上下文窗口，由 pi-ai 截到剩余上下文——每个模型仍以其提供方允许的最大值作答。目前只识别 DeepSeek 与火山方舟的措辞；其他拒绝保持 `INVALID_REQUEST` 失败。
+
 Config 更新严格验证发生变化的 provider。初始加载将已存储的目录故障保留为可编辑的 provider 诊断；未更改的故障 provider 不阻止其他编辑。可用模型仍可选择，无法解析的模型在网络 I/O 前失败。修复或删除问题配置会清除其诊断。
 
 只修改 `displayName`、`apiKeyEnv` 或 `baseURL` 而未解决提供方的模型配置错误时，保存仍会被拒绝。例如，OpenRouter 路由的模型 `111` 缺少 `api` 时，不能单独保存路由名称的修改：需要在同一份编辑草稿中修复或删除该模型，再保存完整的提供方配置。中间修复状态保留在草稿中，直到整条提供方配置通过校验；其他提供方可以独立保存。
@@ -154,6 +156,7 @@ Config 更新严格验证发生变化的 provider。初始加载将已存储的�
 | [`src/provider.ts`](src/provider.ts) | 受支持协议表与提供方构建 |
 | [`src/context.ts`](src/context.ts) | Harness 到 pi-ai 的上下文转换、图片处理、回放恢复 |
 | [`src/stream.ts`](src/stream.ts) | 把 pi-ai 事件转换为 harness `StreamChunk` 值 |
+| [`src/output-ceiling.ts`](src/output-ceiling.ts) | 从提供方的 `max_tokens` 拒绝中读出输出上限 |
 | [`src/replay.ts`](src/replay.ts) | 带版本的 `ReplayEnvelope` 存储与校验 |
 | [`src/discovery.ts`](src/discovery.ts) | 面向配置界面的端点询问 |
 
