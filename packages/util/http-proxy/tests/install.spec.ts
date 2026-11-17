@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process'
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
+import { fileURLToPath } from 'node:url'
 import { afterEach, beforeAll, afterAll, describe, expect, it } from 'vitest'
 import { getGlobalDispatcher } from 'undici'
 import {
@@ -171,19 +172,29 @@ describe('installProxyFromEnvironment', () => {
     await expect((await fetch(originUrl)).text()).resolves.toBe('DIRECT')
   })
 
-  it('installs no dispatcher and touches no environment when the user exported none', async () => {
+  it('installs a direct dispatcher and touches no environment when the user exported none', async () => {
     const before = getGlobalDispatcher()
     process.env.HTTP_PROXY = 'http://untouched.example'
     const { dispose, reported } = await install(env({}))
     try {
-      expect(getGlobalDispatcher()).toBe(before)
+      expect(getGlobalDispatcher()).not.toBe(before)
       expect(process.env.HTTP_PROXY).toBe('http://untouched.example')
       expect(reported).toEqual([])
       expect(proxyRouteFor(new URL(proxyTarget))).toEqual({ proxied: false })
+      await expect((await fetch(originUrl)).text()).resolves.toBe('DIRECT')
     } finally {
       await dispose()
       delete process.env.HTTP_PROXY
     }
+    expect(getGlobalDispatcher()).toBe(before)
+  })
+
+  it('lets a fresh process read a body the server delimits by closing the connection', () => {
+    // A fresh process, because importing `undici` in this spec already replaced the built-in
+    // dispatcher; the fixture reaches `fetch` the way a profile does, with nothing imported first.
+    const fixture = fileURLToPath(new URL('fixtures/close-delimited-fetch.ts', import.meta.url))
+    const run = spawnSync(process.execPath, [fixture], { encoding: 'utf8', env: { ...process.env, ...clearedProxyEnv() } })
+    expect({ status: run.status, stdout: run.stdout, stderr: run.stderr }).toEqual({ status: 0, stdout: '50000', stderr: '' })
   })
 
   it('keeps a scheme direct when the policy refused the proxy the user named for it', async () => {

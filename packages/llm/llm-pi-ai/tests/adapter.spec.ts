@@ -356,6 +356,38 @@ describe('PiAiAdapter provider routing', () => {
     expect(server.paths).toEqual(['/v1/responses'])
   })
 
+  it.each([
+    ['DeepSeek', 'Invalid max_tokens value, the valid range of max_tokens is [1, 393216]', 393_216],
+    ['Volcengine Ark', 'The parameter `max_tokens` specified in the request are not valid: integer above maximum value, expected a value <= 131072, but got 500000 instead.', 131_072],
+    ['Volcengine Ark (max_completion_tokens)', 'The parameter `max_completion_tokens` specified in the request are not valid: integer above maximum value, expected a value <= 262144, but got 500000 instead.', 262_144],
+  ])('resends at the output ceiling a %s rejection names, and sends it from then on', async (_provider, rejection, ceiling) => {
+    const server = await mockServer([
+      { status: 400, body: JSON.stringify({ error: { message: rejection, type: 'invalid_request_error' } }) },
+      { events: textEvents },
+      { events: textEvents },
+    ])
+    const ctx = await harness(server.url)
+
+    const first = await assemble(ctx, { model: 'deepseek-v4-pro', messages: [], maxTokens: 500_000 })
+    const second = await assemble(ctx, { model: 'deepseek-v4-pro', messages: [], maxTokens: 500_000 })
+
+    expect(first.finish).toEqual({ kind: 'stop' })
+    expect(second.finish).toEqual({ kind: 'stop' })
+    expect(server.requests.map(request => (request as { max_tokens?: number }).max_tokens)).toEqual([500_000, ceiling, ceiling])
+  })
+
+  it('reports a rejection that names no output ceiling without resending', async () => {
+    const server = await mockServer([
+      { status: 400, body: JSON.stringify({ error: { message: 'messages must not be empty', type: 'invalid_request_error' } }) },
+    ])
+    const ctx = await harness(server.url)
+
+    const result = await assemble(ctx, { model: 'deepseek-v4-pro', messages: [], maxTokens: 500_000 })
+
+    expect(result.finish).toMatchObject({ kind: 'error', failure: { code: 'INVALID_REQUEST' } })
+    expect(server.requests).toHaveLength(1)
+  })
+
   it('uses OpenAI Responses against an Azure project v1 path with its API key header', async () => {
     const server = await mockServer([{ status: 401, body: JSON.stringify({ error: { message: 'expected mock failure' } }) }])
     const ctx = new Context()
