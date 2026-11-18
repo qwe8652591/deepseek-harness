@@ -19,6 +19,13 @@ import { cjkFriendlyStrong } from './cjkFriendlyStrong.ts'
 import { mathCompatibility } from './mathCompatibility.ts'
 
 /**
+ * GFM options: only `~~double~~` tildes strike through. With single tildes on
+ * (micromark's default), Chinese ranges such as `3~5 gpm … 3~6 gpm` pair up
+ * and the text between them renders struck out with the tildes swallowed.
+ */
+const GFM_OPTIONS = { singleTilde: false } as const
+
+/**
  * Parse GFM markdown (the streaming arm's grammar: no math, so incomplete
  * TeX never flashes KaTeX errors mid-stream).
  * @param text - Markdown source.
@@ -26,7 +33,7 @@ import { mathCompatibility } from './mathCompatibility.ts'
  */
 export function parseGfm(text: string): Root {
   return recoverLocalImages(fromMarkdown(text, {
-    extensions: [gfm(), cjkFriendlyStrong()],
+    extensions: [gfm(GFM_OPTIONS), cjkFriendlyStrong()],
     mdastExtensions: [gfmFromMarkdown()],
   }), text)
 }
@@ -39,7 +46,7 @@ export function parseGfm(text: string): Root {
  */
 export function parseGfmWithMath(text: string): Root {
   return recoverLocalImages(fromMarkdown(text, {
-    extensions: [gfm(), cjkFriendlyStrong(), mathCompatibility(), math()],
+    extensions: [gfm(GFM_OPTIONS), cjkFriendlyStrong(), mathCompatibility(), math()],
     mdastExtensions: [gfmFromMarkdown(), mathFromMarkdown()],
   }), text)
 }
