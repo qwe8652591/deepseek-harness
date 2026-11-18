@@ -147,3 +147,14 @@ it.each([parseGfm, parseGfmWithMath])('uses the shared image categories for bare
   }
   expect(JSON.stringify(parse('![report](/work/test dir/report.pdf)'))).not.toContain('"type":"image"')
 })
+
+it.each([parseGfm, parseGfmWithMath])('keeps single-tilde ranges literal and strikes through only double tildes', (parse) => {
+  const texts: string[] = []
+  const deleted: string[] = []
+  const walk = (node: { type: string; value?: string; children?: unknown[] }, inDelete = false): void => {
+    if (node.type === 'text' && node.value !== undefined) (inDelete ? deleted : texts).push(node.value)
+    for (const child of (node.children ?? []) as { type: string }[]) walk(child as never, inDelete || node.type === 'delete')
+  }
+  walk(parse('RMSE 约 3~5 gpm，试验二保持 3~6 gpm；~~作废~~。') as never)
+  expect([texts.join(''), deleted]).toEqual(['RMSE 约 3~5 gpm，试验二保持 3~6 gpm；。', ['作废']])
+})
